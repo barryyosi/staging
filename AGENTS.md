@@ -192,6 +192,25 @@ Diff lines are syntax-highlighted using **highlight.js/lib/core** with selective
 
 **Graceful fallback:** Files with unrecognized extensions render as plain text (no highlighting attempted).
 
+### Sticky File Headers
+When scrolling through a long file diff, the file card header (filename, status badge, stats, actions) sticks below the 64px app header so the user always knows which file they're viewing. Pure CSS — no JavaScript.
+
+**Implementation (3 CSS changes in `src/style.css`):**
+- `#diff-container` — `overflow-x: clip` (was `auto`). Individual `.diff-file-body` elements handle their own horizontal scroll, so container-level scroll is unnecessary. `clip` avoids creating a scroll container that would break sticky.
+- `.diff-file` — `overflow: clip` (was `hidden`). Clips content for `border-radius` without creating a scroll container, allowing sticky to work through it.
+- `.diff-file-header` — `position: sticky; top: 64px; z-index: 10`. Sticks directly below the app header while its parent `.diff-file` is in view, then scrolls away naturally when the next file card appears.
+
+### Auto-Hiding Scrollbars
+Scrollbars are invisible by default and only appear during active scrolling, then fade out after ~800ms — matching macOS trackpad behavior. Pill-shaped (fully rounded) thumb.
+
+**CSS (`src/style.css`):**
+- WebKit: Thumb starts `background: transparent` with `transition: background 0.3s`. `.is-scrolling::-webkit-scrollbar-thumb` sets `background: var(--border-1)`.
+- Firefox: `scrollbar-width: thin; scrollbar-color: transparent transparent` on `*`. `.is-scrolling` overrides `scrollbar-color` to show the thumb.
+- `height: 6px` added to `::-webkit-scrollbar` for horizontal scrollbar support. Thumb uses `border-radius: 100px` for pill shape.
+
+**JS (`src/main.jsx`):**
+- A global IIFE registers a single `scroll` listener on `document` (capture phase). On scroll, adds `.is-scrolling` to `e.target`. A per-element timeout (stored in a `WeakMap`) removes the class after 800ms of inactivity. No per-component wiring needed.
+
 ## UI Style & Design Guidelines
 
 ### Design Philosophy

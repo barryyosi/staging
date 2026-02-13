@@ -1113,7 +1113,7 @@ body.is-resizing-comment-panel * {
 #diff-container {
   min-width: 0;
   padding: 12px 24px;
-  overflow-x: auto;
+  overflow-x: clip;
   background: var(--bg-body);
 }
 
@@ -1148,7 +1148,7 @@ body.is-resizing-comment-panel * {
   margin-bottom: 10px;
   border: none;
   border-radius: var(--radius-lg);
-  overflow: hidden;
+  overflow: clip;
   background: var(--bg-surface);
 }
 
@@ -1163,6 +1163,9 @@ body.is-resizing-comment-panel * {
   cursor: pointer;
   user-select: none;
   transition: background 0.15s var(--ease);
+  position: sticky;
+  top: 64px;
+  z-index: 10;
 }
 
 .diff-file-header:hover {
@@ -1927,6 +1930,7 @@ body.is-resizing-comment-panel * {
 /* === SCROLLBAR === */
 ::-webkit-scrollbar {
   width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -1934,12 +1938,28 @@ body.is-resizing-comment-panel * {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--border-1);
-  border-radius: 3px;
+  background: transparent;
+  border-radius: 100px;
+  transition: background 0.8s var(--ease);
 }
 
-::-webkit-scrollbar-thumb:hover {
+.is-scrolling::-webkit-scrollbar-thumb {
+  background: var(--border-1);
+  transition: background 0.15s var(--ease);
+}
+
+.is-scrolling::-webkit-scrollbar-thumb:hover {
   background: var(--text-3);
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.is-scrolling {
+  scrollbar-color: var(--border-1) transparent;
 }
 
 body.is-resizing-sidebar,
