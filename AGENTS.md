@@ -156,6 +156,15 @@ Per-hunk action buttons that appear on hover in the diff hunk header row, allowi
 
 **Edge cases:** Stale diff detection via `oldStart` cross-check; handles added files (`--- /dev/null`) and deleted files (`+++ /dev/null`); file disappears from diff after last hunk action (handled by `reloadDiffs()`).
 
+### Per-Project Comment Persistence
+Draft comments are stashed per project/worktree so they survive project switches and are restored when switching back.
+
+**Implementation:**
+- `src/hooks/useComments.js` — `useComments(projectKey)` accepts a project key (the `gitRoot` path). Internally maintains a `storeRef` (`Map<projectKey, commentsByFile>`) and a `prevKeyRef`. A `useEffect` on `projectKey` saves the current comments under the old key and restores the target key's comments (or `{}`). All existing functions (`addComment`, `updateComment`, `deleteComment`, `allComments`) are unchanged.
+- `src/App.jsx` — `gitRoot` state is declared before `useComments(gitRoot)` so the hook always receives the current project key. `switchProject()` clears `activeForm` and `editingComment` before reloading diffs, preventing stale comment forms from lingering after a switch.
+
+**Edge cases:** First load with empty `gitRoot` is a no-op; switching back restores comments from the map; rapid switching is safe because save/restore uses a functional `setCommentsByFile` updater.
+
 ## UI Style & Design Guidelines
 
 ### Design Philosophy

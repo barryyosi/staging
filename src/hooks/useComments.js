@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 
 let idCounter = 0;
 
@@ -6,8 +6,21 @@ function generateId() {
   return Date.now().toString(36) + (idCounter++).toString(36) + Math.random().toString(36).slice(2, 6);
 }
 
-export function useComments() {
+export function useComments(projectKey) {
   const [commentsByFile, setCommentsByFile] = useState({});
+  const storeRef = useRef(new Map());
+  const prevKeyRef = useRef(projectKey);
+
+  useEffect(() => {
+    const prevKey = prevKeyRef.current;
+    if (prevKey === projectKey) return;
+    prevKeyRef.current = projectKey;
+
+    setCommentsByFile((current) => {
+      if (prevKey) storeRef.current.set(prevKey, current);
+      return storeRef.current.get(projectKey) || {};
+    });
+  }, [projectKey]);
 
   const allComments = useMemo(
     () => Object.values(commentsByFile).flat(),

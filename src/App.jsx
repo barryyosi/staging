@@ -38,11 +38,12 @@ function mergeFileDetails(existing, files) {
 
 export default function App() {
   const { theme, toggleTheme } = useTheme();
-  const { commentsByFile, allComments, addComment, updateComment, deleteComment } = useComments();
+  const [gitRoot, setGitRoot] = useState('');
+  const { commentsByFile, allComments, addComment, updateComment, deleteComment } =
+    useComments(gitRoot);
 
   const [fileSummaries, setFileSummaries] = useState(null);
   const [fileDetailsByPath, setFileDetailsByPath] = useState({});
-  const [gitRoot, setGitRoot] = useState('');
   const [config, setConfig] = useState(null);
   const [projectInfo, setProjectInfo] = useState(null);
   const [error, setError] = useState(null);
@@ -417,6 +418,8 @@ export default function App() {
       }
       setProjectInfo(data);
       setError(null);
+      setActiveForm(null);
+      setEditingComment(null);
       await reloadDiffs();
     } catch (err) {
       showToast(`Failed to switch project: ${err.message}`, 'error');
