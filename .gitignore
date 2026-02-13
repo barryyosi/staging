@@ -1,1 +1,23 @@
+# Dependencies
+node_modules/
+
+# Build
+dist/
+
+# Environment / Local Config
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+
+# IDEs
+.vscode/
+.idea/
+
+# Logs
+npm-debug.log*
+
+# AI
 .claude/
