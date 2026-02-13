@@ -96,6 +96,28 @@ A breadcrumb-style navigator in the header: `[project ▾] / staging / [⑂ bran
 - `App.jsx` holds `projectInfo` state (fetched on mount from `/api/project-info`) and a `switchProject(path)` handler that POSTs to `/api/switch-project`, resets all diff state, and re-fetches everything.
 - `Header.jsx` receives `projectInfo` and `onSwitchProject` props and renders the `ProjectNavigator` in place of the standalone logo when project info is available.
 
+### File Navigator (Sidebar)
+The file sidebar (`FileSidebar.jsx`, replacing the old `FileList.jsx`) supports two view modes — **flat list** and **file-system tree** — plus a search bar for filtering.
+
+**View modes:**
+- **Flat list** (default): Same behavior as the original `FileList` — a flat list of staged file paths with status dots and stats.
+- **Tree view**: A recursive directory tree with collapsible folders. Directories sorted before files, both alphabetically. Toggled via icon buttons in the sidebar header (Material Symbols `list` / `account_tree`). View preference is persisted in `localStorage` as `staging-file-view`.
+
+**Search bar:**
+- Filters files by case-insensitive path substring match. Works in both views. In tree view, shows matching files and their ancestor directories (all auto-expanded).
+
+**"Show all files" toggle (tree view only):**
+- A checkbox toggle below the search bar. When enabled, fetches `GET /api/tracked-files` once and merges all tracked (non-staged) files into the tree. Non-staged files render with `opacity: 0.4`, no status dot, no stats, and are not clickable.
+
+**Backend:**
+- `lib/git.js` exports `getTrackedFiles(gitRoot)` — runs `git ls-files -z` and returns an array of all tracked file paths.
+- `lib/server.js` exposes `GET /api/tracked-files` — returns `{ files: string[] }`.
+
+**Frontend:**
+- `src/utils/fileTree.js` — `buildFileTree(fileSummaries, allTrackedFiles?)` builds a nested tree structure; `filterTree(tree, query)` prunes the tree to search matches.
+- `src/components/FileSidebar.jsx` — main sidebar component containing `FlatFileList`, `FileTreeView`, and `FileTreeNode` sub-components.
+- `App.jsx` imports `FileSidebar` (same props as the old `FileList`: `files`, `loadedFilesByPath`, `onSelectFile`).
+
 ## Agent Guidelines
 
 - **Documentation Updates**:  As a coding agent working on this `staging` project. You MUST update this `AGENTS.md` file on every meaningful feature, enhancement, or logic addition. This update should be the final step of every implementation plan.

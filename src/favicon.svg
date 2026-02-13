@@ -1,20 +1,30 @@
 <svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="bgGradient" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+    <linearGradient id="bg" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
       <stop offset="0%" stop-color="#1c2128"/>
       <stop offset="100%" stop-color="#0d1117"/>
     </linearGradient>
   </defs>
 
-  <!-- Full bleed background -->
-  <rect width="64" height="64" rx="14" fill="url(#bgGradient)"/>
-  <rect x="1" y="1" width="62" height="62" rx="13" stroke="#30363d" stroke-width="2"/>
+  <rect width="64" height="64" rx="12" fill="url(#bg)"/>
+  <rect x="0.5" y="0.5" width="63" height="63" rx="11.5" stroke="#30363d" stroke-width="1"/>
   
-  <!-- Massive 'S' - maximized for 16px/32px rendering -->
-  <text x="32" y="32" font-family="'Courier New', Courier, monospace" font-weight="900" font-size="56" fill="#3fb950" text-anchor="middle" dominant-baseline="central" style="text-shadow: 0 0 10px rgba(63, 185, 80, 0.6)">S</text>
-  
-  <!-- Subtle cursor integrated at the bottom right corner of the S -->
-  <rect x="50" y="48" width="10" height="4" fill="#3fb950">
-    <animate attributeName="opacity" values="1;0.2;1" dur="1.2s" repeatCount="indefinite" />
-  </rect>
+  <!-- Centering via Baseline alignment -->
+  <!-- Visual Vertical Center of S (Cap Height) at y=32 -->
+  <!-- Baseline approx at y=47 -->
+  <g transform="translate(32, 47)">
+    <text x="-6" y="0" 
+          font-family="'Courier New', Courier, monospace" 
+          font-weight="bold" 
+          font-size="42" 
+          fill="#3fb950" 
+          text-anchor="middle">S</text>
+    
+    <!-- Underscore Cursor -->
+    <!-- Base aligned to Text Base (y=0) -->
+    <!-- Extends up 4px from baseline -->
+    <rect x="10" y="-4" width="12" height="4" fill="#3fb950">
+      <animate attributeName="opacity" values="1;0;1" dur="1s" repeatCount="indefinite"/>
+    </rect>
+  </g>
 </svg>

@@ -1,30 +1,41 @@
 <svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="logoBg" x1="0" y1="0" x2="256" y2="256" gradientUnits="userSpaceOnUse">
+    <linearGradient id="bg" x1="0" y1="0" x2="256" y2="256" gradientUnits="userSpaceOnUse">
       <stop offset="0%" stop-color="#1c2128"/>
       <stop offset="100%" stop-color="#0d1117"/>
     </linearGradient>
-    <filter id="logoGlow" x="-20%" y="-20%" width="140%" height="140%">
-      <feGaussianBlur stdDeviation="8" result="blur"/>
-      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="12" flood-opacity="0.5"/>
     </filter>
   </defs>
 
-  <!-- High-Detail Terminal Window -->
-  <rect x="8" y="16" width="240" height="224" rx="24" fill="url(#logoBg)" stroke="#30363D" stroke-width="6"/>
-  
-  <!-- Window Header / Traffic Lights -->
-  <circle cx="48" cy="52" r="10" fill="#FF5F56"/>
-  <circle cx="84" cy="52" r="10" fill="#FFBD2E"/>
-  <circle cx="120" cy="52" r="10" fill="#27C93F"/>
-  
-  <line x1="8" y1="88" x2="248" y2="88" stroke="#30363D" stroke-width="4"/>
-  
-  <!-- Large Central Text -->
-  <text x="128" y="170" font-family="'Courier New', Courier, monospace" font-weight="900" font-size="110" fill="#3fb950" text-anchor="middle" dominant-baseline="middle" style="text-shadow: 0 0 20px rgba(63, 185, 80, 0.4)">S</text>
-  
-  <!-- Blinking Cursor -->
-  <rect x="175" y="195" width="28" height="8" fill="#3fb950">
-    <animate attributeName="opacity" values="1;0;1" dur="1.2s" repeatCount="indefinite" />
-  </rect>
+  <!-- Window Container -->
+  <g filter="url(#shadow)">
+    <rect x="16" y="32" width="224" height="192" rx="16" fill="url(#bg)" stroke="#30363d" stroke-width="2"/>
+    <!-- Title Bar Separator -->
+    <line x1="16" y1="64" x2="240" y2="64" stroke="#30363d" stroke-width="2" stroke-opacity="0.5"/>
+    <!-- Traffic Lights -->
+    <circle cx="44" cy="48" r="8" fill="#ff5f56"/>
+    <circle cx="70" cy="48" r="8" fill="#ffbd2e"/>
+    <circle cx="96" cy="48" r="8" fill="#27c93f"/>
+  </g>
+
+  <!-- Content Group -->
+  <!-- Visual Center of Content Area (64..224) is y=144 -->
+  <!-- To center Cap Height (~118px), baseline needs to be at y=203 -->
+  <g transform="translate(128, 203)">
+    <text x="-24" y="0" 
+          font-family="'Courier New', Courier, monospace" 
+          font-weight="bold" 
+          font-size="168" 
+          fill="#3fb950" 
+          text-anchor="middle">S</text>
+    
+    <!-- Underscore Cursor -->
+    <!-- Base aligned to Text Base (y=0) -->
+    <!-- Height 16, so y=-16 puts bottom at 0 -->
+    <rect x="40" y="-16" width="48" height="16" fill="#3fb950">
+       <animate attributeName="opacity" values="1;0;1" dur="1s" repeatCount="indefinite"/>
+    </rect>
+  </g>
 </svg>
