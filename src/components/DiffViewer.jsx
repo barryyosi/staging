@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, memo } from 'react';
+import { useState, useCallback, useMemo, useEffect, memo } from 'react';
 import { slugify } from '../utils/escape';
 import CommentForm from './CommentForm';
 import CommentBubble from './CommentBubble';
@@ -66,8 +66,16 @@ function DiffViewer({
   onCancelForm,
   onEditComment,
   onDeleteComment,
+  globalCollapsed,
+  collapseVersion,
 }) {
   const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    if (collapseVersion > 0) {
+      setCollapsed(globalCollapsed);
+    }
+  }, [collapseVersion]);
   const filePath = file.to || file.from;
 
   // Comments for this file, indexed by line+lineType

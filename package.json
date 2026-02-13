@@ -14,8 +14,11 @@
   "engines": {
     "node": ">=18.0.0"
   },
+  "type": "module",
   "license": "MIT",
   "dependencies": {
+    "@hono/node-server": "^1.19.9",
+    "hono": "^4.11.9",
     "react": "^19.2.4",
     "react-dom": "^19.2.4"
   },

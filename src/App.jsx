@@ -44,6 +44,7 @@ export default function App() {
   const [fileDetailsByPath, setFileDetailsByPath] = useState({});
   const [gitRoot, setGitRoot] = useState('');
   const [config, setConfig] = useState(null);
+  const [projectInfo, setProjectInfo] = useState(null);
   const [error, setError] = useState(null);
   const [toast, setToast] = useState(null);
   const [showCommitModal, setShowCommitModal] = useState(false);
@@ -57,6 +58,8 @@ export default function App() {
     return Number.isFinite(raw) ? clampSidebarWidth(raw) : SIDEBAR_DEFAULT_WIDTH;
   });
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
+  const [globalCollapsed, setGlobalCollapsed] = useState(false);
+  const [collapseVersion, setCollapseVersion] = useState(0);
 
   // Active comment form state
   const [activeForm, setActiveForm] = useState(null); // { file, line, lineType }
@@ -336,6 +339,90 @@ export default function App() {
 
   const handleCloseCommitModal = useCallback(() => setShowCommitModal(false), []);
 
+  const handleToggleCollapseAll = useCallback(() => {
+    setGlobalCollapsed((prev) => !prev);
+    setCollapseVersion((v) => v + 1);
+  }, []);
+
+  const fetchProjectInfo = useCallback(async () => {
+    try {
+      const res = await fetch('/api/project-info');
+      if (res.ok) {
+        const data = await res.json();
+        setProjectInfo(data);
+      }
+    } catch {
+      // non-critical — navigator just won't render
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchProjectInfo();
+  }, [fetchProjectInfo]);
+
+  const reloadDiffs = useCallback(async () => {
+    setFileSummaries(null);
+    setFileDetailsByPath({});
+    setNextOffset(0);
+    setHasMoreFiles(false);
+    setCommitted(false);
+    nextOffsetRef.current = 0;
+    hasMoreFilesRef.current = false;
+
+    try {
+      const summaryRes = await fetch('/api/diff?mode=summary');
+      if (!summaryRes.ok) throw new Error('Failed to load staged changes summary');
+      const summaryData = await summaryRes.json();
+      if (summaryData.error) throw new Error(summaryData.error);
+
+      const summaries = summaryData.files || [];
+      setGitRoot(summaryData.gitRoot || '');
+      setFileSummaries(summaries);
+
+      if (summaries.length === 0) return;
+
+      isLoadingPageRef.current = true;
+      setIsLoadingPage(true);
+      try {
+        const firstPage = await requestDiffPage(0, DIFF_PAGE_SIZE);
+        setFileDetailsByPath(mergeFileDetails({}, firstPage.files || []));
+        const initialNext = Number.isFinite(firstPage.nextOffset)
+          ? firstPage.nextOffset
+          : (firstPage.files || []).length;
+        const initialMore = Boolean(firstPage.hasMore);
+        setNextOffset(initialNext);
+        setHasMoreFiles(initialMore);
+        nextOffsetRef.current = initialNext;
+        hasMoreFilesRef.current = initialMore;
+      } finally {
+        isLoadingPageRef.current = false;
+        setIsLoadingPage(false);
+      }
+    } catch (err) {
+      setError(err.message);
+    }
+  }, [requestDiffPage]);
+
+  const switchProject = useCallback(async (targetPath) => {
+    try {
+      const res = await fetch('/api/switch-project', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: targetPath }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        showToast(`Failed to switch: ${data.error}`, 'error');
+        return;
+      }
+      setProjectInfo(data);
+      setError(null);
+      await reloadDiffs();
+    } catch (err) {
+      showToast(`Failed to switch project: ${err.message}`, 'error');
+    }
+  }, [reloadDiffs, showToast]);
+
   const ensureFileLoaded = useCallback(async (filePath) => {
     if (fileDetailsByPathRef.current[filePath]) return true;
 
@@ -497,6 +584,10 @@ export default function App() {
         onSendComments={handleSendComments}
         onCommit={handleCommit}
         committed={committed}
+        allCollapsed={globalCollapsed}
+        onToggleCollapseAll={handleToggleCollapseAll}
+        projectInfo={projectInfo}
+        onSwitchProject={switchProject}
       />
 
       <div
@@ -553,6 +644,8 @@ export default function App() {
                     onCancelForm={handleCancelForm}
                     onEditComment={handleEditComment}
                     onDeleteComment={handleDeleteComment}
+                    globalCollapsed={globalCollapsed}
+                    collapseVersion={collapseVersion}
                   />
                 );
               })}

@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 
-const fs = require('fs');
-const path = require('path');
-const { execSync } = require('child_process');
-const { loadConfig } = require('../lib/config');
-const { startServer } = require('../lib/server');
-const { openBrowser } = require('../lib/open-browser');
+import fs from 'node:fs';
+import path from 'node:path';
+import { execSync } from 'node:child_process';
+import { loadConfig } from '../lib/config.js';
+import { startServer } from '../lib/server.js';
+import { openBrowser } from '../lib/open-browser.js';
 
 const targetPath = path.resolve(process.argv[2] || '.');
 
@@ -47,9 +47,8 @@ const config = loadConfig(gitRoot);
 // Start server
 const server = startServer({ gitRoot, config });
 
-server.listen(config.port, '127.0.0.1', () => {
-  const addr = server.address();
-  const url = `http://127.0.0.1:${addr.port}`;
+server.listen(config.port, '127.0.0.1', (info) => {
+  const url = `http://127.0.0.1:${info.port}`;
   console.log(`Staging review at ${url}`);
 
   if (config.autoOpen) {
@@ -60,6 +59,5 @@ server.listen(config.port, '127.0.0.1', () => {
 // Graceful shutdown
 process.on('SIGINT', () => {
   console.log('\nShutting down...');
-  server.close();
   process.exit(0);
 });

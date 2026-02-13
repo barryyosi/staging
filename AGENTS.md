@@ -7,7 +7,7 @@
 ## Tech Stack
 
 - **Frontend:** React 19, Vite, Vanilla CSS
-- **Backend:** Node.js, Express (implied), `simple-git`
+- **Backend:** Node.js, Hono (lightweight web framework), ESM modules
 - **Runtime:** Node.js >= 18.0.0
 
 ## Project Structure
@@ -61,7 +61,7 @@ npm start
 
 ### Backend (Node.js)
 - **lib/git.js**: Handles all raw git interactions. Ensure output parsing is robust.
-- **lib/server.js**: Bridges the CLI and the frontend. It serves the `dist` folder in production and proxies API requests.
+- **lib/server.js**: Bridges the CLI and the frontend using Hono. It serves the `dist` folder via `serveStatic` (streaming) and exposes API routes.
 
 ### Frontend (React)
 - **State Management**: Use React Context or simple state for now. Avoid Redux unless complexity demands it.
@@ -78,3 +78,24 @@ npm start
 - **Debugging**:
   - Run `npm run dev` for frontend iteration.
   - Check terminal output for backend logs.
+
+## Features
+
+### Collapse All / Expand All Toggle
+A header button that collapses or expands all diff file viewers at once. State is managed in `App.jsx` via `globalCollapsed` + `collapseVersion` (a version counter that triggers effects even when the boolean doesn't change). Each `DiffViewer` syncs its local `collapsed` state from the global signal via `useEffect`, while individual per-file toggles continue to work independently.
+
+### Project Navigator
+A breadcrumb-style navigator in the header: `[project ▾] / staging / [⑂ branch ▾]`. The left segment lists sibling git repos (scanned from the parent directory) and the right segment lists git worktrees. Selecting either switches the active `gitRoot` on the server and reloads all diffs.
+
+**Backend:**
+- `lib/git.js` exports `getCurrentBranch()`, `discoverSiblingProjects()`, `listWorktrees()`, and `clearSummaryCache()`.
+- `lib/server.js` exposes `GET /api/project-info` (returns project name, branch, sibling projects, worktrees) and `POST /api/switch-project` (accepts `{ path }`, validates it's a git repo, updates `gitRoot`, returns new project-info).
+
+**Frontend:**
+- `src/components/ProjectNavigator.jsx` renders the breadcrumb with two dropdown menus (project selector, worktree selector). Dropdowns close on outside click.
+- `App.jsx` holds `projectInfo` state (fetched on mount from `/api/project-info`) and a `switchProject(path)` handler that POSTs to `/api/switch-project`, resets all diff state, and re-fetches everything.
+- `Header.jsx` receives `projectInfo` and `onSwitchProject` props and renders the `ProjectNavigator` in place of the standalone logo when project info is available.
+
+## Agent Guidelines
+
+- **Documentation Updates**:  As a coding agent working on this `staging` project. You MUST update this `AGENTS.md` file on every meaningful feature, enhancement, or logic addition. This update should be the final step of every implementation plan.

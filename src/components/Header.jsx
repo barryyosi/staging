@@ -1,6 +1,7 @@
 import { useMemo, memo } from 'react';
+import ProjectNavigator from './ProjectNavigator';
 
-function Header({ theme, onToggleTheme, files, hasComments, onSendComments, onCommit, committed }) {
+function Header({ theme, onToggleTheme, files, hasComments, onSendComments, onCommit, committed, allCollapsed, onToggleCollapseAll, projectInfo, onSwitchProject }) {
   const summary = useMemo(() => {
     if (!files) return '';
     const totalAdd = files.reduce((s, f) => s + f.additions, 0);
@@ -11,13 +12,35 @@ function Header({ theme, onToggleTheme, files, hasComments, onSendComments, onCo
   return (
     <header id="header">
       <div className="header-left">
-        <h1 className="logo">staging</h1>
+        {projectInfo ? (
+          <ProjectNavigator
+            projectName={projectInfo.projectName}
+            branch={projectInfo.branch}
+            projects={projectInfo.projects}
+            worktrees={projectInfo.worktrees}
+            gitRoot={projectInfo.gitRoot}
+            onSwitchProject={onSwitchProject}
+          />
+        ) : (
+          <h1 className="logo">staging</h1>
+        )}
         <span className="separator" />
         <span id="summary">{summary}</span>
       </div>
       <div className="header-right">
-        <button 
-          className="theme-toggle" 
+        <button
+          className="btn-collapse-all"
+          onClick={onToggleCollapseAll}
+          aria-label={allCollapsed ? 'Expand all files' : 'Collapse all files'}
+          title={allCollapsed ? 'Expand all files' : 'Collapse all files'}
+          type="button"
+        >
+          <span className="material-symbols-rounded">
+            {allCollapsed ? 'unfold_more' : 'unfold_less'}
+          </span>
+        </button>
+        <button
+          className="theme-toggle"
           onClick={onToggleTheme}
           aria-label="Toggle theme"
           title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
