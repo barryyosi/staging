@@ -30,7 +30,7 @@ export default function CommentForm({ initialContent, onSubmit, onCancel }) {
 
   return (
     <tr className="comment-form-row">
-      <td colSpan="4">
+      <td className="comment-form-cell" colSpan="3">
         <div className="comment-form">
           <div className="comment-form-input-wrap">
             <textarea

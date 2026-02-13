@@ -165,6 +165,33 @@ Draft comments are stashed per project/worktree so they survive project switches
 
 **Edge cases:** First load with empty `gitRoot` is a no-op; switching back restores comments from the map; rapid switching is safe because save/restore uses a functional `setCommentsByFile` updater.
 
+### Toggleable & Resizable Comment Panel
+The comment panel (right sidebar) can be toggled open/closed via a header button and resized by dragging its left edge.
+
+**Toggle button:**
+- A floating edge toggle (`comment-panel-toggle`) — a tiny 16x48px pill anchored to the right viewport edge (or the left edge of the panel when open). Hidden by default (`opacity: 0`), revealed on hover near the comment panel border. Uses a `chevron_right`/`chevron_left` icon. Rendered in `src/App.jsx` outside the grid layout as a fixed-position button when `hasComments` is true.
+- `src/App.jsx` — `commentPanelOpen` state (default `true`). `showCommentPanel` derived from `hasComments && commentPanelOpen`. The `has-comments` CSS class and `CommentPanel` visibility both use `showCommentPanel`.
+
+**Resizable panel:**
+- Follows the same pattern as the sidebar resizer (pointer drag with RAF-throttled guide line, keyboard arrows, localStorage persistence).
+- Constants: `COMMENT_PANEL_MIN_WIDTH = 240`, `COMMENT_PANEL_MAX_WIDTH = 480`, `COMMENT_PANEL_DEFAULT_WIDTH = 280`, `COMMENT_PANEL_STORAGE_KEY = 'staging-comment-panel-width'`.
+- `src/App.jsx` — `commentPanelWidth` state initialized from localStorage. `handleCommentResizeStart` mirrors `handleSidebarResizeStart` with inverted delta (dragging left = wider). `handleCommentResizeKeyDown` supports arrow key resizing.
+- `src/style.css` — Grid becomes 5 columns when `has-comments`: `sidebar | 10px | 1fr | 10px | comment-panel-width`. `.comment-resizer` mirrors `.sidebar-resizer` styles. `.comment-resize-guide` positioned from the right. `body.is-resizing-comment-panel` sets `col-resize` cursor.
+
+### Syntax Highlighting
+Diff lines are syntax-highlighted using **highlight.js/lib/core** with selective language imports (~50KB gzipped). No highlight.js CSS theme is imported — token colors are defined as `--hljs-*` CSS custom properties in both light and dark theme blocks, using a GitHub-inspired palette.
+
+**Setup:**
+- `src/utils/highlight.js` — Imports `hljs` core + 20 language grammars (JS, TS, Python, Go, Rust, Java, C/C++, C#, Ruby, PHP, Bash, CSS, XML/HTML, JSON, YAML, Markdown, SQL, Dockerfile, Swift). Exports `highlightLine(code, filePath)` which returns an HTML string or `null` for unknown languages.
+- Extension-to-language map (e.g. `js→javascript`, `py→python`) + filename map (`Dockerfile→dockerfile`, `Makefile→bash`).
+- Each line is highlighted independently via `useMemo` in the `DiffLine` component. Multi-line constructs may not highlight across boundaries, which is standard for diff tools.
+
+**Frontend:**
+- `src/components/DiffViewer.jsx` — `DiffLine` calls `highlightLine()` in a `useMemo`, renders via `dangerouslySetInnerHTML` when HTML is returned (safe — highlight.js escapes input), falls back to plain text for unknown languages.
+- `src/style.css` — `--hljs-*` tokens in both theme blocks. Class rules scoped under `.line-code` map highlight.js classes (`.hljs-keyword`, `.hljs-string`, `.hljs-comment`, etc.) to tokens. All tokens force `background: transparent` so diff line backgrounds show through.
+
+**Graceful fallback:** Files with unrecognized extensions render as plain text (no highlighting attempted).
+
 ## UI Style & Design Guidelines
 
 ### Design Philosophy

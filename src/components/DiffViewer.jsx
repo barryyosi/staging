@@ -1,5 +1,6 @@
-import { useState, useCallback, useMemo, useEffect, memo } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef, memo } from 'react';
 import { slugify } from '../utils/escape';
+import { highlightLine } from '../utils/highlight';
 import CommentForm from './CommentForm';
 import CommentBubble from './CommentBubble';
 
@@ -7,8 +8,7 @@ function HunkHeader({ chunk }) {
   return (
     <tr className="diff-hunk-header">
       <td className="line-action" />
-      <td className="line-num old" />
-      <td className="line-num new" />
+      <td className="line-num" />
       <td className="line-content">{chunk.header}</td>
     </tr>
   );
@@ -51,23 +51,14 @@ function HunkActions({ filePath, chunkIndex, chunk, onUnstageHunk, onRevertHunk 
 }
 
 function DiffLine({ change, filePath, onAddComment, isLastChange, hunkActionsSlot }) {
-  let oldNum = '';
-  let newNum = '';
-  let lineNum;
+  const lineNum =
+    change.type === 'context' ? change.ln2 :
+    change.ln;
 
-  if (change.type === 'context') {
-    oldNum = change.ln1;
-    newNum = change.ln2;
-    lineNum = change.ln2;
-  } else if (change.type === 'del') {
-    oldNum = change.ln;
-    lineNum = change.ln;
-  } else if (change.type === 'add') {
-    newNum = change.ln;
-    lineNum = change.ln;
-  }
-
-  const prefix = change.type === 'add' ? '+' : change.type === 'del' ? '-' : ' ';
+  const html = useMemo(
+    () => highlightLine(change.content, filePath),
+    [change.content, filePath],
+  );
 
   return (
     <tr className={`diff-line diff-line-${change.type}`}>
@@ -82,11 +73,13 @@ function DiffLine({ change, filePath, onAddComment, isLastChange, hunkActionsSlo
           add
         </button>
       </td>
-      <td className="line-num old">{oldNum}</td>
-      <td className="line-num new">{newNum}</td>
+      <td className="line-num">{lineNum}</td>
       <td className={`line-content${isLastChange ? ' hunk-actions-anchor' : ''}`}>
-        <span className="line-prefix">{prefix}</span>
-        {change.content}
+        {html ? (
+          <span className="line-code" dangerouslySetInnerHTML={{ __html: html }} />
+        ) : (
+          <span className="line-code">{change.content}</span>
+        )}
         {isLastChange && hunkActionsSlot}
       </td>
     </tr>
@@ -111,12 +104,31 @@ function DiffViewer({
   collapseVersion,
 }) {
   const [collapsed, setCollapsed] = useState(false);
+  const bodyRef = useRef(null);
 
   useEffect(() => {
     if (collapseVersion > 0) {
       setCollapsed(globalCollapsed);
     }
   }, [collapseVersion]);
+
+  useEffect(() => {
+    const body = bodyRef.current;
+    if (!body) return;
+    const update = () => {
+      body.style.setProperty('--scroll-x', `${body.scrollLeft}px`);
+      body.style.setProperty('--body-width', `${body.clientWidth}px`);
+    };
+    body.addEventListener('scroll', update, { passive: true });
+    const ro = new ResizeObserver(update);
+    ro.observe(body);
+    update();
+    return () => {
+      body.removeEventListener('scroll', update);
+      ro.disconnect();
+    };
+  }, []);
+
   const filePath = file.to || file.from;
 
   // Comments for this file, indexed by line+lineType
@@ -179,7 +191,7 @@ function DiffViewer({
         </div>
       </div>
 
-      <div className={`diff-file-body ${collapsed ? 'collapsed' : ''}`}>
+      <div ref={bodyRef} className={`diff-file-body ${collapsed ? 'collapsed' : ''}`}>
         {file.isBinary ? (
           <div className="binary-notice">Binary file not shown</div>
         ) : (

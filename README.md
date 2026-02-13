@@ -9,25 +9,68 @@
 
 ---
 
-### Overview
+## What is Staging?
 
-CLI-based agents are powerful, but often generate large, complex changes that are difficult to verify within the terminal or limited IDE extensions. In production environments where every commit matters, clear visibility and a structured feedback loop for locally developed features are essential.
+**Staging** is a complementary tool designed to enhance agentic coding workflows by providing visual diff review capabilities that terminal-based and IDE-constrained AI coding tools currently lack.
 
-**Staging** provides the visual verification layer needed to confidently review large refactors and ensure codebase integrity.
+Modern AI coding agents (Claude Code, Gemini CLI, Cursor, and similar tools) excel at generating code changes, but reviewing those changes often happens in limited environments:
+- **CLI agents** display diffs in the terminal, making it difficult to review multi-file refactors
+- **VSCode extensions** are constrained by the IDE's diff viewer, which lacks persistent review states and inline commenting
 
-- **Visualize**: GitHub-style split/unified diffs.
-- **Feedback**: Send inline comments back to your agent.
-- **Verify**: Catch subtle logic errors that are easily missed within limited diff views..
+Staging fills this gap by launching a dedicated browser-based review interface with GitHub-style diffs, inline comments, and comprehensive change visualization—bridging the final step between AI-generated code and confident commits.
 
-### Features
+## Why Staging?
+
+When working with AI coding agents in production environments, you need:
+- **Clear visibility** into multi-file changes across your codebase
+- **Structured review** with side-by-side or unified diff views
+- **Feedback loops** to communicate refinements back to your agent
+- **Confidence** before committing agent-generated code
+
+Staging provides a lightweight, local-first review layer that complements your existing agentic coding setup without replacing any tools in your workflow.
+
+## Features
 
 - **Private & Lightweight**: Runs 100% locally. No internet connection required. Zero telemetry.
-- **Agent Integration**: Designed to be integrated within agentic coding tools and AI feedback loop.
-- **Repository Navigation**: Support for sibling repositories and git worktrees.
+- **GitHub-Style Diffs**: Split and unified diff views with syntax highlighting
+- **Inline Comments**: Add threaded comments directly on changed lines to guide agent refinements
+- **Multi-Project Support**: Navigate between sibling repositories and git worktrees
+- **Hunk-Level Actions**: Unstage or revert individual hunks directly from the diff view
+- **File Tree Navigation**: Flat list or collapsible tree view with fuzzy search
+- **Theme Support**: Light and dark modes with system preference detection
 
-### Quick Start
+## Integration with AI Coding Agents
 
-**1. Setup**
+Staging integrates seamlessly with any terminal-based coding agent. Simply add an instruction to your agent's configuration to run `staging` after completing tasks.
+
+### Example: Claude Code Integration
+
+Add this to your `.claude/CLAUDE.md` file:
+
+```markdown
+## Task Completion Protocol
+
+After completing any implementation task:
+1. Stage all changes with `git add .`
+2. Run `staging` to launch the visual review interface
+3. Wait for user review and feedback before proceeding
+```
+
+Now, when Claude finishes a task, it will automatically launch Staging in your browser for visual review.
+
+*[Demo GIF will be placed here showing Claude Code → `staging` → browser opening with diff view]*
+
+### Works With Any Agent
+
+The same pattern works with:
+- **Gemini CLI** – Add to your system instructions
+- **Cursor** – Configure in `.cursorrules`
+- **Aider** – Use in your `.aider.conf.yml`
+- **Custom agents** – Include in your agent's prompt or configuration
+
+## Quick Start
+
+**1. Install**
 ```bash
 git clone https://github.com/barryyosi/staging
 cd staging
@@ -35,15 +78,28 @@ npm install
 npm link
 ```
 
-**2. Workflow**
-1.  **Delegate**: Ask your coding agent to implement a feature.
-2.  **Stage**: `git add .`
-3.  **Review**: Run `staging` to inspect changes in the browser.
+**2. Use**
+```bash
+# Make changes with your AI coding agent
+# Stage changes
+git add .
 
-### Tech Stack
+# Launch visual review
+staging
+```
+
+The browser will open automatically at `http://localhost:3456` with your staged changes ready for review.
+
+## Tech Stack
 
 | Layer | Technologies |
 | :--- | :--- |
 | **Frontend** | React 19, Vite, Vanilla CSS |
 | **Backend** | Node.js, Hono, ESM |
 | **CLI** | Native Node.js executable |
+
+---
+
+<div align="center">
+  <sub>Built for developers who pair program with AI agents and need production-grade code review workflows.</sub>
+</div>

@@ -5,7 +5,7 @@ function CommentBubble({ comment, onEdit, onDelete }) {
 
   return (
     <tr className="comment-row" data-comment-id={comment.id}>
-      <td colSpan="4">
+      <td className="comment-form-cell" colSpan="3">
         <div className="comment-bubble">
           <div className="comment-bubble-head">
             <span className="comment-loc" title={location}>{location}</span>
