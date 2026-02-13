@@ -1,0 +1,57 @@
+import { useState, useCallback, useMemo } from 'react';
+
+let idCounter = 0;
+
+function generateId() {
+  return Date.now().toString(36) + (idCounter++).toString(36) + Math.random().toString(36).slice(2, 6);
+}
+
+export function useComments() {
+  const [commentsByFile, setCommentsByFile] = useState({});
+
+  const allComments = useMemo(
+    () => Object.values(commentsByFile).flat(),
+    [commentsByFile]
+  );
+
+  const addComment = useCallback((file, line, lineType, content) => {
+    const comment = {
+      id: generateId(),
+      file,
+      line: parseInt(line, 10),
+      lineType,
+      content: content.trim(),
+      timestamp: Date.now(),
+    };
+    setCommentsByFile(prev => ({
+      ...prev,
+      [file]: [...(prev[file] || []), comment],
+    }));
+    return comment;
+  }, []);
+
+  const updateComment = useCallback((id, content) => {
+    setCommentsByFile(prev => {
+      const next = {};
+      for (const [file, fileComments] of Object.entries(prev)) {
+        next[file] = fileComments.map(c =>
+          c.id === id ? { ...c, content: content.trim(), timestamp: Date.now() } : c
+        );
+      }
+      return next;
+    });
+  }, []);
+
+  const deleteComment = useCallback((id) => {
+    setCommentsByFile(prev => {
+      const next = {};
+      for (const [file, fileComments] of Object.entries(prev)) {
+        const filtered = fileComments.filter(c => c.id !== id);
+        if (filtered.length > 0) next[file] = filtered;
+      }
+      return next;
+    });
+  }, []);
+
+  return { commentsByFile, allComments, addComment, updateComment, deleteComment };
+}

@@ -1,0 +1,26 @@
+{
+  "name": "staging",
+  "version": "0.1.0",
+  "description": "Review git staged changes in a browser with GitHub-style diffs and inline commenting",
+  "bin": {
+    "staging": "./bin/staging.js"
+  },
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite --config vite.config.js",
+    "start": "node bin/staging.js .",
+    "prepare": "vite build"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^5.1.4",
+    "vite": "^7.3.1"
+  }
+}

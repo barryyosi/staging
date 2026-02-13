@@ -1,0 +1,5 @@
+- make efficient, faster rednering and loading. remove redundancies and rethink things that could made the app much smoother.
+- collapse all feature/button
+- project navigator - switch between local git projects' staging.
+- `send-to-agent` configurable coding agent.
+- enlarge logo's font (show project's name next to it)
