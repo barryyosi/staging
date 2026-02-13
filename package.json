@@ -1,7 +1,7 @@
 {
   "name": "staging",
   "version": "0.1.0",
-  "description": "Review git staged changes in a browser with GitHub-style diffs and inline commenting",
+  "description": "Stop committing blindly. Review staged changes in a rich browser UI and send inline feedback directly to your coding agent.",
   "bin": {
     "staging": "./bin/staging.js"
   },
@@ -9,7 +9,19 @@
     "build": "vite build",
     "dev": "vite --config vite.config.js",
     "start": "node bin/staging.js .",
-    "prepare": "vite build"
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"src/**/*.{js,jsx,css}\" \"lib/**/*.js\" \"bin/**/*.js\"",
+    "prepare": "vite build && husky"
+  },
+  "lint-staged": {
+    "*.{js,jsx}": [
+      "prettier --write",
+      "eslint --fix"
+    ],
+    "*.css": [
+      "prettier --write"
+    ]
   },
   "engines": {
     "node": ">=18.0.0"
@@ -23,7 +35,16 @@
     "react-dom": "^19.2.4"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.2",
     "@vitejs/plugin-react": "^5.1.4",
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.5.0",
+    "globals": "^17.3.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
+    "prettier": "^3.8.1",
     "vite": "^7.3.1"
   }
 }

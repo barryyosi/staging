@@ -42,20 +42,22 @@ export default function CommentForm({ initialContent, onSubmit, onCancel }) {
               onKeyDown={handleKeyDown}
               aria-label="Comment"
             />
-          </div>
-          <div className="comment-form-actions">
-            <span className="comment-form-hint">
-              <kbd>{modKey}</kbd> + <kbd>Enter</kbd> to {initialContent ? 'save' : 'submit'}
-            </span>
-            <button className="btn btn-sm" onClick={onCancel} type="button">Cancel</button>
-            <button
-              className="btn btn-sm btn-primary"
-              onClick={() => onSubmit(value)}
-              disabled={!canSubmit}
-              type="button"
-            >
-              {initialContent ? 'Update' : 'Comment'}
-            </button>
+            <div className="comment-form-actions">
+              <button className="btn btn-sm" onClick={onCancel} type="button">Cancel</button>
+              <div className="comment-form-submit-wrap">
+                <span className="comment-form-hint">
+                  <kbd>{modKey}</kbd> + <kbd>Enter</kbd>
+                </span>
+                <button
+                  className="btn btn-sm btn-primary"
+                  onClick={() => onSubmit(value)}
+                  disabled={!canSubmit}
+                  type="button"
+                >
+                  {initialContent ? 'Save' : 'Comment'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </td>

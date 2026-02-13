@@ -14,7 +14,43 @@ function HunkHeader({ chunk }) {
   );
 }
 
-function DiffLine({ change, filePath, onAddComment }) {
+function HunkActions({ filePath, chunkIndex, chunk, onUnstageHunk, onRevertHunk }) {
+  const handleRevert = (e) => {
+    e.stopPropagation();
+    if (!confirm('Discard this hunk? This cannot be undone.')) return;
+    onRevertHunk(filePath, chunkIndex, chunk.oldStart);
+  };
+
+  const handleUnstage = (e) => {
+    e.stopPropagation();
+    onUnstageHunk(filePath, chunkIndex, chunk.oldStart);
+  };
+
+  return (
+    <div className="hunk-actions">
+      <button
+        className="hunk-action-btn"
+        type="button"
+        title="Revert hunk"
+        aria-label="Revert hunk"
+        onClick={handleRevert}
+      >
+        <span className="material-symbols-rounded">undo</span>
+      </button>
+      <button
+        className="hunk-action-btn"
+        type="button"
+        title="Unstage hunk"
+        aria-label="Unstage hunk"
+        onClick={handleUnstage}
+      >
+        <span className="material-symbols-rounded">remove</span>
+      </button>
+    </div>
+  );
+}
+
+function DiffLine({ change, filePath, onAddComment, isLastChange, hunkActionsSlot }) {
   let oldNum = '';
   let newNum = '';
   let lineNum;
@@ -48,9 +84,10 @@ function DiffLine({ change, filePath, onAddComment }) {
       </td>
       <td className="line-num old">{oldNum}</td>
       <td className="line-num new">{newNum}</td>
-      <td className="line-content">
+      <td className={`line-content${isLastChange ? ' hunk-actions-anchor' : ''}`}>
         <span className="line-prefix">{prefix}</span>
         {change.content}
+        {isLastChange && hunkActionsSlot}
       </td>
     </tr>
   );
@@ -66,6 +103,10 @@ function DiffViewer({
   onCancelForm,
   onEditComment,
   onDeleteComment,
+  onUnstageFile,
+  onRevertFile,
+  onUnstageHunk,
+  onRevertHunk,
   globalCollapsed,
   collapseVersion,
 }) {
@@ -92,6 +133,17 @@ function DiffViewer({
 
   const toggleCollapse = useCallback(() => setCollapsed(c => !c), []);
 
+  const handleRevertFile = useCallback((e) => {
+    e.stopPropagation();
+    if (!confirm(`Discard all changes in ${filePath}? This cannot be undone.`)) return;
+    onRevertFile(filePath);
+  }, [filePath, onRevertFile]);
+
+  const handleUnstageFile = useCallback((e) => {
+    e.stopPropagation();
+    onUnstageFile(filePath);
+  }, [filePath, onUnstageFile]);
+
   return (
     <div className="diff-file" id={`file-${slugify(filePath)}`}>
       <div
@@ -105,6 +157,26 @@ function DiffViewer({
           {file.additions > 0 && <span className="add">+{file.additions}</span>}
           {file.deletions > 0 && <span className="del">-{file.deletions}</span>}
         </span>
+        <div className="file-actions">
+          <button
+            className="file-action-btn"
+            type="button"
+            title="Revert file"
+            aria-label="Revert file"
+            onClick={handleRevertFile}
+          >
+            <span className="material-symbols-rounded">undo</span>
+          </button>
+          <button
+            className="file-action-btn"
+            type="button"
+            title="Unstage file"
+            aria-label="Unstage file"
+            onClick={handleUnstageFile}
+          >
+            <span className="material-symbols-rounded">remove</span>
+          </button>
+        </div>
       </div>
 
       <div className={`diff-file-body ${collapsed ? 'collapsed' : ''}`}>
@@ -112,11 +184,11 @@ function DiffViewer({
           <div className="binary-notice">Binary file not shown</div>
         ) : (
           <table className="diff-table">
-            <tbody>
-              {file.chunks.map((chunk, ci) => (
+            {file.chunks.map((chunk, ci) => (
+              <tbody key={ci} className="hunk-tbody">
                 <ChunkRows
-                  key={ci}
                   chunk={chunk}
+                  chunkIndex={ci}
                   filePath={filePath}
                   commentMap={commentMap}
                   activeForm={activeForm}
@@ -126,9 +198,11 @@ function DiffViewer({
                   onCancelForm={onCancelForm}
                   onEditComment={onEditComment}
                   onDeleteComment={onDeleteComment}
+                  onUnstageHunk={onUnstageHunk}
+                  onRevertHunk={onRevertHunk}
                 />
-              ))}
-            </tbody>
+              </tbody>
+            ))}
           </table>
         )}
       </div>
@@ -138,6 +212,7 @@ function DiffViewer({
 
 function ChunkRows({
   chunk,
+  chunkIndex,
   filePath,
   commentMap,
   activeForm,
@@ -147,15 +222,37 @@ function ChunkRows({
   onCancelForm,
   onEditComment,
   onDeleteComment,
+  onUnstageHunk,
+  onRevertHunk,
 }) {
   const rows = [];
 
   rows.push(<HunkHeader key={`hunk-${chunk.header}`} chunk={chunk} />);
 
+  // Find the index of the last add/del change to attach the action buttons
+  let lastChangeIdx = -1;
+  for (let i = chunk.changes.length - 1; i >= 0; i--) {
+    if (chunk.changes[i].type === 'add' || chunk.changes[i].type === 'del') {
+      lastChangeIdx = i;
+      break;
+    }
+  }
+
+  const actionsSlot = (
+    <HunkActions
+      filePath={filePath}
+      chunkIndex={chunkIndex}
+      chunk={chunk}
+      onUnstageHunk={onUnstageHunk}
+      onRevertHunk={onRevertHunk}
+    />
+  );
+
   for (let i = 0; i < chunk.changes.length; i++) {
     const change = chunk.changes[i];
     const lineNum = change.type === 'context' ? change.ln2 : change.ln;
     const key = `${lineNum}-${change.type}`;
+    const isLastChange = i === lastChangeIdx;
 
     rows.push(
       <DiffLine
@@ -163,6 +260,8 @@ function ChunkRows({
         change={change}
         filePath={filePath}
         onAddComment={onAddComment}
+        isLastChange={isLastChange}
+        hunkActionsSlot={isLastChange ? actionsSlot : null}
       />
     );
 

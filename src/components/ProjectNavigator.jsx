@@ -12,9 +12,6 @@ function ProjectDropdown({ projects, currentPath, onSelect, onClose }) {
         >
           <span className="nav-dropdown-item-name">{project.name}</span>
           {project.hasStagedChanges && <span className="nav-dropdown-dot" />}
-          {project.path === currentPath && (
-            <span className="material-symbols-rounded nav-dropdown-check">check</span>
-          )}
         </button>
       ))}
     </div>
@@ -32,9 +29,6 @@ function WorktreeDropdown({ worktrees, onSelect, onClose }) {
           type="button"
         >
           <span className="nav-dropdown-item-name">{wt.branch}</span>
-          {wt.isCurrent && (
-            <span className="material-symbols-rounded nav-dropdown-check">check</span>
-          )}
         </button>
       ))}
     </div>

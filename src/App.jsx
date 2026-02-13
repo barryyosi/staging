@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } fro
 import { useTheme } from './hooks/useTheme';
 import { useComments } from './hooks/useComments';
 import Header from './components/Header';
-import FileList from './components/FileList';
+import FileSidebar from './components/FileSidebar';
 import DiffViewer from './components/DiffViewer';
 import CommentPanel from './components/CommentPanel';
 import Toast from './components/Toast';
@@ -423,6 +423,82 @@ export default function App() {
     }
   }, [reloadDiffs, showToast]);
 
+  const handleUnstageFile = useCallback(async (filePath) => {
+    try {
+      const res = await fetch('/api/file-unstage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filePath }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast('File unstaged', 'success');
+        await reloadDiffs();
+      } else {
+        showToast(`Failed to unstage file: ${data.error}`, 'error');
+      }
+    } catch (err) {
+      showToast(`Failed to unstage file: ${err.message}`, 'error');
+    }
+  }, [reloadDiffs, showToast]);
+
+  const handleRevertFile = useCallback(async (filePath) => {
+    try {
+      const res = await fetch('/api/file-revert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filePath }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast('File reverted', 'success');
+        await reloadDiffs();
+      } else {
+        showToast(`Failed to revert file: ${data.error}`, 'error');
+      }
+    } catch (err) {
+      showToast(`Failed to revert file: ${err.message}`, 'error');
+    }
+  }, [reloadDiffs, showToast]);
+
+  const handleUnstageHunk = useCallback(async (filePath, chunkIndex, oldStart) => {
+    try {
+      const res = await fetch('/api/hunk-unstage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filePath, chunkIndex, oldStart }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast('Hunk unstaged', 'success');
+        await reloadDiffs();
+      } else {
+        showToast(`Failed to unstage hunk: ${data.error}`, 'error');
+      }
+    } catch (err) {
+      showToast(`Failed to unstage hunk: ${err.message}`, 'error');
+    }
+  }, [reloadDiffs, showToast]);
+
+  const handleRevertHunk = useCallback(async (filePath, chunkIndex, oldStart) => {
+    try {
+      const res = await fetch('/api/hunk-revert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filePath, chunkIndex, oldStart }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast('Hunk discarded', 'success');
+        await reloadDiffs();
+      } else {
+        showToast(`Failed to discard hunk: ${data.error}`, 'error');
+      }
+    } catch (err) {
+      showToast(`Failed to discard hunk: ${err.message}`, 'error');
+    }
+  }, [reloadDiffs, showToast]);
+
   const ensureFileLoaded = useCallback(async (filePath) => {
     if (fileDetailsByPathRef.current[filePath]) return true;
 
@@ -581,6 +657,7 @@ export default function App() {
         onToggleTheme={toggleTheme}
         files={fileSummaries}
         hasComments={hasComments}
+        commentCount={allComments.length}
         onSendComments={handleSendComments}
         onCommit={handleCommit}
         committed={committed}
@@ -596,7 +673,7 @@ export default function App() {
         className={hasComments ? 'has-comments' : ''}
         style={{ '--sidebar-width': `${sidebarWidth}px` }}
       >
-        <FileList
+        <FileSidebar
           files={fileSummaries}
           loadedFilesByPath={fileDetailsByPath}
           onSelectFile={handleSelectFile}
@@ -644,6 +721,10 @@ export default function App() {
                     onCancelForm={handleCancelForm}
                     onEditComment={handleEditComment}
                     onDeleteComment={handleDeleteComment}
+                    onUnstageFile={handleUnstageFile}
+                    onRevertFile={handleRevertFile}
+                    onUnstageHunk={handleUnstageHunk}
+                    onRevertHunk={handleRevertHunk}
                     globalCollapsed={globalCollapsed}
                     collapseVersion={collapseVersion}
                   />

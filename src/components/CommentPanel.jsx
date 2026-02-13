@@ -22,7 +22,7 @@ function CommentPanel({ commentsByFile, commentCount, visible }) {
                 onClick={() => scrollToComment(c.id)}
               >
                 <div className="panel-line-ref">Line {c.line}</div>
-                <div>{c.content}</div>
+                <div className="panel-comment-text">{c.content}</div>
               </div>
             ))}
           </div>
