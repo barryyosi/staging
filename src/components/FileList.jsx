@@ -1,11 +1,10 @@
-import { useCallback, memo } from 'react';
-import { slugify } from '../utils/escape';
+import { memo } from 'react';
 
-function FileList({ files }) {
-  const scrollTo = useCallback((id) => {
-    const el = document.getElementById(id);
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, []);
+function FileList({ files, loadedFilesByPath = {}, onSelectFile }) {
+  const loadedCount = files ? files.reduce((count, file) => {
+    const filePath = file.to || file.from;
+    return loadedFilesByPath[filePath] ? count + 1 : count;
+  }, 0) : 0;
 
   if (!files) return (
     <nav id="file-list">
@@ -16,15 +15,18 @@ function FileList({ files }) {
   return (
     <nav id="file-list">
       <h2>Files</h2>
+      <p className="file-list-meta">
+        Loaded {loadedCount} / {files.length}
+      </p>
       <ul id="file-list-items">
         {files.map(file => {
           const filePath = file.to || file.from;
-          const targetId = `file-${slugify(filePath)}`;
+          const isLoaded = Boolean(loadedFilesByPath[filePath]);
           return (
             <li
               key={filePath}
-              className="file-list-item"
-              onClick={() => scrollTo(targetId)}
+              className={`file-list-item${isLoaded ? '' : ' pending'}`}
+              onClick={() => onSelectFile?.(filePath)}
             >
               <span className={`status-dot ${file.status}`} />
               <span className="file-name">{filePath}</span>
