@@ -1,16 +1,19 @@
 import { memo } from 'react';
 
 function FileList({ files, loadedFilesByPath = {}, onSelectFile }) {
-  const loadedCount = files ? files.reduce((count, file) => {
-    const filePath = file.to || file.from;
-    return loadedFilesByPath[filePath] ? count + 1 : count;
-  }, 0) : 0;
+  const loadedCount = files
+    ? files.reduce((count, file) => {
+        const filePath = file.to || file.from;
+        return loadedFilesByPath[filePath] ? count + 1 : count;
+      }, 0)
+    : 0;
 
-  if (!files) return (
-    <nav id="file-list">
-      <h2>Files</h2>
-    </nav>
-  );
+  if (!files)
+    return (
+      <nav id="file-list">
+        <h2>Files</h2>
+      </nav>
+    );
 
   return (
     <nav id="file-list">
@@ -19,7 +22,7 @@ function FileList({ files, loadedFilesByPath = {}, onSelectFile }) {
         Loaded {loadedCount} / {files.length}
       </p>
       <ul id="file-list-items">
-        {files.map(file => {
+        {files.map((file) => {
           const filePath = file.to || file.from;
           const isLoaded = Boolean(loadedFilesByPath[filePath]);
           return (
@@ -31,8 +34,12 @@ function FileList({ files, loadedFilesByPath = {}, onSelectFile }) {
               <span className={`status-dot ${file.status}`} />
               <span className="file-name">{filePath}</span>
               <span className="stats">
-                {file.additions > 0 && <span className="add">+{file.additions}</span>}
-                {file.deletions > 0 && <span className="del">-{file.deletions}</span>}
+                {file.additions > 0 && (
+                  <span className="add">+{file.additions}</span>
+                )}
+                {file.deletions > 0 && (
+                  <span className="del">-{file.deletions}</span>
+                )}
               </span>
             </li>
           );

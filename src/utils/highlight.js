@@ -99,7 +99,10 @@ export function highlightLine(code, filePath) {
   const lang = getLanguage(filePath);
   if (!lang) return null;
   try {
-    const result = hljs.highlight(code, { language: lang, ignoreIllegals: true });
+    const result = hljs.highlight(code, {
+      language: lang,
+      ignoreIllegals: true,
+    });
     return result.value;
   } catch {
     return null;

@@ -1,27 +1,87 @@
 import { useCallback, memo } from 'react';
 
-function CommentPanel({ commentsByFile, commentCount, visible }) {
-  const scrollToComment = useCallback((id) => {
-    const row = document.querySelector(`.comment-row[data-comment-id="${id}"]`);
-    if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+function CommentPanel({
+  commentsByFile,
+  commentCount,
+  visible,
+  onDeleteComment,
+  onDismissAll,
+}) {
+  const scrollToComment = useCallback((comment) => {
+    if (comment.lineType === 'preview') {
+      const mark = document.querySelector(
+        `mark.preview-highlight[data-comment-id="${comment.id}"]`,
+      );
+      if (mark) {
+        mark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+      // Fallback: try the bubble
+      const bubble = document.querySelector(
+        `.preview-comment-bubble[data-comment-id="${comment.id}"]`,
+      );
+      if (bubble)
+        bubble.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } else {
+      const row = document.querySelector(
+        `.comment-row[data-comment-id="${comment.id}"]`,
+      );
+      if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
   }, []);
 
   if (!visible) return null;
 
   return (
     <aside id="comment-panel">
-      <h2>Comments (<span id="comment-count">{commentCount}</span>)</h2>
+      <div className="panel-header">
+        <h2>
+          Comments (<span id="comment-count">{commentCount}</span>)
+        </h2>
+        <button
+          className="panel-dismiss-all-btn"
+          type="button"
+          onClick={onDismissAll}
+        >
+          Dismiss all
+        </button>
+      </div>
       <div id="comment-list">
         {Object.entries(commentsByFile).map(([file, fileComments]) => (
           <div key={file} className="panel-comment-group">
             <h3>{file}</h3>
-            {fileComments.map(c => (
+            {fileComments.map((c) => (
               <div
                 key={c.id}
                 className="panel-comment-item"
-                onClick={() => scrollToComment(c.id)}
+                onClick={() => scrollToComment(c)}
               >
-                <div className="panel-line-ref">Line {c.line}</div>
+                <button
+                  className="panel-dismiss-btn"
+                  type="button"
+                  aria-label="Dismiss comment"
+                  title="Dismiss comment"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDeleteComment(c.id);
+                  }}
+                >
+                  <span className="material-symbols-rounded">close</span>
+                </button>
+                <div className="panel-line-ref">
+                  {c.lineType === 'preview' ? (
+                    <span className="panel-quote-ref">
+                      <span className="material-symbols-rounded">
+                        format_quote
+                      </span>
+                      {c.selectedText?.length > 50
+                        ? c.selectedText.slice(0, 50) + '...'
+                        : c.selectedText}
+                    </span>
+                  ) : (
+                    `Line ${c.line}`
+                  )}
+                </div>
                 <div className="panel-comment-text">{c.content}</div>
               </div>
             ))}

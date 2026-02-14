@@ -1,4 +1,12 @@
-import { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } from 'react';
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  useMemo,
+  lazy,
+  Suspense,
+} from 'react';
 import { useTheme } from './hooks/useTheme';
 import { useComments } from './hooks/useComments';
 import Header from './components/Header';
@@ -51,8 +59,14 @@ function mergeFileDetails(existing, files) {
 export default function App() {
   const { theme, toggleTheme } = useTheme();
   const [gitRoot, setGitRoot] = useState('');
-  const { commentsByFile, allComments, addComment, updateComment, deleteComment } =
-    useComments(gitRoot);
+  const {
+    commentsByFile,
+    allComments,
+    addComment,
+    updateComment,
+    deleteComment,
+    deleteAllComments,
+  } = useComments(gitRoot);
 
   const [fileSummaries, setFileSummaries] = useState(null);
   const [fileDetailsByPath, setFileDetailsByPath] = useState({});
@@ -67,15 +81,25 @@ export default function App() {
   const [nextOffset, setNextOffset] = useState(0);
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     if (typeof window === 'undefined') return SIDEBAR_DEFAULT_WIDTH;
-    const raw = Number.parseInt(localStorage.getItem(SIDEBAR_STORAGE_KEY) || '', 10);
-    return Number.isFinite(raw) ? clampSidebarWidth(raw) : SIDEBAR_DEFAULT_WIDTH;
+    const raw = Number.parseInt(
+      localStorage.getItem(SIDEBAR_STORAGE_KEY) || '',
+      10,
+    );
+    return Number.isFinite(raw)
+      ? clampSidebarWidth(raw)
+      : SIDEBAR_DEFAULT_WIDTH;
   });
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
   const [commentPanelOpen, setCommentPanelOpen] = useState(true);
   const [commentPanelWidth, setCommentPanelWidth] = useState(() => {
     if (typeof window === 'undefined') return COMMENT_PANEL_DEFAULT_WIDTH;
-    const raw = Number.parseInt(localStorage.getItem(COMMENT_PANEL_STORAGE_KEY) || '', 10);
-    return Number.isFinite(raw) ? clampCommentPanelWidth(raw) : COMMENT_PANEL_DEFAULT_WIDTH;
+    const raw = Number.parseInt(
+      localStorage.getItem(COMMENT_PANEL_STORAGE_KEY) || '',
+      10,
+    );
+    return Number.isFinite(raw)
+      ? clampCommentPanelWidth(raw)
+      : COMMENT_PANEL_DEFAULT_WIDTH;
   });
   const [isResizingCommentPanel, setIsResizingCommentPanel] = useState(false);
   const [globalCollapsed, setGlobalCollapsed] = useState(false);
@@ -133,19 +157,22 @@ export default function App() {
     }, 3000);
   }, []);
 
-  const requestDiffPage = useCallback(async (offset, limit = DIFF_PAGE_SIZE) => {
-    const params = new URLSearchParams({
-      mode: 'page',
-      offset: String(offset),
-      limit: String(limit),
-    });
-    const response = await fetch(`/api/diff?${params.toString()}`);
-    if (!response.ok) throw new Error('Failed to load staged changes page');
+  const requestDiffPage = useCallback(
+    async (offset, limit = DIFF_PAGE_SIZE) => {
+      const params = new URLSearchParams({
+        mode: 'page',
+        offset: String(offset),
+        limit: String(limit),
+      });
+      const response = await fetch(`/api/diff?${params.toString()}`);
+      if (!response.ok) throw new Error('Failed to load staged changes page');
 
-    const data = await response.json();
-    if (data.error) throw new Error(data.error);
-    return data;
-  }, []);
+      const data = await response.json();
+      if (data.error) throw new Error(data.error);
+      return data;
+    },
+    [],
+  );
 
   const loadNextPage = useCallback(async () => {
     if (isLoadingPageRef.current || !hasMoreFilesRef.current) return false;
@@ -188,7 +215,8 @@ export default function App() {
           fetch('/api/diff?mode=summary'),
           fetch('/api/config'),
         ]);
-        if (!summaryRes.ok) throw new Error('Failed to load staged changes summary');
+        if (!summaryRes.ok)
+          throw new Error('Failed to load staged changes summary');
         if (!configRes.ok) throw new Error('Failed to load config');
 
         const summaryData = await summaryRes.json();
@@ -262,35 +290,70 @@ export default function App() {
     localStorage.setItem(COMMENT_PANEL_STORAGE_KEY, String(commentPanelWidth));
   }, [commentPanelWidth]);
 
-  useEffect(() => () => {
-    document.body.classList.remove('is-resizing-sidebar');
-    document.body.classList.remove('is-resizing-comment-panel');
-    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    if (resizeGuideRafRef.current) {
-      cancelAnimationFrame(resizeGuideRafRef.current);
-      resizeGuideRafRef.current = 0;
-    }
-    if (commentResizeGuideRafRef.current) {
-      cancelAnimationFrame(commentResizeGuideRafRef.current);
-      commentResizeGuideRafRef.current = 0;
-    }
-  }, []);
+  useEffect(
+    () => () => {
+      document.body.classList.remove('is-resizing-sidebar');
+      document.body.classList.remove('is-resizing-comment-panel');
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+      if (resizeGuideRafRef.current) {
+        cancelAnimationFrame(resizeGuideRafRef.current);
+        resizeGuideRafRef.current = 0;
+      }
+      if (commentResizeGuideRafRef.current) {
+        cancelAnimationFrame(commentResizeGuideRafRef.current);
+        commentResizeGuideRafRef.current = 0;
+      }
+    },
+    [],
+  );
 
   const handleAddComment = useCallback((file, line, lineType) => {
     setEditingComment(null);
     setActiveForm({ file, line, lineType });
   }, []);
 
-  const handleSubmitComment = useCallback((content) => {
-    if (!content.trim()) return;
-    if (editingComment) {
-      updateComment(editingComment.id, content);
+  const handleAddPreviewComment = useCallback(
+    (file, selectedText, textOffset, textLength) => {
       setEditingComment(null);
-    } else if (activeForm) {
-      addComment(activeForm.file, activeForm.line, activeForm.lineType, content);
-    }
-    setActiveForm(null);
-  }, [activeForm, editingComment, addComment, updateComment]);
+      setActiveForm({
+        file,
+        line: 0,
+        lineType: 'preview',
+        selectedText,
+        textOffset,
+        textLength,
+      });
+    },
+    [],
+  );
+
+  const handleSubmitComment = useCallback(
+    (content) => {
+      if (!content.trim()) return;
+      if (editingComment) {
+        updateComment(editingComment.id, content);
+        setEditingComment(null);
+      } else if (activeForm) {
+        const extra =
+          activeForm.lineType === 'preview'
+            ? {
+                selectedText: activeForm.selectedText,
+                textOffset: activeForm.textOffset,
+                textLength: activeForm.textLength,
+              }
+            : {};
+        addComment(
+          activeForm.file,
+          activeForm.line,
+          activeForm.lineType,
+          content,
+          extra,
+        );
+      }
+      setActiveForm(null);
+    },
+    [activeForm, editingComment, addComment, updateComment],
+  );
 
   const handleCancelForm = useCallback(() => {
     setActiveForm(null);
@@ -298,13 +361,25 @@ export default function App() {
   }, []);
 
   const handleEditComment = useCallback((comment) => {
-    setActiveForm({ file: comment.file, line: comment.line, lineType: comment.lineType });
+    setActiveForm({
+      file: comment.file,
+      line: comment.line,
+      lineType: comment.lineType,
+    });
     setEditingComment(comment);
   }, []);
 
-  const handleDeleteComment = useCallback((id) => {
-    deleteComment(id);
-  }, [deleteComment]);
+  const handleDeleteComment = useCallback(
+    (id) => {
+      deleteComment(id);
+    },
+    [deleteComment],
+  );
+
+  const handleDismissAllComments = useCallback(() => {
+    if (!confirm('Dismiss all comments?')) return;
+    deleteAllComments();
+  }, [deleteAllComments]);
 
   const handleSendComments = useCallback(async () => {
     if (allComments.length === 0) return;
@@ -329,7 +404,10 @@ export default function App() {
       });
       const data = await res.json();
       if (data.success) {
-        showToast(`Comments saved to ${config.reviewFileName} and copied to clipboard`, 'success');
+        showToast(
+          `Comments saved to ${config.reviewFileName} and copied to clipboard`,
+          'success',
+        );
       } else {
         showToast(`Failed to send comments: ${data.error}`, 'error');
       }
@@ -340,39 +418,49 @@ export default function App() {
 
   const handleCommit = useCallback(() => {
     if (allComments.length > 0) {
-      if (!confirm(`You have ${allComments.length} unresolved comment${allComments.length === 1 ? '' : 's'}. Commit anyway?`)) {
+      if (
+        !confirm(
+          `You have ${allComments.length} unresolved comment${allComments.length === 1 ? '' : 's'}. Commit anyway?`,
+        )
+      ) {
         return;
       }
     }
     setShowCommitModal(true);
   }, [allComments]);
 
-  const handleDoCommit = useCallback(async (message) => {
-    if (!message.trim()) {
-      showToast('Commit message cannot be empty', 'error');
-      return;
-    }
-    try {
-      const res = await fetch('/api/commit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: message.trim() }),
-      });
-      const data = await res.json();
-      setShowCommitModal(false);
-      if (data.success) {
-        setCommitted(true);
-        showToast('Changes committed!', 'success');
-      } else {
-        showToast(`Commit failed: ${data.error}`, 'error');
+  const handleDoCommit = useCallback(
+    async (message) => {
+      if (!message.trim()) {
+        showToast('Commit message cannot be empty', 'error');
+        return;
       }
-    } catch (err) {
-      setShowCommitModal(false);
-      showToast(`Commit failed: ${err.message}`, 'error');
-    }
-  }, [showToast]);
+      try {
+        const res = await fetch('/api/commit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: message.trim() }),
+        });
+        const data = await res.json();
+        setShowCommitModal(false);
+        if (data.success) {
+          setCommitted(true);
+          showToast('Changes committed!', 'success');
+        } else {
+          showToast(`Commit failed: ${data.error}`, 'error');
+        }
+      } catch (err) {
+        setShowCommitModal(false);
+        showToast(`Commit failed: ${err.message}`, 'error');
+      }
+    },
+    [showToast],
+  );
 
-  const handleCloseCommitModal = useCallback(() => setShowCommitModal(false), []);
+  const handleCloseCommitModal = useCallback(
+    () => setShowCommitModal(false),
+    [],
+  );
 
   const handleToggleCollapseAll = useCallback(() => {
     setGlobalCollapsed((prev) => !prev);
@@ -406,7 +494,8 @@ export default function App() {
 
     try {
       const summaryRes = await fetch('/api/diff?mode=summary');
-      if (!summaryRes.ok) throw new Error('Failed to load staged changes summary');
+      if (!summaryRes.ok)
+        throw new Error('Failed to load staged changes summary');
       const summaryData = await summaryRes.json();
       if (summaryData.error) throw new Error(summaryData.error);
 
@@ -438,146 +527,193 @@ export default function App() {
     }
   }, [requestDiffPage]);
 
-  const switchProject = useCallback(async (targetPath) => {
-    try {
-      const res = await fetch('/api/switch-project', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: targetPath }),
-      });
-      const data = await res.json();
-      if (data.error) {
-        showToast(`Failed to switch: ${data.error}`, 'error');
-        return;
+  const switchProject = useCallback(
+    async (targetPath) => {
+      try {
+        const res = await fetch('/api/switch-project', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: targetPath }),
+        });
+        const data = await res.json();
+        if (data.error) {
+          showToast(`Failed to switch: ${data.error}`, 'error');
+          return;
+        }
+        setProjectInfo(data);
+        setError(null);
+        setActiveForm(null);
+        setEditingComment(null);
+        await reloadDiffs();
+      } catch (err) {
+        showToast(`Failed to switch project: ${err.message}`, 'error');
       }
-      setProjectInfo(data);
-      setError(null);
-      setActiveForm(null);
-      setEditingComment(null);
-      await reloadDiffs();
-    } catch (err) {
-      showToast(`Failed to switch project: ${err.message}`, 'error');
-    }
-  }, [reloadDiffs, showToast]);
+    },
+    [reloadDiffs, showToast],
+  );
 
-  const handleUnstageFile = useCallback(async (filePath) => {
+  const handleUnstageFile = useCallback(
+    async (filePath) => {
+      try {
+        const res = await fetch('/api/file-unstage', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filePath }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast('File unstaged', 'success');
+          await reloadDiffs();
+        } else {
+          showToast(`Failed to unstage file: ${data.error}`, 'error');
+        }
+      } catch (err) {
+        showToast(`Failed to unstage file: ${err.message}`, 'error');
+      }
+    },
+    [reloadDiffs, showToast],
+  );
+
+  const handleRevertFile = useCallback(
+    async (filePath) => {
+      try {
+        const res = await fetch('/api/file-revert', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filePath }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast('File reverted', 'success');
+          await reloadDiffs();
+        } else {
+          showToast(`Failed to revert file: ${data.error}`, 'error');
+        }
+      } catch (err) {
+        showToast(`Failed to revert file: ${err.message}`, 'error');
+      }
+    },
+    [reloadDiffs, showToast],
+  );
+
+  const handleUnstageHunk = useCallback(
+    async (filePath, chunkIndex, oldStart) => {
+      try {
+        const res = await fetch('/api/hunk-unstage', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filePath, chunkIndex, oldStart }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast('Hunk unstaged', 'success');
+          await reloadDiffs();
+        } else {
+          showToast(`Failed to unstage hunk: ${data.error}`, 'error');
+        }
+      } catch (err) {
+        showToast(`Failed to unstage hunk: ${err.message}`, 'error');
+      }
+    },
+    [reloadDiffs, showToast],
+  );
+
+  const handleRevertHunk = useCallback(
+    async (filePath, chunkIndex, oldStart) => {
+      try {
+        const res = await fetch('/api/hunk-revert', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filePath, chunkIndex, oldStart }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast('Hunk discarded', 'success');
+          await reloadDiffs();
+        } else {
+          showToast(`Failed to discard hunk: ${data.error}`, 'error');
+        }
+      } catch (err) {
+        showToast(`Failed to discard hunk: ${err.message}`, 'error');
+      }
+    },
+    [reloadDiffs, showToast],
+  );
+
+  const handleUnstageAll = useCallback(async () => {
+    if (!confirm('Unstage all files? Changes will remain in the working tree.'))
+      return;
     try {
-      const res = await fetch('/api/file-unstage', {
+      const res = await fetch('/api/unstage-all', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filePath }),
       });
       const data = await res.json();
       if (data.success) {
-        showToast('File unstaged', 'success');
+        showToast('All files unstaged', 'success');
         await reloadDiffs();
       } else {
-        showToast(`Failed to unstage file: ${data.error}`, 'error');
+        showToast(`Failed to unstage all: ${data.error}`, 'error');
       }
     } catch (err) {
-      showToast(`Failed to unstage file: ${err.message}`, 'error');
+      showToast(`Failed to unstage all: ${err.message}`, 'error');
     }
   }, [reloadDiffs, showToast]);
 
-  const handleRevertFile = useCallback(async (filePath) => {
-    try {
-      const res = await fetch('/api/file-revert', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filePath }),
+  const ensureFileLoaded = useCallback(
+    async (filePath) => {
+      if (fileDetailsByPathRef.current[filePath]) return true;
+
+      const summaries = fileSummariesRef.current;
+      if (!summaries) return false;
+
+      const targetIndex = summaries.findIndex(
+        (file) => getFilePath(file) === filePath,
+      );
+      if (targetIndex === -1) return false;
+
+      try {
+        const data = await requestDiffPage(targetIndex, FILE_JUMP_LIMIT);
+        setFileDetailsByPath((prev) =>
+          mergeFileDetails(prev, data.files || []),
+        );
+        return (data.files || []).some(
+          (file) => getFilePath(file) === filePath,
+        );
+      } catch (err) {
+        showToast(`Failed to load file: ${err.message}`, 'error');
+        return false;
+      }
+    },
+    [requestDiffPage, showToast],
+  );
+
+  const handleSelectFile = useCallback(
+    async (filePath) => {
+      if (!filePath) return;
+      const requestId = fileSelectionRequestIdRef.current + 1;
+      fileSelectionRequestIdRef.current = requestId;
+
+      const targetId = `file-${slugify(filePath)}`;
+      const scrollToTarget = () => {
+        const node = document.getElementById(targetId);
+        if (!node) return false;
+        node.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return true;
+      };
+
+      if (scrollToTarget()) return;
+
+      const loaded = await ensureFileLoaded(filePath);
+      if (!loaded || requestId !== fileSelectionRequestIdRef.current) return;
+
+      requestAnimationFrame(() => {
+        if (requestId !== fileSelectionRequestIdRef.current) return;
+        scrollToTarget();
       });
-      const data = await res.json();
-      if (data.success) {
-        showToast('File reverted', 'success');
-        await reloadDiffs();
-      } else {
-        showToast(`Failed to revert file: ${data.error}`, 'error');
-      }
-    } catch (err) {
-      showToast(`Failed to revert file: ${err.message}`, 'error');
-    }
-  }, [reloadDiffs, showToast]);
-
-  const handleUnstageHunk = useCallback(async (filePath, chunkIndex, oldStart) => {
-    try {
-      const res = await fetch('/api/hunk-unstage', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filePath, chunkIndex, oldStart }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        showToast('Hunk unstaged', 'success');
-        await reloadDiffs();
-      } else {
-        showToast(`Failed to unstage hunk: ${data.error}`, 'error');
-      }
-    } catch (err) {
-      showToast(`Failed to unstage hunk: ${err.message}`, 'error');
-    }
-  }, [reloadDiffs, showToast]);
-
-  const handleRevertHunk = useCallback(async (filePath, chunkIndex, oldStart) => {
-    try {
-      const res = await fetch('/api/hunk-revert', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filePath, chunkIndex, oldStart }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        showToast('Hunk discarded', 'success');
-        await reloadDiffs();
-      } else {
-        showToast(`Failed to discard hunk: ${data.error}`, 'error');
-      }
-    } catch (err) {
-      showToast(`Failed to discard hunk: ${err.message}`, 'error');
-    }
-  }, [reloadDiffs, showToast]);
-
-  const ensureFileLoaded = useCallback(async (filePath) => {
-    if (fileDetailsByPathRef.current[filePath]) return true;
-
-    const summaries = fileSummariesRef.current;
-    if (!summaries) return false;
-
-    const targetIndex = summaries.findIndex((file) => getFilePath(file) === filePath);
-    if (targetIndex === -1) return false;
-
-    try {
-      const data = await requestDiffPage(targetIndex, FILE_JUMP_LIMIT);
-      setFileDetailsByPath((prev) => mergeFileDetails(prev, data.files || []));
-      return (data.files || []).some((file) => getFilePath(file) === filePath);
-    } catch (err) {
-      showToast(`Failed to load file: ${err.message}`, 'error');
-      return false;
-    }
-  }, [requestDiffPage, showToast]);
-
-  const handleSelectFile = useCallback(async (filePath) => {
-    if (!filePath) return;
-    const requestId = fileSelectionRequestIdRef.current + 1;
-    fileSelectionRequestIdRef.current = requestId;
-
-    const targetId = `file-${slugify(filePath)}`;
-    const scrollToTarget = () => {
-      const node = document.getElementById(targetId);
-      if (!node) return false;
-      node.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      return true;
-    };
-
-    if (scrollToTarget()) return;
-
-    const loaded = await ensureFileLoaded(filePath);
-    if (!loaded || requestId !== fileSelectionRequestIdRef.current) return;
-
-    requestAnimationFrame(() => {
-      if (requestId !== fileSelectionRequestIdRef.current) return;
-      scrollToTarget();
-    });
-  }, [ensureFileLoaded]);
+    },
+    [ensureFileLoaded],
+  );
 
   // Sidebar resize: write CSS variable directly during drag, commit to state on release
   const handleSidebarResizeStart = useCallback((event) => {
@@ -589,14 +725,19 @@ export default function App() {
     const drawGuide = () => {
       resizeGuideRafRef.current = 0;
       if (resizeGuideRef.current) {
-        resizeGuideRef.current.style.setProperty('--guide-left', `${sidebarPreviewWidthRef.current}px`);
+        resizeGuideRef.current.style.setProperty(
+          '--guide-left',
+          `${sidebarPreviewWidthRef.current}px`,
+        );
       }
     };
 
     drawGuide();
 
     const handlePointerMove = (moveEvent) => {
-      const nextWidth = clampSidebarWidth(startWidth + moveEvent.clientX - startX);
+      const nextWidth = clampSidebarWidth(
+        startWidth + moveEvent.clientX - startX,
+      );
       sidebarPreviewWidthRef.current = nextWidth;
       if (!resizeGuideRafRef.current) {
         resizeGuideRafRef.current = requestAnimationFrame(drawGuide);
@@ -653,7 +794,7 @@ export default function App() {
       if (commentResizeGuideRef.current) {
         commentResizeGuideRef.current.style.setProperty(
           '--guide-right',
-          `${commentPanelPreviewWidthRef.current}px`
+          `${commentPanelPreviewWidthRef.current}px`,
         );
       }
     };
@@ -661,7 +802,9 @@ export default function App() {
     drawGuide();
 
     const handlePointerMove = (moveEvent) => {
-      const nextWidth = clampCommentPanelWidth(startWidth - (moveEvent.clientX - startX));
+      const nextWidth = clampCommentPanelWidth(
+        startWidth - (moveEvent.clientX - startX),
+      );
       commentPanelPreviewWidthRef.current = nextWidth;
       if (!commentResizeGuideRafRef.current) {
         commentResizeGuideRafRef.current = requestAnimationFrame(drawGuide);
@@ -731,7 +874,8 @@ export default function App() {
     return count;
   }, [fileSummaries, fileDetailsByPath]);
 
-  const canAutoLoadMore = hasMoreFiles && loadedFiles.length === contiguousLoadedCount;
+  const canAutoLoadMore =
+    hasMoreFiles && loadedFiles.length === contiguousLoadedCount;
 
   useEffect(() => {
     if (!canAutoLoadMore || !loadMoreTriggerRef.current) return undefined;
@@ -741,7 +885,7 @@ export default function App() {
         if (!entries[0]?.isIntersecting) return;
         loadNextPage();
       },
-      { rootMargin: '500px 0px 500px 0px' }
+      { rootMargin: '500px 0px 500px 0px' },
     );
 
     observer.observe(loadMoreTriggerRef.current);
@@ -777,7 +921,9 @@ export default function App() {
         className={showCommentPanel ? 'has-comments' : ''}
         style={{
           '--sidebar-width': `${sidebarWidth}px`,
-          ...(showCommentPanel ? { '--comment-panel-width': `${commentPanelWidth}px` } : {}),
+          ...(showCommentPanel
+            ? { '--comment-panel-width': `${commentPanelWidth}px` }
+            : {}),
         }}
       >
         <FileSidebar
@@ -824,6 +970,7 @@ export default function App() {
                     activeForm={activeForm}
                     editingComment={editingComment}
                     onAddComment={handleAddComment}
+                    onAddPreviewComment={handleAddPreviewComment}
                     onSubmitComment={handleSubmitComment}
                     onCancelForm={handleCancelForm}
                     onEditComment={handleEditComment}
@@ -837,6 +984,17 @@ export default function App() {
                   />
                 );
               })}
+
+              {loadedFiles.length > 0 && (
+                <button
+                  className="btn btn-secondary btn-unstage-all"
+                  type="button"
+                  onClick={handleUnstageAll}
+                >
+                  <span className="material-symbols-rounded">remove</span>
+                  Unstage all
+                </button>
+              )}
 
               <div className="diff-pagination">
                 <span className="diff-pagination-count">
@@ -854,7 +1012,11 @@ export default function App() {
                 )}
               </div>
 
-              <div className="diff-pagination-sentinel" ref={loadMoreTriggerRef} aria-hidden="true" />
+              <div
+                className="diff-pagination-sentinel"
+                ref={loadMoreTriggerRef}
+                aria-hidden="true"
+              />
             </>
           )}
         </main>
@@ -877,14 +1039,22 @@ export default function App() {
           commentsByFile={commentsByFile}
           commentCount={allComments.length}
           visible={showCommentPanel}
+          onDeleteComment={handleDeleteComment}
+          onDismissAll={handleDismissAllComments}
         />
       </div>
       {hasComments && (
         <button
           className={`comment-panel-toggle${showCommentPanel ? ' is-open' : ''}`}
-          style={showCommentPanel ? { '--cp-width': `${commentPanelWidth}px` } : undefined}
+          style={
+            showCommentPanel
+              ? { '--cp-width': `${commentPanelWidth}px` }
+              : undefined
+          }
           onClick={handleToggleCommentPanel}
-          aria-label={commentPanelOpen ? 'Hide comment panel' : 'Show comment panel'}
+          aria-label={
+            commentPanelOpen ? 'Hide comment panel' : 'Show comment panel'
+          }
           title={commentPanelOpen ? 'Hide comments' : 'Show comments'}
           type="button"
         >

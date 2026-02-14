@@ -11,7 +11,12 @@ export function formatComments(comments, gitRoot) {
   for (const [file, fileComments] of Object.entries(grouped)) {
     output += `### ${file}\n\n`;
     for (const c of fileComments.sort((a, b) => a.line - b.line)) {
-      output += `- **Line ${c.line}** (${c.lineType}): ${c.content}\n`;
+      if (c.lineType === 'preview') {
+        const quote = c.selectedText?.slice(0, 60) || '';
+        output += `- **Preview** "${quote}": ${c.content}\n`;
+      } else {
+        output += `- **Line ${c.line}** (${c.lineType}): ${c.content}\n`;
+      }
     }
     output += '\n';
   }

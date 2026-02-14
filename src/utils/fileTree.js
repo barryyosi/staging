@@ -89,20 +89,22 @@ export function buildFileTree(fileSummaries, allTrackedFiles = null) {
   return toSortedArray(root.children);
 }
 
+import { fuzzyMatchPath } from './fuzzySearch';
+
 /**
  * Filters a tree to only include nodes matching a search query.
  * Returns a new tree with matching files and their ancestor directories.
  */
 export function filterTree(tree, query) {
   if (!query) return tree;
-  const lower = query.toLowerCase();
 
   function filterNodes(nodes) {
     const result = [];
     for (const node of nodes) {
       if (node.isFile) {
-        if (node.path.toLowerCase().includes(lower)) {
-          result.push(node);
+        const matchResult = fuzzyMatchPath(node.path, query);
+        if (matchResult) {
+          result.push({ ...node, fuzzyResult: matchResult });
         }
       } else {
         const filteredChildren = filterNodes(node.children);

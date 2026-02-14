@@ -30,8 +30,11 @@
   "license": "MIT",
   "dependencies": {
     "@hono/node-server": "^1.19.9",
+    "dompurify": "^3.3.1",
+    "fuzzysort": "^3.1.0",
     "highlight.js": "^11.11.1",
     "hono": "^4.11.9",
+    "marked": "^17.0.2",
     "react": "^19.2.4",
     "react-dom": "^19.2.4"
   },
@@ -40,6 +43,7 @@
     "@vitejs/plugin-react": "^5.1.4",
     "eslint": "^9.39.2",
     "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.0",
     "globals": "^17.3.0",

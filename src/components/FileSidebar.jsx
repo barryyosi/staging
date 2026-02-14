@@ -1,5 +1,6 @@
 import { memo, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { buildFileTree, filterTree } from '../utils/fileTree';
+import { fuzzyFilterFiles, highlightMatch } from '../utils/fuzzySearch';
 
 const VIEW_STORAGE_KEY = 'staging-file-view';
 
@@ -8,20 +9,17 @@ function getFilePath(file) {
 }
 
 function FlatFileList({ files, loadedFilesByPath, onSelectFile, searchQuery }) {
-  const filtered = useMemo(() => {
-    if (!searchQuery) return files;
-    const lower = searchQuery.toLowerCase();
-    return files.filter((file) => {
-      const filePath = getFilePath(file);
-      return filePath && filePath.toLowerCase().includes(lower);
-    });
+  const filteredResults = useMemo(() => {
+    return fuzzyFilterFiles(files, searchQuery);
   }, [files, searchQuery]);
 
   return (
     <ul id="file-list-items">
-      {filtered.map((file) => {
+      {filteredResults.map(({ file, result }) => {
         const filePath = getFilePath(file);
         const isLoaded = Boolean(loadedFilesByPath[filePath]);
+        const highlighted = highlightMatch(result);
+
         return (
           <li
             key={filePath}
@@ -29,10 +27,22 @@ function FlatFileList({ files, loadedFilesByPath, onSelectFile, searchQuery }) {
             onClick={() => onSelectFile?.(filePath)}
           >
             <span className={`status-dot ${file.status}`} />
-            <span className="file-name">{filePath}</span>
+            <span className="file-name">
+              {highlighted
+                ? highlighted.map((seg, i) => (
+                    <mark key={i} className={seg.highlight ? 'match' : ''}>
+                      {seg.text}
+                    </mark>
+                  ))
+                : filePath}
+            </span>
             <span className="stats">
-              {file.additions > 0 && <span className="add">+{file.additions}</span>}
-              {file.deletions > 0 && <span className="del">-{file.deletions}</span>}
+              {file.additions > 0 && (
+                <span className="add">+{file.additions}</span>
+              )}
+              {file.deletions > 0 && (
+                <span className="del">-{file.deletions}</span>
+              )}
             </span>
           </li>
         );
@@ -41,25 +51,26 @@ function FlatFileList({ files, loadedFilesByPath, onSelectFile, searchQuery }) {
   );
 }
 
-function FileTreeNode({ node, depth, loadedFilesByPath, onSelectFile, forceExpanded, expandedMap }) {
+function FileTreeNode({
+  node,
+  depth,
+  loadedFilesByPath,
+  onSelectFile,
+  forceExpanded,
+  expandedMap,
+}) {
   const [expanded, setExpanded] = useState(() => {
-    if (forceExpanded) return true;
     if (expandedMap.has(node.path)) return expandedMap.get(node.path);
     return true;
   });
 
-  useEffect(() => {
-    if (forceExpanded) {
-      setExpanded(true);
-    } else {
-      setExpanded(expandedMap.has(node.path) ? expandedMap.get(node.path) : true);
-    }
-  }, [forceExpanded]);
+  const isExpanded = forceExpanded || expanded;
 
   if (node.isFile) {
     const isStaged = node.isStaged;
     const filePath = node.path;
     const isLoaded = isStaged && Boolean(loadedFilesByPath[filePath]);
+    const highlighted = highlightMatch(node.fuzzyResult);
 
     return (
       <li
@@ -67,12 +78,26 @@ function FileTreeNode({ node, depth, loadedFilesByPath, onSelectFile, forceExpan
         style={{ paddingLeft: `${depth * 16 + 12}px` }}
         onClick={isStaged ? () => onSelectFile?.(filePath) : undefined}
       >
-        {isStaged && node.file && <span className={`status-dot ${node.file.status}`} />}
-        <span className="file-name">{node.name}</span>
+        {isStaged && node.file && (
+          <span className={`status-dot ${node.file.status}`} />
+        )}
+        <span className="file-name">
+          {highlighted
+            ? highlighted.map((seg, i) => (
+                <mark key={i} className={seg.highlight ? 'match' : ''}>
+                  {seg.text}
+                </mark>
+              ))
+            : node.name}
+        </span>
         {isStaged && node.file && (
           <span className="stats">
-            {node.file.additions > 0 && <span className="add">+{node.file.additions}</span>}
-            {node.file.deletions > 0 && <span className="del">-{node.file.deletions}</span>}
+            {node.file.additions > 0 && (
+              <span className="add">+{node.file.additions}</span>
+            )}
+            {node.file.deletions > 0 && (
+              <span className="del">-{node.file.deletions}</span>
+            )}
           </span>
         )}
       </li>
@@ -92,10 +117,12 @@ function FileTreeNode({ node, depth, loadedFilesByPath, onSelectFile, forceExpan
           });
         }}
       >
-        <span className={`tree-caret${expanded ? ' expanded' : ''}`}>&#9654;</span>
+        <span className={`tree-caret${isExpanded ? ' expanded' : ''}`}>
+          &#9654;
+        </span>
         <span className="dir-name">{node.name}</span>
       </div>
-      {expanded && (
+      {isExpanded && (
         <ul className="file-tree-children">
           {node.children.map((child) => (
             <FileTreeNode
@@ -114,7 +141,15 @@ function FileTreeNode({ node, depth, loadedFilesByPath, onSelectFile, forceExpan
   );
 }
 
-function FileTreeView({ files, loadedFilesByPath, onSelectFile, searchQuery, showAllFiles, trackedFiles, expandedMap }) {
+function FileTreeView({
+  files,
+  loadedFilesByPath,
+  onSelectFile,
+  searchQuery,
+  showAllFiles,
+  trackedFiles,
+  expandedMap,
+}) {
   const tree = useMemo(() => {
     const base = buildFileTree(files, showAllFiles ? trackedFiles : null);
     return filterTree(base, searchQuery);
@@ -148,7 +183,7 @@ function FileSidebar({ files, loadedFilesByPath = {}, onSelectFile }) {
   const [showAllFiles, setShowAllFiles] = useState(false);
   const [trackedFiles, setTrackedFiles] = useState(null);
   const trackedFilesFetched = useRef(false);
-  const expandedMapRef = useRef(new Map());
+  const [expandedMap] = useState(() => new Map());
 
   useEffect(() => {
     localStorage.setItem(VIEW_STORAGE_KEY, viewMode);
@@ -197,13 +232,18 @@ function FileSidebar({ files, loadedFilesByPath = {}, onSelectFile }) {
           aria-label="Toggle tree view"
           onClick={() => setViewMode(isTree ? 'flat' : 'tree')}
         >
-          <span className={`file-view-toggle-option${!isTree ? ' active' : ''}`}>
+          <span
+            className={`file-view-toggle-option${!isTree ? ' active' : ''}`}
+          >
             <span className="material-symbols-rounded">list</span>
           </span>
           <span className={`file-view-toggle-option${isTree ? ' active' : ''}`}>
             <span className="material-symbols-rounded">account_tree</span>
           </span>
-          <span className="file-view-toggle-thumb" style={{ transform: isTree ? 'translateX(30px)' : 'translateX(0)' }} />
+          <span
+            className="file-view-toggle-thumb"
+            style={{ transform: isTree ? 'translateX(30px)' : 'translateX(0)' }}
+          />
         </button>
       </div>
 
@@ -224,7 +264,9 @@ function FileSidebar({ files, loadedFilesByPath = {}, onSelectFile }) {
           aria-checked={showAllFiles}
           onClick={() => setShowAllFiles((v) => !v)}
         >
-          <span className="toggle-track"><span className="toggle-thumb" /></span>
+          <span className="toggle-track">
+            <span className="toggle-thumb" />
+          </span>
           <span className="toggle-label">Show all files</span>
         </button>
       )}
@@ -244,7 +286,7 @@ function FileSidebar({ files, loadedFilesByPath = {}, onSelectFile }) {
           searchQuery={searchQuery}
           showAllFiles={showAllFiles}
           trackedFiles={trackedFiles}
-          expandedMap={expandedMapRef.current}
+          expandedMap={expandedMap}
         />
       )}
     </nav>

@@ -7,7 +7,10 @@ function ProjectDropdown({ projects, currentPath, onSelect, onClose }) {
         <button
           key={project.path}
           className={`nav-dropdown-item${project.path === currentPath ? ' active' : ''}`}
-          onClick={() => { onSelect(project.path); onClose(); }}
+          onClick={() => {
+            onSelect(project.path);
+            onClose();
+          }}
           type="button"
         >
           <span className="nav-dropdown-item-name">{project.name}</span>
@@ -25,7 +28,10 @@ function WorktreeDropdown({ worktrees, onSelect, onClose }) {
         <button
           key={wt.path}
           className={`nav-dropdown-item${wt.isCurrent ? ' active' : ''}`}
-          onClick={() => { onSelect(wt.path); onClose(); }}
+          onClick={() => {
+            onSelect(wt.path);
+            onClose();
+          }}
           type="button"
         >
           <span className="nav-dropdown-item-name">{wt.branch}</span>
@@ -35,7 +41,14 @@ function WorktreeDropdown({ worktrees, onSelect, onClose }) {
   );
 }
 
-function ProjectNavigator({ projectName, branch, projects, worktrees, gitRoot, onSwitchProject }) {
+function ProjectNavigator({
+  projectName,
+  branch,
+  projects,
+  worktrees,
+  gitRoot,
+  onSwitchProject,
+}) {
   const [showProjectDD, setShowProjectDD] = useState(false);
   const [showWorktreeDD, setShowWorktreeDD] = useState(false);
   const projectRef = useRef(null);
@@ -70,7 +83,12 @@ function ProjectNavigator({ projectName, branch, projects, worktrees, gitRoot, o
       <div className="nav-segment-wrap" ref={projectRef}>
         <button
           className={`nav-segment${!hasMultipleProjects ? ' nav-segment-static' : ''}`}
-          onClick={() => { if (hasMultipleProjects) { setShowWorktreeDD(false); setShowProjectDD((v) => !v); } }}
+          onClick={() => {
+            if (hasMultipleProjects) {
+              setShowWorktreeDD(false);
+              setShowProjectDD((v) => !v);
+            }
+          }}
           type="button"
         >
           <span className="nav-segment-label">{projectName}</span>
@@ -91,10 +109,17 @@ function ProjectNavigator({ projectName, branch, projects, worktrees, gitRoot, o
       <div className="nav-segment-wrap" ref={worktreeRef}>
         <button
           className={`nav-segment${!hasMultipleWorktrees ? ' nav-segment-static' : ''}`}
-          onClick={() => { if (hasMultipleWorktrees) { setShowProjectDD(false); setShowWorktreeDD((v) => !v); } }}
+          onClick={() => {
+            if (hasMultipleWorktrees) {
+              setShowProjectDD(false);
+              setShowWorktreeDD((v) => !v);
+            }
+          }}
           type="button"
         >
-          <span className="material-symbols-rounded nav-segment-icon">merge</span>
+          <span className="material-symbols-rounded nav-segment-icon">
+            merge
+          </span>
           <span className="nav-segment-label">{branch}</span>
           {hasMultipleWorktrees && <span className="nav-caret">&#x25BE;</span>}
         </button>

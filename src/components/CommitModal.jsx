@@ -30,12 +30,16 @@ export default function CommitModal({ onCommit, onClose }) {
           ref={textareaRef}
           placeholder="Enter commit message..."
           value={message}
-          onChange={e => setMessage(e.target.value)}
+          onChange={(e) => setMessage(e.target.value)}
           onKeyDown={handleKeyDown}
         />
         <div className="modal-actions">
-          <button className="btn" onClick={onClose}>Cancel</button>
-          <button className="btn btn-commit" onClick={() => onCommit(message)}>Commit</button>
+          <button className="btn" onClick={onClose}>
+            Cancel
+          </button>
+          <button className="btn btn-commit" onClick={() => onCommit(message)}>
+            Commit
+          </button>
         </div>
       </div>
     </div>

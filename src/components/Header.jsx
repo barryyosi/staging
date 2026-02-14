@@ -1,7 +1,20 @@
 import { useMemo, memo } from 'react';
 import ProjectNavigator from './ProjectNavigator';
 
-function Header({ theme, onToggleTheme, files, hasComments, commentCount, onSendComments, onCommit, committed, allCollapsed, onToggleCollapseAll, projectInfo, onSwitchProject }) {
+function Header({
+  theme,
+  onToggleTheme,
+  files,
+  hasComments,
+  commentCount,
+  onSendComments,
+  onCommit,
+  committed,
+  allCollapsed,
+  onToggleCollapseAll,
+  projectInfo,
+  onSwitchProject,
+}) {
   const summary = useMemo(() => {
     if (!files) return '';
     const totalAdd = files.reduce((s, f) => s + f.additions, 0);
@@ -57,9 +70,7 @@ function Header({ theme, onToggleTheme, files, hasComments, commentCount, onSend
             onClick={onSendComments}
           >
             Send to Agent
-            {hasComments && (
-              <span className="btn-badge">{commentCount}</span>
-            )}
+            {hasComments && <span className="btn-badge">{commentCount}</span>}
           </button>
           <button
             className="btn btn-primary"

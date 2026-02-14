@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 
-const isMac = typeof navigator !== 'undefined' && navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+const isMac =
+  typeof navigator !== 'undefined' &&
+  navigator.platform.toUpperCase().indexOf('MAC') >= 0;
 const modKey = isMac ? '\u2318' : 'Ctrl';
 
 export default function CommentForm({ initialContent, onSubmit, onCancel }) {
@@ -38,12 +40,14 @@ export default function CommentForm({ initialContent, onSubmit, onCancel }) {
               placeholder="Leave a comment..."
               rows="2"
               value={value}
-              onChange={e => setValue(e.target.value)}
+              onChange={(e) => setValue(e.target.value)}
               onKeyDown={handleKeyDown}
               aria-label="Comment"
             />
             <div className="comment-form-actions">
-              <button className="btn btn-sm" onClick={onCancel} type="button">Cancel</button>
+              <button className="btn btn-sm" onClick={onCancel} type="button">
+                Cancel
+              </button>
               <div className="comment-form-submit-wrap">
                 <span className="comment-form-hint">
                   <kbd>{modKey}</kbd> + <kbd>Enter</kbd>

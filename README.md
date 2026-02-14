@@ -37,6 +37,7 @@ Staging provides a lightweight, local-first review layer that complements your e
 - **Multi-Project Support**: Navigate between sibling repositories and git worktrees
 - **Hunk-Level Actions**: Unstage or revert individual hunks directly from the diff view
 - **File Tree Navigation**: Flat list or collapsible tree view with fuzzy search
+- **Markdown/HTML Preview**: Toggle per-file between diff and rendered preview for `.md` and `.html` files, with selection-based commenting on the rendered output
 - **Theme Support**: Light and dark modes with system preference detection
 
 ## Integration with AI Coding Agents
@@ -52,7 +53,7 @@ Add this to your `.claude/CLAUDE.md` file:
 
 After completing any implementation task:
 1. Stage all changes with `git add .`
-2. Run `staging` to launch the visual review interface
+2. Run `staging` to launch the visual human review interface
 3. Wait for user review and feedback before proceeding
 ```
 
@@ -60,13 +61,6 @@ Now, when Claude finishes a task, it will automatically launch Staging in your b
 
 *[Demo GIF will be placed here showing Claude Code → `staging` → browser opening with diff view]*
 
-### Works With Any Agent
-
-The same pattern works with:
-- **Gemini CLI** – Add to your system instructions
-- **Cursor** – Configure in `.cursorrules`
-- **Aider** – Use in your `.aider.conf.yml`
-- **Custom agents** – Include in your agent's prompt or configuration
 
 ## Quick Start
 
@@ -78,14 +72,11 @@ npm install
 npm link
 ```
 
-**2. Use**
-```bash
-# Make changes with your AI coding agent
-# Stage changes
-git add .
-
-# Launch visual review
-staging
+**2. Workflow**
+```
+1. Let your coding agent introduce some changes.
+2. Either of you can stage the changes with `git add .`
+3. Either of you can launch visual review with `staging`
 ```
 
 The browser will open automatically at `http://localhost:3456` with your staged changes ready for review.

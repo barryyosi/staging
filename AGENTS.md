@@ -125,7 +125,7 @@ The file sidebar (`FileSidebar.jsx`, replacing the old `FileList.jsx`) supports 
 - **Tree view**: A recursive directory tree with collapsible folders. Directories sorted before files, both alphabetically. Toggled via icon buttons in the sidebar header (Material Symbols `list` / `account_tree`). View preference is persisted in `localStorage` as `staging-file-view`.
 
 **Search bar:**
-- Filters files by case-insensitive path substring match. Works in both views. In tree view, shows matching files and their ancestor directories (all auto-expanded).
+- Filters files by fuzzy path match (powered by `fuzzysort`). Works in both views. Matched characters are highlighted in the file names. In tree view, shows matching files and their ancestor directories (all auto-expanded). Results in flat list view are sorted by match score.
 
 **"Show all files" toggle (tree view only):**
 - A checkbox toggle below the search bar. When enabled, fetches `GET /api/tracked-files` once and merges all tracked (non-staged) files into the tree. Non-staged files render with `opacity: 0.4`, no status dot, no stats, and are not clickable.
@@ -140,7 +140,7 @@ The file sidebar (`FileSidebar.jsx`, replacing the old `FileList.jsx`) supports 
 - `App.jsx` imports `FileSidebar` (same props as the old `FileList`: `files`, `loadedFilesByPath`, `onSelectFile`).
 
 ### Hunk-Level Unstage & Revert
-Per-hunk action buttons that appear on hover in the diff hunk header row, allowing users to unstage or discard individual hunks directly from the diff view.
+Per-hunk action buttons rendered inside a dark floating pill that appears on hover over each hunk `<tbody>`.
 
 **Backend:**
 - `lib/git.js` exports `buildHunkPatch(gitRoot, filePath, chunkIndex, expectedOldStart)` (internal), `unstageHunk(gitRoot, filePath, chunkIndex, oldStart)`, and `revertHunk(gitRoot, filePath, chunkIndex, oldStart)`.
@@ -150,11 +150,31 @@ Per-hunk action buttons that appear on hover in the diff hunk header row, allowi
 - `lib/server.js` exposes `POST /api/hunk-unstage` and `POST /api/hunk-revert`, both accepting `{ filePath, chunkIndex, oldStart }`.
 
 **Frontend:**
-- `src/components/DiffViewer.jsx` — Table restructured from single `<tbody>` to per-chunk `<tbody className="hunk-tbody">` for CSS hover targeting. `HunkHeader` renders an "Unstage" text button and a revert (undo icon) button inside a `.hunk-actions` div. Revert shows a `confirm()` dialog.
+- `src/components/DiffViewer.jsx` — Diff table uses 4 columns: `line-action | line-num | line-content | line-hunk-actions`. The 4th column (`line-hunk-actions`) is `sticky; right: 0` and has zero width, serving as the anchor for the floating pill. `HunkHeader` renders `<HunkActions>` inside the 4th `<td>`. `HunkActions` wraps two buttons (revert, unstage) inside a `.hunk-action-pill` — a dark floating capsule with gradient background, glass border, and multi-layer shadow. It appears on `.hunk-tbody:hover` with a scale-pop animation (`scale(0.92) → scale(1)`). Revert button hover turns red. `DiffLine` renders an empty 4th `<td>`. `CommentForm` and `CommentBubble` use `colSpan="4"`.
 - `src/App.jsx` — `handleUnstageHunk` and `handleRevertHunk` callbacks POST to the API, show a toast, and call `reloadDiffs()` on success. Both are passed as props to `<DiffViewer>`.
-- `src/style.css` — `.hunk-actions` floats right in the hunk header, hidden by default (`opacity: 0`), revealed on `.hunk-tbody:hover`. `.hunk-action-btn` uses the `btn-sm` style pattern. `.hunk-action-revert:hover` uses danger (red) colors.
+- `src/style.css` — `.line-hunk-actions` is sticky-right with background matching the row type (surface/hunk/add/del). `.hunk-action-pill` uses dark gradient, `border-radius: 100px`, and elevation shadows. `.hunk-action-btn` is 28px circular with light translucent bg on dark pill; revert hover uses red danger tint.
 
 **Edge cases:** Stale diff detection via `oldStart` cross-check; handles added files (`--- /dev/null`) and deleted files (`+++ /dev/null`); file disappears from diff after last hunk action (handled by `reloadDiffs()`).
+
+### File-Level Controls
+Always-visible action buttons in the file card header: revert, unstage, and collapse chevron.
+
+**Layout:** `[status] [path] [stats] ...auto-margin... [revert ↺] [unstage −] [collapse ∧]`
+
+**Implementation:**
+- `src/components/DiffViewer.jsx` — `.file-actions` contains three `.file-action-btn` buttons (revert, unstage, collapse). The collapse button uses `expand_less` icon with CSS rotation for collapsed state. No separate `onClick` — the click bubbles to the header's `toggleCollapse`.
+- `src/style.css` — `.file-actions` has `margin-left: auto` (no longer hidden on hover). `.file-action-btn` is 26px circular, transparent bg, `var(--text-3)` icon color. Hover: `var(--bg-hover)` bg + `var(--text-1)` color. Revert hover uses red danger tint. Collapse chevron animates 180deg rotation via `transform: rotate()` with `0.2s var(--ease)` transition.
+
+### Unstage All
+A global "Unstage all" button centered below all diff cards that unstages every staged file at once.
+
+**Backend:**
+- `lib/git.js` exports `unstageAll(gitRoot)` — runs `git reset HEAD`, clears the summary cache.
+- `lib/server.js` exposes `POST /api/unstage-all`.
+
+**Frontend:**
+- `src/App.jsx` — `handleUnstageAll` callback shows a `confirm()` dialog, POSTs to `/api/unstage-all`, shows a toast, and calls `reloadDiffs()` on success. The button is rendered after `loadedFiles.map(...)` when `loadedFiles.length > 0`, using `.btn .btn-secondary .btn-unstage-all` classes with a `remove` icon.
+- `src/style.css` — `.btn-unstage-all` has `margin: 24px auto; display: flex; gap: 6px`.
 
 ### Per-Project Comment Persistence
 Draft comments are stashed per project/worktree so they survive project switches and are restored when switching back.
@@ -177,6 +197,26 @@ The comment panel (right sidebar) can be toggled open/closed via a header button
 - Constants: `COMMENT_PANEL_MIN_WIDTH = 240`, `COMMENT_PANEL_MAX_WIDTH = 480`, `COMMENT_PANEL_DEFAULT_WIDTH = 280`, `COMMENT_PANEL_STORAGE_KEY = 'staging-comment-panel-width'`.
 - `src/App.jsx` — `commentPanelWidth` state initialized from localStorage. `handleCommentResizeStart` mirrors `handleSidebarResizeStart` with inverted delta (dragging left = wider). `handleCommentResizeKeyDown` supports arrow key resizing.
 - `src/style.css` — Grid becomes 5 columns when `has-comments`: `sidebar | 10px | 1fr | 10px | comment-panel-width`. `.comment-resizer` mirrors `.sidebar-resizer` styles. `.comment-resize-guide` positioned from the right. `body.is-resizing-comment-panel` sets `col-resize` cursor.
+
+### Comment Dismissal
+Users can dismiss individual comments and all comments at once directly from the comment panel sidebar.
+
+**Individual dismiss:**
+- A small 20px circular X button (`panel-dismiss-btn`) on each `.panel-comment-item`, positioned absolute top-right.
+- Hidden by default (`opacity: 0`), revealed on `.panel-comment-item:hover` — consistent with hover-reveal patterns used for hunk actions and inline comment buttons.
+- Uses `close` Material Symbol at 14px. `e.stopPropagation()` prevents the parent click-to-scroll.
+- Calls `onDeleteComment(id)` — same `deleteComment` function used by inline `CommentBubble` delete buttons.
+
+**Dismiss all:**
+- A muted uppercase text button (`panel-dismiss-all-btn`) in the panel header, right-aligned next to "COMMENTS (n)".
+- `var(--text-3)` color, no background, hover → `var(--text-2)`.
+- Shows `confirm()` dialog before clearing. Calls `deleteAllComments()` from `useComments` hook which sets `commentsByFile` to `{}`.
+
+**Implementation:**
+- `src/hooks/useComments.js` — exports `deleteAllComments` alongside existing functions.
+- `src/App.jsx` — `handleDismissAllComments` callback with confirm dialog, passed as `onDismissAll` prop to `CommentPanel`. `handleDeleteComment` passed as `onDeleteComment`.
+- `src/components/CommentPanel.jsx` — `.panel-header` div wraps `h2` + dismiss-all button. Each `.panel-comment-item` contains a `.panel-dismiss-btn`.
+- `src/style.css` — `.panel-header` flex row, `.panel-dismiss-all-btn` minimal text button, `.panel-dismiss-btn` absolute-positioned circle with hover-reveal.
 
 ### Syntax Highlighting
 Diff lines are syntax-highlighted using **highlight.js/lib/core** with selective language imports (~50KB gzipped). No highlight.js CSS theme is imported — token colors are defined as `--hljs-*` CSS custom properties in both light and dark theme blocks, using a GitHub-inspired palette.
@@ -210,6 +250,54 @@ Scrollbars are invisible by default and only appear during active scrolling, the
 
 **JS (`src/main.jsx`):**
 - A global IIFE registers a single `scroll` listener on `document` (capture phase). On scroll, adds `.is-scrolling` to `e.target`. A per-element timeout (stored in a `WeakMap`) removes the class after 800ms of inactivity. No per-component wiring needed.
+
+### Markdown/HTML Preview Viewer
+Files with previewable extensions (`.md`, `.markdown`, `.html`, `.htm`) get a per-file "Diff | Preview" toggle in the file card header. Switching to Preview renders the full staged file content as formatted HTML, with selection-based commenting.
+
+**Backend:**
+- `lib/git.js` exports `getStagedFileContent(gitRoot, filePath)` — runs `git show :filePath` to get the staged version.
+- `lib/server.js` exposes `GET /api/file-content?filePath=...` — returns `{ content: string }`.
+
+**Frontend:**
+- `src/utils/renderPreview.js` — `isPreviewable(filePath)` checks extensions; `renderPreview(content, filePath)` converts markdown via `marked` (GFM) or passes HTML through, then sanitizes with `DOMPurify`.
+- `src/components/DiffViewer.jsx`:
+  - **View mode toggle** — A `.view-mode-toggle` pill button (Diff | Preview) in the file header, only for previewable files. Uses the same sliding-thumb pattern as `FileSidebar`'s view toggle.
+  - **Preview fetching** — On switching to preview mode, fetches `/api/file-content` once and caches the rendered HTML in component state. Resets on remount (after `reloadDiffs()`).
+  - **`PreviewBody`** sub-component renders sanitized HTML via `dangerouslySetInnerHTML` inside `.preview-content`.
+  - **Selection-based commenting** — On `mouseup`, detects text selection within the preview container, computes character offset relative to `textContent`, shows a floating `.preview-comment-btn` (pill with `add_comment` icon, scale-pop animation). Clicking opens a `PreviewCommentForm`.
+  - **Text highlighting** — A `useEffect` walks text nodes via `TreeWalker`, wrapping commented ranges in `<mark class="preview-highlight" data-comment-id="...">`. Highlights are rebuilt from scratch when comments or HTML change.
+  - **`PreviewCommentForm`** and **`PreviewCommentBubble`** — Div-based equivalents of `CommentForm`/`CommentBubble` (which are table-row-based). Reuse the same CSS classes for visual consistency.
+
+**Comment model extension:**
+- Preview comments use `lineType: 'preview'` with extra fields: `selectedText`, `textOffset`, `textLength`.
+- `useComments.addComment` accepts an optional `extra = {}` spread parameter (backward-compatible).
+- `App.jsx` has `handleAddPreviewComment(file, selectedText, textOffset, textLength)` and passes extra fields through `handleSubmitComment`.
+
+**CommentPanel:**
+- Preview comments show a `format_quote` icon + truncated selected text instead of "Line N".
+- `scrollToComment` finds `<mark>` elements for preview comments, `.comment-row` for diff comments.
+
+**Dependencies:** `marked` (markdown→HTML, GFM), `dompurify` (HTML sanitization).
+
+### Expand Collapsed Context
+GitHub-style expand buttons between diff hunks that reveal hidden context lines. When a diff has collapsed context between hunks (or before the first / after the last hunk), clickable expand rows let users progressively reveal the surrounding unchanged code.
+
+**Backend:**
+- `lib/git.js` exports `getStagedFileContent(gitRoot, filePath)` (shared with Preview Viewer), `countFileLines(content)`, and `attachTotalLines(gitRoot, files)`. `attachTotalLines` is called inside `getStagedDiffPage` and `getStagedDiff` to add `totalNewLines` to each non-binary file object — the total line count of the staged version.
+- `lib/server.js` — `GET /api/file-content?filePath=...` is reused to fetch full staged file content on-demand (same endpoint as Preview Viewer).
+
+**Frontend:**
+- `src/utils/gapCalc.js` — `computeGaps(chunks, totalNewLines)` computes an array of gap objects `{ position, newStart, newEnd, oldStart, oldEnd, afterChunkIndex, lines }` for top, middle (between hunks), and bottom gaps. `buildContextChanges(rawLines, newStartLine, oldStartLine)` converts raw line strings into context change objects with proper `ln1`/`ln2`. Exports `EXPAND_STEP` (20 lines).
+- `src/components/DiffViewer.jsx`:
+  - **`ExpandRow`** — A `<tbody className="expand-tbody">` containing a single row with expand controls. For small gaps (≤ 20 lines): single "Expand all N lines" button with `unfold_more` icon. For large gaps (> 20 lines): three buttons — "Expand 20 ↓" (`expand_more`), "Expand all N" (`unfold_more`), "Expand 20 ↑" (`expand_less`).
+  - **State** — `expandedGaps` stores per-gap data: `{ topLines, bottomLines, allLines, isLoading }`. `fileContentCache` ref caches fetched file content to avoid re-fetching on each expand click. Both are cleared when `file.chunks` changes (reload/unstage/revert).
+  - **`handleExpand(gap, direction, count)`** — Fetches full file via `/api/file-content` (cached), slices the requested line range, converts to context change objects, and merges into `expandedGaps` state. Supports `'all'`, `'down'` (from top of gap), and `'up'` (from bottom of gap) directions.
+  - **Rendering** — The table render loop interleaves chunks with gap sections via `gapsByAfterChunk` lookup map. Each gap renders: expanded topLines `<tbody>` → `ExpandRow` (if remaining lines) → expanded bottomLines `<tbody>`. Expanded lines are rendered as regular `DiffLine` components with full comment support (commentable, syntax-highlighted).
+- `src/style.css` — `.diff-expand-row td` uses `var(--hunk-bg)` background with dashed borders. `.expand-controls` is a flex row of `.expand-btn` pill buttons (11px, `var(--hunk-text)` color, hover → `var(--text-1)` + `var(--bg-hover)`). `.expanded-context-tbody` lines use `var(--bg-surface)` background on sticky columns.
+
+**Partial expansion:** Multiple clicks progressively fill the gap — "Expand 20 ↓" adds 20 lines from the top, "Expand 20 ↑" adds 20 from the bottom, and the remaining count updates. When fully expanded, the expand row disappears.
+
+**Edge cases:** Added files (single hunk, typically no gaps). Deleted files (no new version, `totalNewLines` omitted). Binary files (no chunks, no gaps). Stale data after unstage/revert (cleared via `useEffect` on `file.chunks`).
 
 ## UI Style & Design Guidelines
 
