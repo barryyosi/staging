@@ -79,6 +79,7 @@ export default function App() {
   const [isLoadingPage, setIsLoadingPage] = useState(false);
   const [hasMoreFiles, setHasMoreFiles] = useState(false);
   const [nextOffset, setNextOffset] = useState(0);
+  const [isSwitchingProject, setIsSwitchingProject] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     if (typeof window === 'undefined') return SIDEBAR_DEFAULT_WIDTH;
     const raw = Number.parseInt(
@@ -529,6 +530,7 @@ export default function App() {
 
   const switchProject = useCallback(
     async (targetPath) => {
+      setIsSwitchingProject(true);
       try {
         const res = await fetch('/api/switch-project', {
           method: 'POST',
@@ -538,6 +540,7 @@ export default function App() {
         const data = await res.json();
         if (data.error) {
           showToast(`Failed to switch: ${data.error}`, 'error');
+          setIsSwitchingProject(false);
           return;
         }
         setProjectInfo(data);
@@ -545,8 +548,11 @@ export default function App() {
         setActiveForm(null);
         setEditingComment(null);
         await reloadDiffs();
+        // Delay flag reset to allow animation to complete (only on success)
+        setTimeout(() => setIsSwitchingProject(false), 550);
       } catch (err) {
         showToast(`Failed to switch project: ${err.message}`, 'error');
+        setIsSwitchingProject(false);
       }
     },
     [reloadDiffs, showToast],
@@ -944,7 +950,7 @@ export default function App() {
           onKeyDown={handleSidebarResizeKeyDown}
         />
 
-        <main id="diff-container">
+        <main id="diff-container" className={isSwitchingProject ? 'switching' : ''}>
           {error ? (
             <div id="loading">Error: {error}</div>
           ) : !fileSummaries ? (
@@ -960,12 +966,14 @@ export default function App() {
                   Committed successfully!
                 </div>
               )}
-              {loadedFiles.map((file) => {
+              {loadedFiles.map((file, index) => {
                 const filePath = getFilePath(file);
                 return (
                   <DiffViewer
                     key={filePath}
                     file={file}
+                    className="entering"
+                    style={{ animationDelay: `${index * 40}ms` }}
                     fileComments={commentsByFile[filePath]}
                     activeForm={activeForm}
                     editingComment={editingComment}

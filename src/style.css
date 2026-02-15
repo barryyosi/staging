@@ -1225,6 +1225,52 @@ body.is-resizing-comment-panel * {
   background: var(--bg-surface);
 }
 
+/* Diff card entrance animation */
+@keyframes diff-card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.diff-file.entering {
+  animation: diff-card-enter 0.2s var(--ease) backwards;
+}
+
+/* Project switch transition */
+@keyframes project-switch {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  45% {
+    opacity: 0.3;
+    transform: scale(0.985);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+#diff-container.switching {
+  animation: project-switch 0.55s var(--ease);
+}
+
+/* Respect reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  .diff-file.entering {
+    animation: none;
+  }
+  #diff-container.switching {
+    animation: none;
+  }
+}
+
 .diff-file-header {
   display: flex;
   align-items: center;

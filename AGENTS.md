@@ -102,6 +102,24 @@ npm run format
 
 ## Features
 
+### Loading & Transition Animations
+Diff cards appear with a staggered entrance animation (fade + downward settle) for polished visual feedback. Project switching triggers a brief scale/fade transition signaling context change. All animations respect `prefers-reduced-motion` for accessibility.
+
+**Implementation:**
+- `@keyframes diff-card-enter` - 0.2s fade-in + translateY(4px→0), 40ms stagger per card
+- `@keyframes project-switch` - 0.55s scale(0.985) + opacity(0.3) fade-out/in
+- Applied via `.entering` class on mount (App.jsx) and `.switching` class on project switch
+- CSS uses existing `--ease` easing, all motion disabled via `@media (prefers-reduced-motion: reduce)`
+
+**CSS (src/style.css):**
+- Card entrance keyframes and `.diff-file.entering` class after `.diff-file` base styles
+- Project switch keyframes and `#diff-container.switching` class
+- Accessibility media query disabling animations when motion is reduced
+
+**Frontend:**
+- `src/App.jsx` - `isSwitchingProject` state flag, updated `switchProject()` function with 550ms timeout, `.switching` class applied to `#diff-container`, `className="entering"` and `style={{ animationDelay }}` passed to each `DiffViewer`
+- `src/components/DiffViewer.jsx` - Accepts `className` and `style` props, applies to root `.diff-file` div
+
 ### Collapse All / Expand All Toggle
 A header button that collapses or expands all diff file viewers at once. State is managed in `App.jsx` via `globalCollapsed` + `collapseVersion` (a version counter that triggers effects even when the boolean doesn't change). Each `DiffViewer` syncs its local `collapsed` state from the global signal via `useEffect`, while individual per-file toggles continue to work independently.
 

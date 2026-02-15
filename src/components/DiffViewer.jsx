@@ -487,6 +487,8 @@ function PreviewBody({
 
 function DiffViewer({
   file,
+  className,
+  style,
   fileComments,
   activeForm,
   editingComment,
@@ -813,7 +815,11 @@ function DiffViewer({
   }
 
   return (
-    <div className="diff-file" id={`file-${slugify(filePath)}`}>
+    <div
+      className={`diff-file${className ? ` ${className}` : ''}`}
+      style={style}
+      id={`file-${slugify(filePath)}`}
+    >
       <div
         className={`diff-file-header ${collapsed ? 'collapsed' : ''}`}
         onClick={toggleCollapse}
