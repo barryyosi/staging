@@ -18,6 +18,7 @@ import { formatComments } from './utils/format';
 import { slugify } from './utils/escape';
 
 const CommitModal = lazy(() => import('./components/CommitModal'));
+const ShortcutsModal = lazy(() => import('./components/ShortcutsModal'));
 
 const SIDEBAR_MIN_WIDTH = 180;
 const SIDEBAR_MAX_WIDTH = 420;
@@ -75,6 +76,7 @@ export default function App() {
   const [error, setError] = useState(null);
   const [toast, setToast] = useState(null);
   const [showCommitModal, setShowCommitModal] = useState(false);
+  const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [committed, setCommitted] = useState(false);
   const [isLoadingPage, setIsLoadingPage] = useState(false);
   const [hasMoreFiles, setHasMoreFiles] = useState(false);
@@ -105,6 +107,7 @@ export default function App() {
   const [isResizingCommentPanel, setIsResizingCommentPanel] = useState(false);
   const [globalCollapsed, setGlobalCollapsed] = useState(false);
   const [collapseVersion, setCollapseVersion] = useState(0);
+  const [reviewedFiles, setReviewedFiles] = useState(new Set());
 
   // Active comment form state
   const [activeForm, setActiveForm] = useState(null); // { file, line, lineType }
@@ -308,6 +311,187 @@ export default function App() {
     [],
   );
 
+  // Global keyboard shortcuts
+  useEffect(() => {
+    let ggTimer = null;
+    let firstG = false;
+
+    function handleKeyDown(e) {
+      // Ignore if typing in input/textarea/contenteditable
+      const target = e.target;
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable
+      ) {
+        return;
+      }
+
+      // Ignore if modal/form is open
+      if (showCommitModal || showShortcutsModal || activeForm || editingComment) {
+        return;
+      }
+
+      // ? - Show shortcuts
+      if (e.key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        setShowShortcutsModal(true);
+        return;
+      }
+
+      // Cmd/Ctrl+Enter - Open commit modal
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        setShowCommitModal(true);
+        return;
+      }
+
+      // z - Toggle collapse all
+      if (e.key === 'z' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        setGlobalCollapsed((prev) => !prev);
+        setCollapseVersion((v) => v + 1);
+        return;
+      }
+
+      // j - Next file
+      if (e.key === 'j' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        scrollToAdjacentFile('next');
+        return;
+      }
+
+      // k - Previous file
+      if (e.key === 'k' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        scrollToAdjacentFile('prev');
+        return;
+      }
+
+      // G (shift+g) - Last file
+      if (e.key === 'G' && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        scrollToFile('last');
+        return;
+      }
+
+      // g then g - First file
+      if (e.key === 'g' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+        if (firstG) {
+          e.preventDefault();
+          if (ggTimer) clearTimeout(ggTimer);
+          firstG = false;
+          scrollToFile('first');
+          return;
+        }
+        e.preventDefault();
+        firstG = true;
+        ggTimer = setTimeout(() => {
+          firstG = false;
+        }, 1000);
+        return;
+      }
+
+      // x - Toggle collapse current file
+      if (e.key === 'x' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        toggleCurrentFileCollapse();
+        return;
+      }
+    }
+
+    function scrollToAdjacentFile(direction) {
+      const files = Array.from(document.querySelectorAll('.diff-file'));
+      if (files.length === 0) return;
+
+      const headerHeight = 64;
+      const scrollY = window.scrollY;
+
+      let currentIndex = -1;
+      for (let i = 0; i < files.length; i++) {
+        const rect = files[i].getBoundingClientRect();
+        const top = rect.top + scrollY - headerHeight;
+        if (top <= scrollY + 10) {
+          currentIndex = i;
+        } else {
+          break;
+        }
+      }
+
+      let targetIndex;
+      if (direction === 'next') {
+        targetIndex = Math.min(currentIndex + 1, files.length - 1);
+      } else {
+        targetIndex = Math.max(currentIndex - 1, 0);
+      }
+
+      if (targetIndex >= 0 && targetIndex < files.length) {
+        files[targetIndex].scrollIntoView({
+          behavior: 'smooth',
+          block: 'start',
+        });
+      }
+    }
+
+    function scrollToFile(position) {
+      const files = Array.from(document.querySelectorAll('.diff-file'));
+      if (files.length === 0) return;
+
+      const target = position === 'first' ? files[0] : files[files.length - 1];
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function toggleCurrentFileCollapse() {
+      const files = Array.from(document.querySelectorAll('.diff-file'));
+      if (files.length === 0) return;
+
+      const headerHeight = 64;
+      const scrollY = window.scrollY;
+      const viewportCenter = scrollY + window.innerHeight / 2;
+
+      let currentFile = null;
+      for (const file of files) {
+        const rect = file.getBoundingClientRect();
+        const top = rect.top + scrollY;
+        const bottom = top + rect.height;
+        if (top <= viewportCenter && viewportCenter <= bottom) {
+          currentFile = file;
+          break;
+        }
+      }
+
+      if (!currentFile) {
+        for (let i = 0; i < files.length; i++) {
+          const rect = files[i].getBoundingClientRect();
+          const top = rect.top + scrollY - headerHeight;
+          if (top <= scrollY + 10) {
+            currentFile = files[i];
+          } else {
+            break;
+          }
+        }
+      }
+
+      if (currentFile) {
+        const collapseBtn = currentFile.querySelector('.file-action-collapse');
+        if (collapseBtn) {
+          collapseBtn.click();
+        }
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      if (ggTimer) clearTimeout(ggTimer);
+    };
+  }, [
+    showCommitModal,
+    showShortcutsModal,
+    activeForm,
+    editingComment,
+  ]);
+
   const handleAddComment = useCallback((file, line, lineType) => {
     setEditingComment(null);
     setActiveForm({ file, line, lineType });
@@ -463,9 +647,29 @@ export default function App() {
     [],
   );
 
+  const handleShowShortcuts = useCallback(() => {
+    setShowShortcutsModal(true);
+  }, []);
+
+  const handleCloseShortcuts = useCallback(() => {
+    setShowShortcutsModal(false);
+  }, []);
+
   const handleToggleCollapseAll = useCallback(() => {
     setGlobalCollapsed((prev) => !prev);
     setCollapseVersion((v) => v + 1);
+  }, []);
+
+  const handleFileReviewed = useCallback((filePath, isReviewed) => {
+    setReviewedFiles((prev) => {
+      const next = new Set(prev);
+      if (isReviewed) {
+        next.add(filePath);
+      } else {
+        next.delete(filePath);
+      }
+      return next;
+    });
   }, []);
 
   const fetchProjectInfo = useCallback(async () => {
@@ -490,6 +694,7 @@ export default function App() {
     setNextOffset(0);
     setHasMoreFiles(false);
     setCommitted(false);
+    setReviewedFiles(new Set());
     nextOffsetRef.current = 0;
     hasMoreFilesRef.current = false;
 
@@ -547,6 +752,7 @@ export default function App() {
         setError(null);
         setActiveForm(null);
         setEditingComment(null);
+        setReviewedFiles(new Set());
         await reloadDiffs();
         // Delay flag reset to allow animation to complete (only on success)
         setTimeout(() => setIsSwitchingProject(false), 550);
@@ -910,6 +1116,7 @@ export default function App() {
         theme={theme}
         onToggleTheme={toggleTheme}
         files={fileSummaries}
+        reviewedFiles={reviewedFiles}
         hasComments={hasComments}
         commentCount={allComments.length}
         onSendComments={handleSendComments}
@@ -917,6 +1124,7 @@ export default function App() {
         committed={committed}
         allCollapsed={globalCollapsed}
         onToggleCollapseAll={handleToggleCollapseAll}
+        onShowShortcuts={handleShowShortcuts}
         projectInfo={projectInfo}
         onSwitchProject={switchProject}
       />
@@ -987,6 +1195,7 @@ export default function App() {
                     onRevertFile={handleRevertFile}
                     onUnstageHunk={handleUnstageHunk}
                     onRevertHunk={handleRevertHunk}
+                    onFileReviewed={handleFileReviewed}
                     globalCollapsed={globalCollapsed}
                     collapseVersion={collapseVersion}
                   />
@@ -1090,6 +1299,12 @@ export default function App() {
             onCommit={handleDoCommit}
             onClose={handleCloseCommitModal}
           />
+        </Suspense>
+      )}
+
+      {showShortcutsModal && (
+        <Suspense fallback={null}>
+          <ShortcutsModal onClose={handleCloseShortcuts} />
         </Suspense>
       )}
     </>

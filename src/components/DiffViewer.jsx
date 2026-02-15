@@ -502,6 +502,7 @@ function DiffViewer({
   onRevertFile,
   onUnstageHunk,
   onRevertHunk,
+  onFileReviewed,
   globalCollapsed,
   collapseVersion,
 }) {
@@ -556,6 +557,13 @@ function DiffViewer({
 
   const filePath = file.to || file.from;
   const canPreview = isPreviewable(filePath);
+
+  // Report collapsed state as "reviewed"
+  useEffect(() => {
+    if (onFileReviewed) {
+      onFileReviewed(filePath, collapsed);
+    }
+  }, [collapsed, filePath, onFileReviewed]);
 
   // Fetch preview content on demand
   useEffect(() => {

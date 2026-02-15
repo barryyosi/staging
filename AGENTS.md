@@ -102,6 +102,43 @@ npm run format
 
 ## Features
 
+### Progress Ring
+A circular SVG progress indicator in the header that replaces the text-based summary pill, showing visual completion feedback for the review flow. Uses collapsed state as a proxy for "reviewed" — when a file is collapsed, it's marked as reviewed. Clicking the ring toggles a stats popover showing addition/deletion line counts.
+
+**Implementation:**
+- `src/components/ProgressRing.jsx` — Three sub-components: `ProgressRing` (36px SVG circle with 3px stroke, animated via `stroke-dashoffset`), `StatsPopover` (pill showing `+N / -M` lines, auto-closes on outside click), `ProgressRingWithStats` (wrapper managing popover visibility).
+- Progress calculated as `reviewedFiles.size / files.length`. SVG uses `var(--accent)` for fill stroke, `var(--border-1)` for track. Counter inside ring displays `reviewed/total` in 11px monospace.
+- `src/App.jsx` — `reviewedFiles` state (Set of file paths), `handleFileReviewed(filePath, isReviewed)` callback that adds/removes from Set, cleared on project switch and reload. Passed as props to Header and DiffViewer.
+- `src/components/DiffViewer.jsx` — `useEffect` hook calls `onFileReviewed(filePath, collapsed)` whenever `collapsed` state changes, reporting collapsed files as "reviewed" to parent.
+- `src/style.css` — `.progress-ring-wrap`, `.progress-ring-btn` (36x36 transparent button with hover/focus states), `.progress-ring-svg`, `.progress-ring-fill` (0.3s transition on `stroke-dashoffset`), `.progress-ring-label` (11px monospace counter), `.stats-popover` (positioned below ring with scale-in animation).
+
+**Edge cases:** 0 files shows "0/0", all reviewed shows full circle (100%), unreview (expand) decreases ring with backward animation, project switch resets to "0/N". All animations disabled via `@media (prefers-reduced-motion: reduce)`.
+
+### Keyboard Shortcuts
+Global keyboard shortcuts for navigation and actions, plus a `?` button in the header that opens a reference modal. Terminal-inspired aesthetic with `<kbd>` pill badges. Platform-aware (⌘ on Mac, Ctrl elsewhere).
+
+**Shortcuts:**
+- **Navigation:** `j` (next file), `k` (prev file), `gg` (first file, sequence with 1s timeout), `G` (last file)
+- **Actions:** `x` (toggle collapse current file), `z` (collapse/expand all), `?` (show shortcuts modal)
+- **Commit:** `Cmd/Ctrl+Enter` (open commit modal), `Esc` (close modal)
+
+**Implementation:**
+- `src/components/ShortcutsModal.jsx` — Modal overlay with three categories (Navigation, Actions, Commit), `<kbd>` tags styled as pills (6px radius, subtle border, `var(--bg-surface-2)` background). Platform detection via `navigator.platform`, displays `⌘` or `Ctrl` accordingly. Escape to close, overlay click to close.
+- `src/components/Header.jsx` — `.btn-shortcuts` button (30x30 circular, `help` icon, matches `.theme-toggle` style) inserted before `.btn-collapse-all`. Accepts `onShowShortcuts` prop.
+- `src/App.jsx` — `showShortcutsModal` state, lazy import for `ShortcutsModal`, callbacks for show/close. Global keyboard handler in `useEffect` listens to `keydown` events, checks if typing in input/textarea/contenteditable or if modal/form is open (disables shortcuts when true). Helper functions: `scrollToAdjacentFile(direction)` finds current file via `getBoundingClientRect` and scrolls to next/prev, `scrollToFile(position)` scrolls to first or last file, `toggleCurrentFileCollapse()` finds file in viewport center and clicks `.file-action-collapse` button.
+- `src/style.css` — `.btn-shortcuts` matches `.theme-toggle` pattern (30x30, circular, transparent bg, hover reveals). `.modal-shortcuts` (520px width, wider than CommitModal), `.shortcuts-grid` (single column with gap), `.shortcut-category-title` (11px uppercase, muted), `.shortcut-row` (flex row), `.shortcut-key` (pill badge, 6px radius, `var(--bg-surface-2)` bg, subtle border, box-shadow), `.shortcut-then` (italic "then" label for `gg` sequence), `.shortcut-desc` (13px body text).
+
+**Edge cases:** Shortcuts disabled when typing in form fields, rapid key presses prevented via early returns, `gg` sequence has 1s timeout (cleared on unmount), j/k at boundaries clamped to first/last file.
+
+### Breadcrumb Truncation
+Long project and branch names in the ProjectNavigator breadcrumb are truncated with ellipsis (`text-overflow: ellipsis`) and show full name in native `title` tooltip. Simple CSS-only change with minimal component updates.
+
+**Implementation:**
+- `src/components/ProjectNavigator.jsx` — Added `title={projectName}` attribute to project segment label (line 94), `title={branch}` to branch segment label (line 123). No other changes, dropdown functionality preserved.
+- `src/style.css` — `.nav-segment-label` rule: `max-width: 160px`, `overflow: hidden`, `text-overflow: ellipsis`, `white-space: nowrap`. Applied to both project and branch labels. Balances readability with header density.
+
+**Edge cases:** Short names (<160px) show no ellipsis, very long names (>160px) truncated with "...", dropdown click works normally (clickable area unchanged).
+
 ### Loading & Transition Animations
 Diff cards appear with a staggered entrance animation (fade + downward settle) for polished visual feedback. Project switching triggers a brief scale/fade transition signaling context change. All animations respect `prefers-reduced-motion` for accessibility.
 

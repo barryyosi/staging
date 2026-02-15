@@ -1,10 +1,12 @@
-import { useMemo, memo } from 'react';
+import { memo } from 'react';
 import ProjectNavigator from './ProjectNavigator';
+import ProgressRingWithStats from './ProgressRing';
 
 function Header({
   theme,
   onToggleTheme,
   files,
+  reviewedFiles,
   hasComments,
   commentCount,
   onSendComments,
@@ -12,15 +14,10 @@ function Header({
   committed,
   allCollapsed,
   onToggleCollapseAll,
+  onShowShortcuts,
   projectInfo,
   onSwitchProject,
 }) {
-  const summary = useMemo(() => {
-    if (!files) return '';
-    const totalAdd = files.reduce((s, f) => s + f.additions, 0);
-    const totalDel = files.reduce((s, f) => s + f.deletions, 0);
-    return `${files.length} file${files.length === 1 ? '' : 's'} changed, +${totalAdd} -${totalDel}`;
-  }, [files]);
 
   return (
     <header id="header">
@@ -38,9 +35,18 @@ function Header({
           <h1 className="logo">staging</h1>
         )}
         <span className="separator" />
-        <span id="summary">{summary}</span>
+        <ProgressRingWithStats files={files} reviewedFiles={reviewedFiles} />
       </div>
       <div className="header-right">
+        <button
+          className="btn-shortcuts"
+          onClick={onShowShortcuts}
+          aria-label="Show keyboard shortcuts"
+          title="Keyboard shortcuts (?)"
+          type="button"
+        >
+          <span className="material-symbols-rounded">help_outline</span>
+        </button>
         <button
           className="btn-collapse-all"
           onClick={onToggleCollapseAll}

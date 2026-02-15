@@ -91,7 +91,9 @@ function ProjectNavigator({
           }}
           type="button"
         >
-          <span className="nav-segment-label">{projectName}</span>
+          <span className="nav-segment-label" title={projectName}>
+            {projectName}
+          </span>
           {hasMultipleProjects && <span className="nav-caret">&#x25BE;</span>}
         </button>
         {showProjectDD && hasMultipleProjects && (
@@ -120,7 +122,9 @@ function ProjectNavigator({
           <span className="material-symbols-rounded nav-segment-icon">
             merge
           </span>
-          <span className="nav-segment-label">{branch}</span>
+          <span className="nav-segment-label" title={branch}>
+            {branch}
+          </span>
           {hasMultipleWorktrees && <span className="nav-caret">&#x25BE;</span>}
         </button>
         {showWorktreeDD && hasMultipleWorktrees && (

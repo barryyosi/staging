@@ -246,6 +246,104 @@ body {
   border: 1px solid var(--border-1);
 }
 
+/* === PROGRESS RING === */
+.progress-ring-wrap {
+  position: relative;
+}
+
+.progress-ring-btn {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  transition: background 0.15s var(--ease);
+}
+
+.progress-ring-btn:hover {
+  background: var(--bg-hover);
+}
+
+.progress-ring-btn:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--bg-surface),
+    0 0 0 4px var(--accent-soft);
+}
+
+.progress-ring-svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.progress-ring-fill {
+  transition: stroke-dashoffset 0.3s var(--ease);
+}
+
+.progress-ring-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  fill: var(--text-1);
+  user-select: none;
+}
+
+.stats-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border-1);
+  border-radius: 100px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  z-index: 150;
+  animation: stats-popover-enter 0.15s var(--ease);
+  box-shadow: var(--shadow-sm);
+}
+
+@keyframes stats-popover-enter {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
+}
+
+.stats-popover .add {
+  color: var(--add-text);
+}
+
+.stats-popover .del {
+  color: var(--del-text);
+}
+
+.stats-popover .stats-sep {
+  margin: 0 4px;
+  color: var(--text-3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress-ring-fill {
+    transition: none;
+  }
+  .stats-popover {
+    animation: none;
+  }
+}
+
 .header-right {
   display: flex;
   align-items: center;
@@ -309,6 +407,13 @@ body {
 .nav-segment-icon {
   font-size: 16px;
   opacity: 0.6;
+}
+
+.nav-segment-label {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .nav-slash {
@@ -380,6 +485,42 @@ body {
   border-radius: 50%;
   background: var(--add-text);
   flex-shrink: 0;
+}
+
+/* === SHORTCUTS BUTTON === */
+.btn-shortcuts {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: var(--text-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition:
+    color 0.2s var(--ease),
+    background 0.2s var(--ease),
+    box-shadow 0.2s var(--ease);
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn-shortcuts:hover {
+  color: var(--text-1);
+  background: var(--bg-hover);
+}
+
+.btn-shortcuts:focus-visible {
+  box-shadow:
+    0 0 0 2px var(--bg-surface),
+    0 0 0 4px var(--accent-soft);
+}
+
+.btn-shortcuts .material-symbols-rounded {
+  font-size: 22px;
+  line-height: 1;
 }
 
 /* === COLLAPSE ALL TOGGLE === */
@@ -2175,6 +2316,84 @@ body.is-resizing-comment-panel * {
   display: flex;
   gap: 8px;
   justify-content: flex-end;
+}
+
+/* === SHORTCUTS MODAL === */
+.modal-shortcuts {
+  background: var(--bg-surface);
+  border-radius: var(--radius-lg);
+  padding: 28px;
+  width: 520px;
+  max-width: 90vw;
+  box-shadow: var(--shadow-overlay);
+  border: 1px solid var(--border-1);
+  animation: modalScaleIn 0.2s var(--ease);
+}
+
+.modal-shortcuts h2 {
+  margin: 0 0 20px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-1);
+  letter-spacing: -0.01em;
+}
+
+.shortcuts-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.shortcut-category {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.shortcut-category-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-3);
+  letter-spacing: 0.03em;
+  margin: 0 0 4px 0;
+}
+
+.shortcut-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.shortcut-keys {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 120px;
+}
+
+.shortcut-key {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-1);
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border-1);
+  border-radius: 6px;
+  padding: 3px 8px;
+  line-height: 1;
+  box-shadow: 0 1px 0 0 var(--border-1);
+}
+
+.shortcut-then {
+  font-size: 11px;
+  color: var(--text-3);
+  font-style: italic;
+}
+
+.shortcut-desc {
+  font-size: 13px;
+  color: var(--text-2);
+  flex: 1;
 }
 
 /* === ANIMATIONS === */
