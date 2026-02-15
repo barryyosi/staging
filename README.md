@@ -59,10 +59,6 @@ After completing any implementation task:
 
 Now, when Claude finishes a task, it will automatically launch Staging in your browser for visual review.
 
-*[Demo GIF will be placed here showing Claude Code → `staging` → browser opening with diff view]*
-
-
-s
 ## Quick Start
 
 **1. Install**
