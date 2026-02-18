@@ -503,6 +503,7 @@ function DiffViewer({
   onUnstageHunk,
   onRevertHunk,
   onFileReviewed,
+  isReviewed,
   globalCollapsed,
   collapseVersion,
 }) {
@@ -558,12 +559,13 @@ function DiffViewer({
   const filePath = file.to || file.from;
   const canPreview = isPreviewable(filePath);
 
-  // Report collapsed state as "reviewed"
-  useEffect(() => {
-    if (onFileReviewed) {
-      onFileReviewed(filePath, collapsed);
-    }
-  }, [collapsed, filePath, onFileReviewed]);
+  const handleToggleReviewed = useCallback(
+    (e) => {
+      e.stopPropagation();
+      if (onFileReviewed) onFileReviewed(filePath, !isReviewed);
+    },
+    [filePath, isReviewed, onFileReviewed],
+  );
 
   // Fetch preview content on demand
   useEffect(() => {
@@ -865,6 +867,17 @@ function DiffViewer({
           </button>
         )}
         <div className="file-actions">
+          <button
+            className={`file-action-btn file-action-reviewed${isReviewed ? ' is-reviewed' : ''}`}
+            type="button"
+            title={isReviewed ? 'Mark as unreviewed' : 'Mark as reviewed'}
+            aria-label={isReviewed ? 'Mark as unreviewed' : 'Mark as reviewed'}
+            onClick={handleToggleReviewed}
+          >
+            <span className="material-symbols-rounded">
+              {isReviewed ? 'check_circle' : 'check_circle_outline'}
+            </span>
+          </button>
           <button
             className="file-action-btn"
             type="button"

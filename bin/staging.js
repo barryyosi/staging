@@ -44,8 +44,14 @@ console.log(`Found ${fileCount} staged file${fileCount === 1 ? '' : 's'}.`);
 // Load config
 const config = loadConfig(gitRoot);
 
+// CLI send callback — prints comments to terminal stdout, then exits
+const onCliSend = (text) => {
+  process.stdout.write(text + '\n');
+  setTimeout(() => process.exit(0), 150);
+};
+
 // Start server
-const server = startServer({ gitRoot, config });
+const server = startServer({ gitRoot, config, onCliSend });
 
 server.listen(config.port, '127.0.0.1', (info) => {
   const url = `http://127.0.0.1:${info.port}`;

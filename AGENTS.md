@@ -354,6 +354,30 @@ GitHub-style expand buttons between diff hunks that reveal hidden context lines.
 
 **Edge cases:** Added files (single hunk, typically no gaps). Deleted files (no new version, `totalNewLines` omitted). Binary files (no chunks, no gaps). Stale data after unstage/revert (cleared via `useEffect` on `file.chunks`).
 
+### Send Medium Selection
+The "Send to Agent" button is a split button that lets users choose which mediums comments are sent through. The main click uses configured defaults; a dropdown caret opens a picker to override per-send.
+
+**Mediums:**
+| ID | Label | Where handled | Description |
+|---|---|---|---|
+| `clipboard` | Clipboard | Frontend | `navigator.clipboard.writeText()` |
+| `file` | File | Server | Write `.staging-review.md` + run `agentCommand` |
+| `cli` | CLI stdout | Server → CLI | Print to `process.stdout` in the terminal where `staging` was launched |
+
+**Backend:**
+- `lib/config.js` — `sendMediums: ['clipboard', 'file']` in DEFAULTS.
+- `bin/staging.js` — Creates `onCliSend` callback (writes to stdout) and passes it to `startServer`.
+- `lib/server.js` — `startServer` accepts `onCliSend`. `GET /api/config` includes `sendMediums`. `POST /api/send-comments` accepts `{ formatted, mediums }`, dispatches per medium: `file` writes + runs agentCommand, `cli` calls `onCliSend`, `clipboard` is a frontend no-op. Defaults `mediums` to `['clipboard', 'file']` for backward compatibility.
+
+**Frontend:**
+- `src/components/Header.jsx` — Split button: `.split-btn-main` (left, sends with current `selectedMediums`) + `.split-btn-caret` (right, toggles `SendMediumPicker` popover). `SendMediumPicker` sub-component: checkbox rows for all three mediums (Material Symbols `check_box`/`check_box_outline_blank`), medium icons (`content_copy`, `description`, `terminal`), "Send" confirm button, close on outside click. State: `selectedMediums` initialized from `defaultMediums` prop, synced via `useEffect`.
+- `src/App.jsx` — `handleSendComments(mediums)` dispatches clipboard on frontend, posts server mediums to `/api/send-comments`, builds dynamic toast message. Passes `defaultMediums` prop to Header.
+- `src/style.css` — `.split-btn-wrap` (relative inline-flex), `.split-btn-main` (no right radius/border), `.split-btn-caret` (no left radius, narrow padding), `.send-medium-picker` (absolute popover, 8px radius, `modalScaleIn` animation), `.send-medium-option` (flex row with checkbox + icon + label), `.send-medium-confirm` (full-width primary button).
+
+**Config:** `lib/config.js` merges DEFAULTS < `~/.stagingrc.json` (global/user) < `.stagingrc.json` (project). Users set personal defaults (e.g. `"sendMediums": ["clipboard", "cli"]`) in `~/.stagingrc.json`, projects can override in the repo root.
+
+**Edge cases:** No mediums selected disables picker "Send" button. Backward compatible — server defaults mediums if not provided.
+
 ## UI Style & Design Guidelines
 
 ### Design Philosophy

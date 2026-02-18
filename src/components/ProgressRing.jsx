@@ -1,15 +1,15 @@
 import { useState, useEffect, useRef, useMemo, memo } from 'react';
 
 function ProgressRing({ reviewed, total }) {
-  const radius = 15;
-  const stroke = 3;
-  const normalizedRadius = radius - stroke / 2;
-  const circumference = normalizedRadius * 2 * Math.PI;
+  const size = 20;
+  const stroke = 2.5;
+  const radius = (size - stroke) / 2;
+  const circumference = radius * 2 * Math.PI;
   const progress = total > 0 ? reviewed / total : 0;
   const strokeDashoffset = circumference - progress * circumference;
 
   return (
-    <svg className="progress-ring-svg" width="36" height="36">
+    <svg className="progress-ring-svg" width={size} height={size}>
       <circle
         className="progress-ring-fill"
         stroke="var(--accent)"
@@ -18,20 +18,11 @@ function ProgressRing({ reviewed, total }) {
         strokeDasharray={`${circumference} ${circumference}`}
         strokeDashoffset={strokeDashoffset}
         strokeLinecap="round"
-        r={normalizedRadius}
-        cx="18"
-        cy="18"
-        transform="rotate(-90 18 18)"
+        r={radius}
+        cx={size / 2}
+        cy={size / 2}
+        transform={`rotate(-90 ${size / 2} ${size / 2})`}
       />
-      <text
-        className="progress-ring-label"
-        x="18"
-        y="18"
-        textAnchor="middle"
-        dominantBaseline="middle"
-      >
-        {reviewed}/{total}
-      </text>
     </svg>
   );
 }
@@ -90,6 +81,9 @@ function ProgressRingWithStats({ files, reviewedFiles }) {
         type="button"
       >
         <ProgressRing reviewed={stats.reviewed} total={stats.total} />
+        <span className="progress-ring-label">
+          {stats.reviewed}/{stats.total}
+        </span>
       </button>
       {showStats && (
         <StatsPopover

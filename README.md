@@ -78,6 +78,30 @@ npm link
 
 The browser will open automatically at `http://localhost:3456` with your staged changes ready for review.
 
+**Configuration (`.stagingrc.json`)**
+
+Staging reads config from two locations, merged in order (later wins):
+
+1. **Global** (per-user): `~/.stagingrc.json` — your personal defaults across all projects
+2. **Project**: `.stagingrc.json` in the project root — shared with collaborators
+
+```json
+{
+  "agentCommand": "code -g {file}:1",
+  "reviewFileName": ".staging-review.md",
+  "sendMediums": ["clipboard", "cli"]
+}
+```
+
+| Option | Default | Description |
+| :--- | :--- | :--- |
+| `agentCommand` | `"code -g {file}:1"` | Command to run after writing the review file. `{file}` is replaced with the file path. |
+| `reviewFileName` | `".staging-review.md"` | Name of the review file written to the project root. |
+| `sendMediums` | `["clipboard", "file"]` | Default mediums for the "Send to Agent" button. Options: `clipboard`, `file`, `cli`. |
+| `diffContext` | `3` | Number of context lines around each diff hunk. |
+| `port` | `0` (random) | Port for the local server. Can also be set via `STAGING_PORT` env var. |
+| `autoOpen` | `true` | Whether to automatically open the browser on launch. |
+
 ## Tech Stack
 
 | Layer | Technologies |

@@ -108,6 +108,7 @@ export default function App() {
   const [globalCollapsed, setGlobalCollapsed] = useState(false);
   const [collapseVersion, setCollapseVersion] = useState(0);
   const [reviewedFiles, setReviewedFiles] = useState(new Set());
+  const [selectedMediums, setSelectedMediums] = useState(null);
 
   // Active comment form state
   const [activeForm, setActiveForm] = useState(null); // { file, line, lineType }
@@ -285,6 +286,13 @@ export default function App() {
       cancelled = true;
     };
   }, [requestDiffPage]);
+
+  // Initialize selectedMediums once config is available
+  useEffect(() => {
+    if (!config || selectedMediums !== null) return;
+    const saved = config.preferences?.sendMediums;
+    setSelectedMediums(saved || config.sendMediums || ['clipboard', 'file']);
+  }, [config, selectedMediums]);
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_STORAGE_KEY, String(sidebarWidth));
@@ -566,40 +574,58 @@ export default function App() {
     deleteAllComments();
   }, [deleteAllComments]);
 
-  const handleSendComments = useCallback(async () => {
-    if (allComments.length === 0) return;
-    if (!config) {
-      showToast('Config is still loading', 'error');
-      return;
-    }
-
-    const formatted = formatComments(allComments, gitRoot);
-
-    try {
-      await navigator.clipboard.writeText(formatted);
-    } catch {
-      // Clipboard might not be available
-    }
-
-    try {
-      const res = await fetch('/api/send-comments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ formatted }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        showToast(
-          `Comments saved to ${config.reviewFileName} and copied to clipboard`,
-          'success',
-        );
-      } else {
-        showToast(`Failed to send comments: ${data.error}`, 'error');
+  const handleSendComments = useCallback(
+    async (mediums = ['clipboard', 'file']) => {
+      if (allComments.length === 0) return;
+      if (!config) {
+        showToast('Config is still loading', 'error');
+        return;
       }
-    } catch (err) {
-      showToast(`Failed to send comments: ${err.message}`, 'error');
-    }
-  }, [allComments, gitRoot, config, showToast]);
+
+      const formatted = formatComments(allComments, gitRoot);
+
+      if (mediums.includes('clipboard')) {
+        try {
+          await navigator.clipboard.writeText(formatted);
+        } catch {
+          // Clipboard might not be available
+        }
+      }
+
+      const serverMediums = mediums.filter((m) => m !== 'clipboard');
+
+      if (serverMediums.length > 0) {
+        try {
+          const res = await fetch('/api/send-comments', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ formatted, mediums }),
+          });
+          const data = await res.json();
+          if (!data.success) {
+            showToast(`Failed to send comments: ${data.error}`, 'error');
+            return;
+          }
+        } catch (err) {
+          showToast(`Failed to send comments: ${err.message}`, 'error');
+          return;
+        }
+      }
+
+      const parts = [];
+      if (mediums.includes('clipboard')) parts.push('copied to clipboard');
+      if (mediums.includes('file'))
+        parts.push(`saved to ${config.reviewFileName}`);
+      if (mediums.includes('cli')) parts.push('printed to CLI');
+      showToast(`Comments ${parts.join(' and ')}`, 'success');
+
+      // CLI medium exits the server — close the browser tab
+      if (mediums.includes('cli')) {
+        setTimeout(() => window.close(), 300);
+      }
+    },
+    [allComments, gitRoot, config, showToast],
+  );
 
   const handleCommit = useCallback(() => {
     if (allComments.length > 0) {
@@ -640,6 +666,39 @@ export default function App() {
       }
     },
     [showToast],
+  );
+
+  const persistPreferences = useCallback(
+    async (prefs) => {
+      try {
+        const res = await fetch('/api/preferences', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(prefs),
+        });
+        if (!res.ok) throw new Error('Failed to save preferences');
+        const data = await res.json();
+        if (!data.success) {
+          throw new Error(data.error || 'Failed to save preferences');
+        }
+        if (data.preferences) {
+          setConfig((prev) =>
+            prev ? { ...prev, preferences: data.preferences } : prev,
+          );
+        }
+      } catch (err) {
+        console.warn(`Failed to persist preferences: ${err.message}`);
+      }
+    },
+    [],
+  );
+
+  const handleChangeMediums = useCallback(
+    (mediums) => {
+      setSelectedMediums(mediums);
+      void persistPreferences({ sendMediums: mediums });
+    },
+    [persistPreferences],
   );
 
   const handleCloseCommitModal = useCallback(
@@ -1127,6 +1186,8 @@ export default function App() {
         onShowShortcuts={handleShowShortcuts}
         projectInfo={projectInfo}
         onSwitchProject={switchProject}
+        selectedMediums={selectedMediums || ['clipboard', 'file']}
+        onChangeMediums={handleChangeMediums}
       />
 
       <div
@@ -1196,6 +1257,7 @@ export default function App() {
                     onUnstageHunk={handleUnstageHunk}
                     onRevertHunk={handleRevertHunk}
                     onFileReviewed={handleFileReviewed}
+                    isReviewed={reviewedFiles.has(filePath)}
                     globalCollapsed={globalCollapsed}
                     collapseVersion={collapseVersion}
                   />

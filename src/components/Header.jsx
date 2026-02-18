@@ -1,6 +1,57 @@
-import { memo } from 'react';
+import { memo, useState, useEffect, useRef, useCallback } from 'react';
 import ProjectNavigator from './ProjectNavigator';
 import ProgressRingWithStats from './ProgressRing';
+
+const MEDIUM_META = {
+  clipboard: { label: 'Clipboard' },
+  file: { label: 'File' },
+  cli: { label: 'CLI stdout' },
+};
+
+const ALL_MEDIUMS = ['clipboard', 'file', 'cli'];
+
+function SendMediumPicker({ selectedMediums, onToggleMedium, onClose }) {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (ref.current && !ref.current.contains(e.target)) {
+        onClose();
+      }
+    }
+    document.addEventListener('pointerdown', handleClickOutside);
+    return () => document.removeEventListener('pointerdown', handleClickOutside);
+  }, [onClose]);
+
+  return (
+    <div className="send-medium-picker" ref={ref}>
+      <div className="send-medium-title">Send via</div>
+      <div className="send-medium-list">
+        {ALL_MEDIUMS.map((id) => {
+          const meta = MEDIUM_META[id];
+          const checked = selectedMediums.includes(id);
+          return (
+            <button
+              key={id}
+              type="button"
+              className="send-medium-option"
+              aria-pressed={checked}
+              aria-label={`${checked ? 'Disable' : 'Enable'} ${meta.label}`}
+              onClick={() => onToggleMedium(id)}
+            >
+              <span
+                className={`material-symbols-rounded send-medium-toggle${checked ? ' is-selected' : ''}`}
+              >
+                {checked ? 'toggle_on' : 'toggle_off'}
+              </span>
+              <span className="send-medium-option-label">{meta.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 function Header({
   theme,
@@ -17,7 +68,36 @@ function Header({
   onShowShortcuts,
   projectInfo,
   onSwitchProject,
+  selectedMediums,
+  onChangeMediums,
 }) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const canSend =
+    hasComments && !committed && Array.isArray(selectedMediums)
+      ? selectedMediums.length > 0
+      : false;
+
+  const handleToggleMedium = useCallback(
+    (id) => {
+      const next = selectedMediums.includes(id)
+        ? selectedMediums.filter((m) => m !== id)
+        : [...selectedMediums, id];
+      onChangeMediums(next);
+    },
+    [selectedMediums, onChangeMediums],
+  );
+
+  const handleMainClick = useCallback(() => {
+    onSendComments(selectedMediums);
+  }, [onSendComments, selectedMediums]);
+
+  const handleTogglePicker = useCallback(() => {
+    setPickerOpen((prev) => !prev);
+  }, []);
+
+  const handleClosePicker = useCallback(() => {
+    setPickerOpen(false);
+  }, []);
 
   return (
     <header id="header">
@@ -70,14 +150,38 @@ function Header({
           </span>
         </button>
         <div className="header-actions">
-          <button
-            className={`btn btn-secondary${hasComments ? ' btn-active' : ''}`}
-            disabled={!hasComments || committed}
-            onClick={onSendComments}
-          >
-            Send to Agent
-            {hasComments && <span className="btn-badge">{commentCount}</span>}
-          </button>
+          <div className={`split-btn-wrap${pickerOpen ? ' is-open' : ''}`}>
+            <button
+              className={`btn btn-secondary split-btn-main${hasComments ? ' is-ready' : ''}`}
+              disabled={!canSend}
+              onClick={handleMainClick}
+              type="button"
+            >
+              Send to Agent
+              {hasComments && (
+                <span className="btn-badge">{commentCount}</span>
+              )}
+            </button>
+            <button
+              className={`btn btn-secondary split-btn-caret${hasComments ? ' is-ready' : ''}`}
+              disabled={!hasComments || committed}
+              onClick={handleTogglePicker}
+              aria-label="Choose send mediums"
+              title="Choose send mediums"
+              type="button"
+            >
+              <span className="material-symbols-rounded">
+                {pickerOpen ? 'expand_less' : 'expand_more'}
+              </span>
+            </button>
+            {pickerOpen && (
+              <SendMediumPicker
+                selectedMediums={selectedMediums}
+                onToggleMedium={handleToggleMedium}
+                onClose={handleClosePicker}
+              />
+            )}
+          </div>
           <button
             className="btn btn-primary"
             disabled={committed}
