@@ -2,20 +2,18 @@
   <img src="src/logo.svg" height="120" alt="Staging Logo" />
   <h1>Staging</h1>
   <p>
-    <strong>A visual review interface for headless AI coding agents.</strong><br>
-    Review staged changes, visualize diffs, and provide inline feedback.
+    <strong>A complementary code review tool for AI coding agents.</strong><br>
+    Review staged changes, visualize diffs, and provide inline feedback—right in your browser.
   </p>
 </div>
 
 ---
 
-**Staging** is a complementary tool designed to enhance agentic coding workflows by providing visual diff review capabilities that terminal-based and IDE-constrained AI coding tools currently lack.
+**Staging** It's the first Human-In-The-Loop (HITL) layer for modern AI-assisted development—a review checkpoint that plugs into the agents you already use.
 
-Modern AI coding agents (Claude Code, Gemini CLI, Cursor, and similar tools) excel at generating code changes, but reviewing those changes often happens in limited environments:
-- **CLI agents** display diffs in the terminal, making it difficult to review multi-file refactors
-- **VSCode extensions** are constrained by the IDE's diff viewer, which lacks persistent review states and inline commenting
+AI coding agents like Claude Code, Gemini CLI, Roo Code, and others are great at generating code—but reviewing their output is a different story. Diffs in a terminal are hard to parse, and IDE diff viewers lack persistent review states and inline commenting. You end up squinting at changes and hoping nothing slipped through.
 
-Staging fills this gap by launching a dedicated browser-based review interface with GitHub-style diffs, inline comments, and comprehensive change visualization—bridging the final step between AI-generated code and confident commits.
+Staging gives you a dedicated, browser-based review interface with GitHub-style diffs and inline comments. Your agent makes the changes, Staging lets you actually review them before you commit.
 
 ## Features
 
