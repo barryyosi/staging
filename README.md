@@ -9,8 +9,6 @@
 
 ---
 
-## What is Staging?
-
 **Staging** is a complementary tool designed to enhance agentic coding workflows by providing visual diff review capabilities that terminal-based and IDE-constrained AI coding tools currently lack.
 
 Modern AI coding agents (Claude Code, Gemini CLI, Cursor, and similar tools) excel at generating code changes, but reviewing those changes often happens in limited environments:
@@ -19,49 +17,17 @@ Modern AI coding agents (Claude Code, Gemini CLI, Cursor, and similar tools) exc
 
 Staging fills this gap by launching a dedicated browser-based review interface with GitHub-style diffs, inline comments, and comprehensive change visualization—bridging the final step between AI-generated code and confident commits.
 
-## Why Staging?
-
-When working with AI coding agents in production environments, you need:
-- **Clear visibility** into multi-file changes across your codebase
-- **Structured review** with side-by-side or unified diff views
-- **Feedback loops** to communicate refinements back to your agent
-- **Confidence** before committing agent-generated code
-
-Staging provides a lightweight, local-first review layer that complements your existing agentic coding setup without replacing any tools in your workflow.
-
 ## Features
 
 - **Private & Lightweight**: Runs 100% locally. No internet connection required. Zero telemetry.
-- **GitHub-Style Diffs**: Split and unified diff views with syntax highlighting
-- **Inline Comments**: Add threaded comments directly on changed lines to guide agent refinements
 - **Multi-Project Support**: Navigate between sibling repositories and git worktrees
-- **Hunk-Level Actions**: Unstage or revert individual hunks directly from the diff view
-- **File Tree Navigation**: Flat list or collapsible tree view with fuzzy search
+- **Inline Comments**: Add threaded comments directly on changed lines to guide agent refinements
 - **Markdown/HTML Preview**: Toggle per-file between diff and rendered preview for `.md` and `.html` files, with selection-based commenting on the rendered output
-- **Theme Support**: Light and dark modes with system preference detection
 
-## Integration with AI Coding Agents
 
-Staging integrates seamlessly with any terminal-based coding agent. Simply add an instruction to your agent's configuration to run `staging` after completing tasks.
-
-### Example: Claude Code Integration
-
-Add this to your `.claude/CLAUDE.md` file:
-
-```markdown
-## Task Completion Protocol
-
-After completing any implementation task:
-1. Stage all changes with `git add .`
-2. Run `staging` to launch the visual human review interface
-3. Wait for user review and feedback before proceeding
-```
-
-Now, when Claude finishes a task, it will automatically launch Staging in your browser for visual review.
 
 ## Quick Start
 
-**1. Install**
 ```bash
 git clone https://github.com/barryyosi/staging
 cd staging
@@ -69,49 +35,31 @@ npm install
 npm link
 ```
 
-**2. Workflow**
+Usage:
+1. Stage changes: `git add [CHANGED_FILES]`
+2. Run `staging`
+3. Review at `http://localhost:3456`
+
+## Agent Integration
+
+Instruct your agent to run `staging` after making changes. Example (`.claude/CLAUDE.md`):
+
+```markdown
+After completing tasks:
+1. `git add [CHANGED_FILES]`
+2. Run `staging`
+3. Wait for user review
 ```
-1. Let your coding agent introduce some changes.
-2. Either of you can stage the changes with `git add .`
-3. Either of you can launch visual review with `staging`
-```
 
-The browser will open automatically at `http://localhost:3456` with your staged changes ready for review.
+## Configuration
 
-**Configuration (`.stagingrc.json`)**
-
-Staging reads config from two locations, merged in order (later wins):
-
-1. **Global** (per-user): `~/.stagingrc.json` — your personal defaults across all projects
-2. **Project**: `.stagingrc.json` in the project root — shared with collaborators
-
-```json
-{
-  "agentCommand": "code -g {file}:1",
-  "reviewFileName": ".staging-review.md",
-  "sendMediums": ["clipboard", "cli"]
-}
-```
+Settings are read from `~/.stagingrc.json`, then `./.stagingrc.json`.
 
 | Option | Default | Description |
 | :--- | :--- | :--- |
-| `agentCommand` | `"code -g {file}:1"` | Command to run after writing the review file. `{file}` is replaced with the file path. |
-| `reviewFileName` | `".staging-review.md"` | Name of the review file written to the project root. |
-| `sendMediums` | `["clipboard", "file"]` | Default mediums for the "Send to Agent" button. Options: `clipboard`, `file`, `cli`. |
-| `diffContext` | `3` | Number of context lines around each diff hunk. |
-| `port` | `0` (random) | Port for the local server. Can also be set via `STAGING_PORT` env var. |
-| `autoOpen` | `true` | Whether to automatically open the browser on launch. |
-
-## Tech Stack
-
-| Layer | Technologies |
-| :--- | :--- |
-| **Frontend** | React 19, Vite, Vanilla CSS |
-| **Backend** | Node.js, Hono, ESM |
-| **CLI** | Native Node.js executable |
-
----
-
-<div align="center">
-  <sub>Built for developers who pair program with AI agents and need production-grade code review workflows.</sub>
-</div>
+| `agentCommand` | `"code -g {file}:1"` | Command to run after writing the review file. |
+| `reviewFileName` | `".staging-review.md"` | Output file for agent feedback. |
+| `sendMediums` | `["clipboard", "file"]` | Feedback mediums (`clipboard`, `file`, `cli`). |
+| `diffContext` | `3` | Context lines around diffs. |
+| `port` | `0` (random) | Local server port. |
+| `autoOpen` | `true` | Auto-open browser on launch. |
