@@ -559,10 +559,10 @@ export default function App() {
         const extra =
           activeForm.lineType === 'preview'
             ? {
-                selectedText: activeForm.selectedText,
-                textOffset: activeForm.textOffset,
-                textLength: activeForm.textLength,
-              }
+              selectedText: activeForm.selectedText,
+              textOffset: activeForm.textOffset,
+              textLength: activeForm.textLength,
+            }
             : {};
         addComment(
           activeForm.file,
@@ -1366,7 +1366,7 @@ export default function App() {
                   type="button"
                   onClick={handleUnstageAll}
                 >
-                  <MinusCircle size={16} strokeWidth={2.5} />
+                  <MinusCircle size={16} strokeWidth={1.5} />
                   Unstage all
                 </button>
               )}

@@ -68,12 +68,12 @@ function CommentPanel({
                     onDeleteComment(c.id);
                   }}
                 >
-                  <X size={14} strokeWidth={2.5} />
+                  <X size={14} strokeWidth={1.5} />
                 </button>
                 <div className="panel-line-ref">
                   {c.lineType === 'preview' ? (
                     <span className="panel-quote-ref">
-                      <Quote size={12} strokeWidth={2.5} />
+                      <Quote size={12} strokeWidth={1.5} />
                       {c.selectedText?.length > 50
                         ? c.selectedText.slice(0, 50) + '...'
                         : c.selectedText}

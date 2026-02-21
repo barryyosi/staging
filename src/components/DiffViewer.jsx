@@ -67,7 +67,7 @@ function HunkActions({
         aria-label="Revert hunk"
         onClick={handleRevert}
       >
-        <RotateCcw size={14} strokeWidth={2.5} />
+        <RotateCcw size={14} strokeWidth={1.5} />
       </button>
       <button
         className="hunk-action-btn"
@@ -76,7 +76,7 @@ function HunkActions({
         aria-label="Unstage hunk"
         onClick={handleUnstage}
       >
-        <MinusCircle size={14} strokeWidth={2.5} />
+        <MinusCircle size={14} strokeWidth={1.5} />
       </button>
     </div>
   );
@@ -106,7 +106,7 @@ function DiffLine({
           type="button"
           onClick={() => onAddComment(filePath, lineNum, change.type)}
         >
-          <Plus size={14} strokeWidth={2.5} />
+          <Plus size={14} strokeWidth={1.5} />
         </button>
       </td>
       <td className="line-num">{lineNum}</td>
@@ -159,7 +159,7 @@ function ExpandRow({ gap, expandedData, onExpand }) {
                 disabled={isLoading}
                 title={`Expand ${EXPAND_STEP} lines down`}
               >
-                <ChevronDown size={14} strokeWidth={2.5} />
+                <ChevronDown size={14} strokeWidth={1.5} />
                 {EXPAND_STEP}
               </button>
             )}
@@ -170,7 +170,7 @@ function ExpandRow({ gap, expandedData, onExpand }) {
               disabled={isLoading}
               title={`Expand all ${remaining} hidden lines`}
             >
-              <ChevronsUpDown size={14} strokeWidth={2.5} />
+              <ChevronsUpDown size={14} strokeWidth={1.5} />
               {isLoading ? 'Loading\u2026' : `${remaining} lines`}
             </button>
             {showDirectional && (
@@ -181,7 +181,7 @@ function ExpandRow({ gap, expandedData, onExpand }) {
                 disabled={isLoading}
                 title={`Expand ${EXPAND_STEP} lines up`}
               >
-                <ChevronUp size={14} strokeWidth={2.5} />
+                <ChevronUp size={14} strokeWidth={1.5} />
                 {EXPAND_STEP}
               </button>
             )}
@@ -265,7 +265,7 @@ function PreviewCommentBubble({ comment, onEdit, onDelete }) {
       <div className="comment-bubble">
         <div className="comment-bubble-head">
           <span className="comment-loc" title={comment.selectedText}>
-            <Quote size={12} strokeWidth={2.5} />
+            <Quote size={12} strokeWidth={1.5} />
             {comment.selectedText?.length > 40
               ? comment.selectedText.slice(0, 40) + '...'
               : comment.selectedText}
@@ -456,7 +456,7 @@ function PreviewBody({
           title="Add comment"
           aria-label="Add comment on selection"
         >
-          <MessageSquarePlus size={16} strokeWidth={2.5} />
+          <MessageSquarePlus size={16} strokeWidth={1.5} />
         </button>
       )}
 
@@ -886,9 +886,9 @@ function DiffViewer({
             onClick={handleToggleReviewed}
           >
             {isReviewed ? (
-              <CheckCircle size={18} strokeWidth={2.5} />
+              <CheckCircle size={18} strokeWidth={1.5} />
             ) : (
-              <Circle size={18} strokeWidth={2.5} />
+              <Circle size={18} strokeWidth={1.5} />
             )}
           </button>
           <button
@@ -898,7 +898,7 @@ function DiffViewer({
             aria-label="Revert file"
             onClick={handleRevertFile}
           >
-            <RotateCcw size={18} strokeWidth={2.5} />
+            <RotateCcw size={18} strokeWidth={1.5} />
           </button>
           <button
             className="file-action-btn"
@@ -907,7 +907,7 @@ function DiffViewer({
             aria-label="Unstage file"
             onClick={handleUnstageFile}
           >
-            <MinusCircle size={18} strokeWidth={2.5} />
+            <MinusCircle size={18} strokeWidth={1.5} />
           </button>
           <button
             className="file-action-btn file-action-collapse"
@@ -917,7 +917,7 @@ function DiffViewer({
           >
             <ChevronUp
               size={18}
-              strokeWidth={2.5}
+              strokeWidth={1.5}
               style={{
                 transform: collapsed ? 'rotate(180deg)' : 'none',
                 transition: 'transform 0.2s',

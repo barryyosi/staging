@@ -22,7 +22,7 @@ function StageFileButton({ filePath, fromPath, onStageFile }) {
         onStageFile?.(filePath, fromPath);
       }}
     >
-      <Plus size={14} strokeWidth={2.5} />
+      <Plus size={14} strokeWidth={1.5} />
     </button>
   );
 }
@@ -57,10 +57,10 @@ function FlatFileList({
             <span className="file-name" title={filePath}>
               {highlighted
                 ? highlighted.map((seg, i) => (
-                    <mark key={i} className={seg.highlight ? 'match' : ''}>
-                      {seg.text}
-                    </mark>
-                  ))
+                  <mark key={i} className={seg.highlight ? 'match' : ''}>
+                    {seg.text}
+                  </mark>
+                ))
                 : filePath}
             </span>
             {isUnstaged && (
@@ -121,10 +121,10 @@ function FileTreeNode({
         <span className="file-name" title={filePath}>
           {highlighted
             ? highlighted.map((seg, i) => (
-                <mark key={i} className={seg.highlight ? 'match' : ''}>
-                  {seg.text}
-                </mark>
-              ))
+              <mark key={i} className={seg.highlight ? 'match' : ''}>
+                {seg.text}
+              </mark>
+            ))
             : node.name}
         </span>
         {isUnstaged && (
@@ -164,7 +164,7 @@ function FileTreeNode({
         <ChevronRight
           className={`tree-caret${isExpanded ? ' expanded' : ''}`}
           size={14}
-          strokeWidth={2.5}
+          strokeWidth={1.5}
         />
         <span className="dir-name">{node.name}</span>
       </div>
@@ -371,12 +371,12 @@ function FileSidebar({
             <span
               className={`file-view-toggle-option${!isTree ? ' active' : ''}`}
             >
-              <List size={14} strokeWidth={2.5} />
+              <List size={14} strokeWidth={1.5} />
             </span>
             <span
               className={`file-view-toggle-option${isTree ? ' active' : ''}`}
             >
-              <FolderTree size={14} strokeWidth={2.5} />
+              <FolderTree size={14} strokeWidth={1.5} />
             </span>
             <span
               className="file-view-toggle-thumb"

@@ -68,13 +68,13 @@ function SendMediumPicker({ selectedMediums, onToggleMedium, onClose }) {
                 <ToggleRight
                   className={`send-medium-toggle${checked ? ' is-selected' : ''}`}
                   size={20}
-                  strokeWidth={2.5}
+                  strokeWidth={1.5}
                 />
               ) : (
                 <ToggleLeft
                   className="send-medium-toggle"
                   size={20}
-                  strokeWidth={2.5}
+                  strokeWidth={1.5}
                 />
               )}
             </button>
@@ -237,7 +237,7 @@ function Header({
           title="Keyboard shortcuts (?)"
           type="button"
         >
-          <HelpCircle size={20} strokeWidth={2.5} />
+          <HelpCircle size={20} strokeWidth={1.5} />
         </button>
         <button
           className="btn-collapse-all"
@@ -247,9 +247,9 @@ function Header({
           type="button"
         >
           {allCollapsed ? (
-            <ChevronsUpDown size={20} strokeWidth={2.5} />
+            <ChevronsUpDown size={20} strokeWidth={1.5} />
           ) : (
-            <ChevronsDownUp size={20} strokeWidth={2.5} />
+            <ChevronsDownUp size={20} strokeWidth={1.5} />
           )}
         </button>
         <button
@@ -260,9 +260,9 @@ function Header({
           type="button"
         >
           {theme === 'dark' ? (
-            <Moon size={20} strokeWidth={2.5} className="theme-toggle-icon" />
+            <Moon size={20} strokeWidth={1.5} className="theme-toggle-icon" />
           ) : (
-            <Sun size={20} strokeWidth={2.5} className="theme-toggle-icon" />
+            <Sun size={20} strokeWidth={1.5} className="theme-toggle-icon" />
           )}
         </button>
         {hasComments && (
@@ -279,7 +279,7 @@ function Header({
               title="Comments"
               type="button"
             >
-              <MessageSquare size={16} strokeWidth={2.5} />
+              <MessageSquare size={16} strokeWidth={1.5} />
               <span className="btn-badge">{commentCount}</span>
             </button>
             {isCommentsOpen && (
@@ -315,9 +315,9 @@ function Header({
               type="button"
             >
               {pickerOpen ? (
-                <ChevronUp size={20} strokeWidth={2.5} />
+                <ChevronUp size={20} strokeWidth={1.5} />
               ) : (
-                <ChevronDown size={20} strokeWidth={2.5} />
+                <ChevronDown size={20} strokeWidth={1.5} />
               )}
             </button>
             {pickerOpen && (
@@ -351,9 +351,9 @@ function Header({
               type="button"
             >
               {gitPickerOpen ? (
-                <ChevronUp size={20} strokeWidth={2.5} />
+                <ChevronUp size={20} strokeWidth={1.5} />
               ) : (
-                <ChevronDown size={20} strokeWidth={2.5} />
+                <ChevronDown size={20} strokeWidth={1.5} />
               )}
             </button>
             {gitPickerOpen && (

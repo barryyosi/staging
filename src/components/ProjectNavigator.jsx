@@ -96,7 +96,7 @@ function ProjectNavigator({
             {projectName}
           </span>
           {hasMultipleProjects && (
-            <ChevronDown size={14} strokeWidth={2.5} className="nav-caret" />
+            <ChevronDown size={14} strokeWidth={1.5} className="nav-caret" />
           )}
         </button>
         {showProjectDD && hasMultipleProjects && (
@@ -122,12 +122,12 @@ function ProjectNavigator({
           }}
           type="button"
         >
-          <GitBranch size={14} strokeWidth={2.5} className="nav-segment-icon" />
+          <GitBranch size={14} strokeWidth={1.5} className="nav-segment-icon" />
           <span className="nav-segment-label" title={branch}>
             {branch}
           </span>
           {hasMultipleWorktrees && (
-            <ChevronDown size={14} strokeWidth={2.5} className="nav-caret" />
+            <ChevronDown size={14} strokeWidth={1.5} className="nav-caret" />
           )}
         </button>
         {showWorktreeDD && hasMultipleWorktrees && (

@@ -27,19 +27,22 @@ try {
   process.exit(1);
 }
 
-// Check for staged changes
-const stagedFiles = execSync('git diff --cached --name-only', {
+// Check staged files (but do not block startup when empty)
+const stagedFilesRaw = execSync('git diff --cached --name-only', {
   cwd: gitRoot,
   encoding: 'utf-8',
-}).trim();
+});
+const stagedFiles = stagedFilesRaw
+  .split('\n')
+  .map((file) => file.trim())
+  .filter(Boolean);
+const fileCount = stagedFiles.length;
 
-if (!stagedFiles) {
-  console.error('No staged changes found. Stage files with `git add` first.');
-  process.exit(0);
+if (fileCount > 0) {
+  console.log(`Found ${fileCount} staged file${fileCount === 1 ? '' : 's'}.`);
+} else {
+  console.log('No staged files found. Opening staging for unstaged review.');
 }
-
-const fileCount = stagedFiles.split('\n').length;
-console.log(`Found ${fileCount} staged file${fileCount === 1 ? '' : 's'}.`);
 
 // Load config
 const config = loadConfig(gitRoot);
