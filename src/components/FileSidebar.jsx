@@ -78,13 +78,6 @@ function FlatFileList({
                   ))
                 : filePath}
             </span>
-            {isUnstaged && (
-              <StageFileButton
-                filePath={filePath}
-                fromPath={file.from || null}
-                onStageFile={onStageFile}
-              />
-            )}
             <span className="stats">
               {file.additions > 0 && (
                 <span className="add">+{file.additions}</span>
@@ -93,6 +86,13 @@ function FlatFileList({
                 <span className="del">-{file.deletions}</span>
               )}
             </span>
+            {isUnstaged && (
+              <StageFileButton
+                filePath={filePath}
+                fromPath={file.from || null}
+                onStageFile={onStageFile}
+              />
+            )}
           </li>
         );
       })}
@@ -153,13 +153,6 @@ function FileTreeNode({
               ))
             : node.name}
         </span>
-        {isUnstaged && (
-          <StageFileButton
-            filePath={filePath}
-            fromPath={fileMeta?.from || null}
-            onStageFile={onStageFile}
-          />
-        )}
         {fileMeta && (
           <span className="stats">
             {fileMeta.additions > 0 && (
@@ -169,6 +162,13 @@ function FileTreeNode({
               <span className="del">-{fileMeta.deletions}</span>
             )}
           </span>
+        )}
+        {isUnstaged && (
+          <StageFileButton
+            filePath={filePath}
+            fromPath={fileMeta?.from || null}
+            onStageFile={onStageFile}
+          />
         )}
       </li>
     );

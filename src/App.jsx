@@ -559,10 +559,10 @@ export default function App() {
         const extra =
           activeForm.lineType === 'preview'
             ? {
-              selectedText: activeForm.selectedText,
-              textOffset: activeForm.textOffset,
-              textLength: activeForm.textLength,
-            }
+                selectedText: activeForm.selectedText,
+                textOffset: activeForm.textOffset,
+                textLength: activeForm.textLength,
+              }
             : {};
         addComment(
           activeForm.file,
@@ -1294,6 +1294,7 @@ export default function App() {
           loadedFilesByPath={fileDetailsByPath}
           onSelectFile={handleSelectFile}
           onStageFile={handleStageFile}
+          onUnstageFile={handleUnstageFile}
         />
         <div
           className={`sidebar-resizer${isResizingSidebar ? ' active' : ''}`}
