@@ -150,9 +150,9 @@
   --header-border: rgba(255, 255, 255, 0.08);
   --overlay-scrim: rgba(0, 0, 0, 0.6);
 
-  --text-1: #e6edf3;
-  --text-2: #8b949e;
-  --text-3: #7b8591;
+  --text-1: #f0f6fc;
+  --text-2: #b6c2cf;
+  --text-3: #a5b1be;
   --text-code: #e6edf3;
 
   --border-1: #30363d;
@@ -164,22 +164,22 @@
   --focus-ring: #58a6ff;
   --focus-ring-outer: rgba(88, 166, 255, 0.38);
 
-  --add-bg: #182a2c;
-  --add-bg-strong: #1b3c37;
-  --add-text: #6ee7b7;
-  --add-num: #1a3130;
+  --add-bg: #103733;
+  --add-bg-strong: #15504a;
+  --add-text: #4ff0b8;
+  --add-num: #18504a;
 
-  --del-bg: #282228;
-  --del-bg-strong: #3f2a30;
-  --del-text: #fca5a5;
-  --del-num: #31252c;
+  --del-bg: #321f2a;
+  --del-bg-strong: #5b3040;
+  --del-text: #ff9f9f;
+  --del-num: #472c38;
 
   --status-modified-bg: rgba(251, 191, 36, 0.18);
-  --status-modified-text: #fcd34d;
+  --status-modified-text: #ffd766;
   --status-modified-dot: #fbbf24;
 
   --hunk-bg: #161b22;
-  --hunk-text: #7b8591;
+  --hunk-text: #a5b1be;
 
   --comment-bg: rgba(251, 191, 36, 0.06);
   --comment-border: rgba(251, 191, 36, 0.25);
@@ -191,10 +191,10 @@
   --commit-text: #111111;
 
   --toast-success-bg: rgba(52, 211, 153, 0.12);
-  --toast-success-text: #6ee7b7;
+  --toast-success-text: #4ff0b8;
   --toast-success-border: rgba(52, 211, 153, 0.3);
   --toast-error-bg: rgba(248, 113, 113, 0.12);
-  --toast-error-text: #fca5a5;
+  --toast-error-text: #ff9f9f;
   --toast-error-border: rgba(248, 113, 113, 0.3);
   --toast-info-bg: rgba(96, 165, 250, 0.12);
   --toast-info-text: #93c5fd;
@@ -212,10 +212,10 @@
   --pill-shadow: 0 2px 8px rgba(0, 0, 0, 0.5), 0 8px 24px rgba(0, 0, 0, 0.3);
   --pill-btn-bg: transparent;
   --pill-btn-bg-hover: rgba(255, 255, 255, 0.06);
-  --pill-btn-color: #b0bac5;
+  --pill-btn-color: #c1cad5;
   --pill-btn-color-hover: #e6edf3;
   --pill-btn-revert-bg: rgba(248, 113, 113, 0.14);
-  --pill-btn-revert-color: #fca5a5;
+  --pill-btn-revert-color: #ff9f9f;
   --toggle-thumb-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
 
   --surface-outline-subtle: rgba(128, 128, 128, 0.2);
@@ -223,10 +223,10 @@
   --dropdown-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
   --panel-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
 
-  --danger-hover-bg: rgba(248, 113, 113, 0.15);
-  --danger-soft-text: #fca5a5;
-  --danger-soft-border: rgba(252, 165, 165, 0.35);
-  --danger-soft-bg: rgba(248, 113, 113, 0.12);
+  --danger-hover-bg: rgba(255, 110, 110, 0.26);
+  --danger-soft-text: #ff9f9f;
+  --danger-soft-border: rgba(255, 170, 170, 0.5);
+  --danger-soft-bg: rgba(255, 110, 110, 0.22);
 
   --hljs-keyword: #d2a8ff;
   --hljs-string: #a5d6ff;
