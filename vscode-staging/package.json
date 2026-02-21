@@ -1,0 +1,62 @@
+{
+  "name": "staging-vscode",
+  "displayName": "Staging",
+  "description": "Review staged Git changes in a rich UI without leaving VS Code.",
+  "version": "0.1.0",
+  "publisher": "staging",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["SCM Providers", "Other"],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "staging.openReview",
+        "title": "Staging: Open Review",
+        "icon": "$(git-compare)"
+      },
+      {
+        "command": "staging.restart",
+        "title": "Staging: Restart Server"
+      }
+    ],
+    "menus": {
+      "scm/title": [
+        {
+          "command": "staging.openReview",
+          "group": "navigation",
+          "when": "scmProvider == git"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Staging",
+      "properties": {
+        "staging.port": {
+          "type": "number",
+          "default": 0,
+          "description": "Port for the Staging server (0 = auto-assign)."
+        },
+        "staging.diffContext": {
+          "type": "number",
+          "default": 3,
+          "description": "Number of context lines around diffs."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.js",
+    "watch": "node esbuild.js --watch",
+    "vscode:prepublish": "node esbuild.js --production"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.3.0"
+  }
+}

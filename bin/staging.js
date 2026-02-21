@@ -44,6 +44,9 @@ if (fileCount > 0) {
   console.log('No staged files found. Opening staging for unstaged review.');
 }
 
+// CLI flags
+const noOpen = process.argv.includes('--no-open');
+
 // Load config
 const config = loadConfig(gitRoot);
 
@@ -60,7 +63,7 @@ server.listen(config.port, '127.0.0.1', (info) => {
   const url = `http://127.0.0.1:${info.port}`;
   console.log(`Staging review at ${url}`);
 
-  if (config.autoOpen) {
+  if (config.autoOpen && !noOpen) {
     openBrowser(url);
   }
 });

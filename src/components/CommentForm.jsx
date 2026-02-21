@@ -5,7 +5,12 @@ const isMac =
   navigator.platform.toUpperCase().indexOf('MAC') >= 0;
 const modKey = isMac ? '\u2318' : 'Ctrl';
 
-export default function CommentForm({ initialContent, onSubmit, onCancel }) {
+export default function CommentForm({
+  initialContent,
+  onSubmit,
+  onCancel,
+  stackIndex = 0,
+}) {
   const [value, setValue] = useState(initialContent || '');
   const textareaRef = useRef(null);
   const canSubmit = value.trim().length > 0;
@@ -31,7 +36,10 @@ export default function CommentForm({ initialContent, onSubmit, onCancel }) {
   }
 
   return (
-    <tr className="comment-form-row">
+    <tr
+      className="comment-form-row"
+      style={{ '--comment-stack-index': stackIndex }}
+    >
       <td className="comment-form-cell" colSpan="3">
         <div className="comment-form">
           <div className="comment-form-input-wrap">

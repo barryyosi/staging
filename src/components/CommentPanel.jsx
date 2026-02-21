@@ -28,7 +28,17 @@ function CommentPanel({
       const row = document.querySelector(
         `.comment-row[data-comment-id="${comment.id}"]`,
       );
-      if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (row) {
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+      const toggle = document.querySelector(
+        `.line-num[data-comment-line="${comment.line}"][data-comment-type="${comment.lineType}"] .line-num-comment-toggle`,
+      );
+      if (toggle instanceof HTMLButtonElement) {
+        toggle.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (!toggle.classList.contains('is-open')) toggle.click();
+      }
     }
   }, []);
 
