@@ -5,7 +5,7 @@ import ProgressRingWithStats from './ProgressRing';
 const MEDIUM_META = {
   clipboard: { label: 'Clipboard' },
   file: { label: 'File' },
-  cli: { label: 'CLI stdout' },
+  cli: { label: 'CLI Stdout' },
 };
 
 const ALL_MEDIUMS = ['clipboard', 'file', 'cli'];
@@ -20,7 +20,8 @@ function SendMediumPicker({ selectedMediums, onToggleMedium, onClose }) {
       }
     }
     document.addEventListener('pointerdown', handleClickOutside);
-    return () => document.removeEventListener('pointerdown', handleClickOutside);
+    return () =>
+      document.removeEventListener('pointerdown', handleClickOutside);
   }, [onClose]);
 
   return (
@@ -34,17 +35,17 @@ function SendMediumPicker({ selectedMediums, onToggleMedium, onClose }) {
             <button
               key={id}
               type="button"
-              className="send-medium-option"
+              className={`send-medium-option${checked ? ' active' : ''}`}
               aria-pressed={checked}
               aria-label={`${checked ? 'Disable' : 'Enable'} ${meta.label}`}
               onClick={() => onToggleMedium(id)}
             >
+              <span className="send-medium-option-label">{meta.label}</span>
               <span
                 className={`material-symbols-rounded send-medium-toggle${checked ? ' is-selected' : ''}`}
               >
                 {checked ? 'toggle_on' : 'toggle_off'}
               </span>
-              <span className="send-medium-option-label">{meta.label}</span>
             </button>
           );
         })}
@@ -150,20 +151,20 @@ function Header({
           </span>
         </button>
         <div className="header-actions">
-          <div className={`split-btn-wrap${pickerOpen ? ' is-open' : ''}`}>
+          <div
+            className={`split-btn-wrap header-action-split${pickerOpen ? ' is-open' : ''}`}
+          >
             <button
-              className={`btn btn-secondary split-btn-main${hasComments ? ' is-ready' : ''}`}
+              className={`btn btn-secondary header-action-btn split-btn-main${hasComments ? ' is-ready' : ''}`}
               disabled={!canSend}
               onClick={handleMainClick}
               type="button"
             >
               Send to Agent
-              {hasComments && (
-                <span className="btn-badge">{commentCount}</span>
-              )}
+              {hasComments && <span className="btn-badge">{commentCount}</span>}
             </button>
             <button
-              className={`btn btn-secondary split-btn-caret${hasComments ? ' is-ready' : ''}`}
+              className={`btn btn-secondary header-action-btn split-btn-caret${hasComments ? ' is-ready' : ''}`}
               disabled={!hasComments || committed}
               onClick={handleTogglePicker}
               aria-label="Choose send mediums"
@@ -183,7 +184,7 @@ function Header({
             )}
           </div>
           <button
-            className="btn btn-primary"
+            className="btn btn-secondary header-action-btn header-action-commit"
             disabled={committed}
             onClick={onCommit}
           >
