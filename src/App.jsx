@@ -7,12 +7,12 @@ import {
   lazy,
   Suspense,
 } from 'react';
+import { MinusCircle } from 'lucide-react';
 import { useTheme } from './hooks/useTheme';
 import { useComments } from './hooks/useComments';
 import Header from './components/Header';
 import FileSidebar from './components/FileSidebar';
 import DiffViewer from './components/DiffViewer';
-import CommentPanel from './components/CommentPanel';
 import Toast from './components/Toast';
 import { formatComments } from './utils/format';
 import { slugify } from './utils/escape';
@@ -24,10 +24,6 @@ const SIDEBAR_MIN_WIDTH = 180;
 const SIDEBAR_MAX_WIDTH = 420;
 const SIDEBAR_DEFAULT_WIDTH = 240;
 const SIDEBAR_STORAGE_KEY = 'staging-sidebar-width';
-const COMMENT_PANEL_MIN_WIDTH = 240;
-const COMMENT_PANEL_MAX_WIDTH = 480;
-const COMMENT_PANEL_DEFAULT_WIDTH = 280;
-const COMMENT_PANEL_STORAGE_KEY = 'staging-comment-panel-width';
 const DIFF_PAGE_SIZE = 40;
 const FILE_JUMP_LIMIT = 1;
 
@@ -37,10 +33,6 @@ function clampWidth(width, min, max) {
 
 function clampSidebarWidth(width) {
   return clampWidth(width, SIDEBAR_MIN_WIDTH, SIDEBAR_MAX_WIDTH);
-}
-
-function clampCommentPanelWidth(width) {
-  return clampWidth(width, COMMENT_PANEL_MIN_WIDTH, COMMENT_PANEL_MAX_WIDTH);
 }
 
 function getFilePath(file) {
@@ -134,18 +126,6 @@ export default function App() {
       : SIDEBAR_DEFAULT_WIDTH;
   });
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
-  const [commentPanelOpen, setCommentPanelOpen] = useState(true);
-  const [commentPanelWidth, setCommentPanelWidth] = useState(() => {
-    if (typeof window === 'undefined') return COMMENT_PANEL_DEFAULT_WIDTH;
-    const raw = Number.parseInt(
-      localStorage.getItem(COMMENT_PANEL_STORAGE_KEY) || '',
-      10,
-    );
-    return Number.isFinite(raw)
-      ? clampCommentPanelWidth(raw)
-      : COMMENT_PANEL_DEFAULT_WIDTH;
-  });
-  const [isResizingCommentPanel, setIsResizingCommentPanel] = useState(false);
   const [globalCollapsed, setGlobalCollapsed] = useState(false);
   const [collapseVersion, setCollapseVersion] = useState(0);
   const [reviewedFiles, setReviewedFiles] = useState(new Set());
@@ -161,12 +141,6 @@ export default function App() {
   const sidebarPreviewWidthRef = useRef(sidebarWidth);
   const resizeGuideRef = useRef(null);
   const resizeGuideRafRef = useRef(0);
-
-  // Refs for comment panel resize optimization
-  const commentPanelWidthRef = useRef(commentPanelWidth);
-  const commentPanelPreviewWidthRef = useRef(commentPanelWidth);
-  const commentResizeGuideRef = useRef(null);
-  const commentResizeGuideRafRef = useRef(0);
 
   // Refs for pagination and side effects
   const toastTimerRef = useRef(null);
@@ -350,22 +324,13 @@ export default function App() {
     localStorage.setItem(SIDEBAR_STORAGE_KEY, String(sidebarWidth));
   }, [sidebarWidth]);
 
-  useEffect(() => {
-    localStorage.setItem(COMMENT_PANEL_STORAGE_KEY, String(commentPanelWidth));
-  }, [commentPanelWidth]);
-
   useEffect(
     () => () => {
       document.body.classList.remove('is-resizing-sidebar');
-      document.body.classList.remove('is-resizing-comment-panel');
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
       if (resizeGuideRafRef.current) {
         cancelAnimationFrame(resizeGuideRafRef.current);
         resizeGuideRafRef.current = 0;
-      }
-      if (commentResizeGuideRafRef.current) {
-        cancelAnimationFrame(commentResizeGuideRafRef.current);
-        commentResizeGuideRafRef.current = 0;
       }
     },
     [],
@@ -1242,74 +1207,6 @@ export default function App() {
     });
   }, []);
 
-  const handleToggleCommentPanel = useCallback(() => {
-    setCommentPanelOpen((prev) => !prev);
-  }, []);
-
-  // Comment panel resize: drag from the left edge of the panel (inverted direction)
-  const handleCommentResizeStart = useCallback((event) => {
-    event.preventDefault();
-    const startX = event.clientX;
-    const startWidth = commentPanelWidthRef.current;
-    commentPanelPreviewWidthRef.current = startWidth;
-
-    const drawGuide = () => {
-      commentResizeGuideRafRef.current = 0;
-      if (commentResizeGuideRef.current) {
-        commentResizeGuideRef.current.style.setProperty(
-          '--guide-right',
-          `${commentPanelPreviewWidthRef.current}px`,
-        );
-      }
-    };
-
-    drawGuide();
-
-    const handlePointerMove = (moveEvent) => {
-      const nextWidth = clampCommentPanelWidth(
-        startWidth - (moveEvent.clientX - startX),
-      );
-      commentPanelPreviewWidthRef.current = nextWidth;
-      if (!commentResizeGuideRafRef.current) {
-        commentResizeGuideRafRef.current = requestAnimationFrame(drawGuide);
-      }
-    };
-
-    const stopResize = () => {
-      setIsResizingCommentPanel(false);
-      document.body.classList.remove('is-resizing-comment-panel');
-      window.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('pointerup', stopResize);
-      window.removeEventListener('pointercancel', stopResize);
-      if (commentResizeGuideRafRef.current) {
-        cancelAnimationFrame(commentResizeGuideRafRef.current);
-        commentResizeGuideRafRef.current = 0;
-      }
-      const finalWidth = commentPanelPreviewWidthRef.current;
-      commentPanelWidthRef.current = finalWidth;
-      setCommentPanelWidth(finalWidth);
-    };
-
-    setIsResizingCommentPanel(true);
-    document.body.classList.add('is-resizing-comment-panel');
-    window.addEventListener('pointermove', handlePointerMove);
-    window.addEventListener('pointerup', stopResize);
-    window.addEventListener('pointercancel', stopResize);
-  }, []);
-
-  const handleCommentResizeKeyDown = useCallback((event) => {
-    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
-    event.preventDefault();
-    const delta = event.shiftKey ? 32 : 16;
-    // Left arrow = wider (inverted from sidebar)
-    const direction = event.key === 'ArrowLeft' ? 1 : -1;
-    setCommentPanelWidth((current) => {
-      const next = clampCommentPanelWidth(current + direction * delta);
-      commentPanelWidthRef.current = next;
-      return next;
-    });
-  }, []);
-
   const loadedFiles = useMemo(() => {
     if (!fileSummaries) return [];
 
@@ -1360,7 +1257,6 @@ export default function App() {
   }, [canAutoLoadMore, loadNextPage]);
 
   const hasComments = allComments.length > 0;
-  const showCommentPanel = hasComments && commentPanelOpen;
 
   return (
     <>
@@ -1371,6 +1267,9 @@ export default function App() {
         reviewedFiles={reviewedFiles}
         hasComments={hasComments}
         commentCount={allComments.length}
+        commentsByFile={commentsByFile}
+        onDeleteComment={handleDeleteComment}
+        onDismissAllComments={handleDismissAllComments}
         onSendComments={handleSendComments}
         onGitAction={handleGitAction}
         gitActionType={gitActionType}
@@ -1387,13 +1286,7 @@ export default function App() {
       <div
         id="layout"
         ref={layoutRef}
-        className={showCommentPanel ? 'has-comments' : ''}
-        style={{
-          '--sidebar-width': `${sidebarWidth}px`,
-          ...(showCommentPanel
-            ? { '--comment-panel-width': `${commentPanelWidth}px` }
-            : {}),
-        }}
+        style={{ '--sidebar-width': `${sidebarWidth}px` }}
       >
         <FileSidebar
           files={fileSummaries}
@@ -1473,7 +1366,7 @@ export default function App() {
                   type="button"
                   onClick={handleUnstageAll}
                 >
-                  <span className="material-symbols-rounded">remove</span>
+                  <MinusCircle size={16} strokeWidth={2.5} />
                   Unstage all
                 </button>
               )}
@@ -1502,57 +1395,10 @@ export default function App() {
             </>
           )}
         </main>
-
-        {showCommentPanel && (
-          <div
-            className={`comment-resizer${isResizingCommentPanel ? ' active' : ''}`}
-            role="separator"
-            aria-label="Resize comment panel"
-            aria-orientation="vertical"
-            aria-valuemin={COMMENT_PANEL_MIN_WIDTH}
-            aria-valuemax={COMMENT_PANEL_MAX_WIDTH}
-            aria-valuenow={commentPanelWidth}
-            tabIndex={0}
-            onPointerDown={handleCommentResizeStart}
-            onKeyDown={handleCommentResizeKeyDown}
-          />
-        )}
-        <CommentPanel
-          commentsByFile={commentsByFile}
-          commentCount={allComments.length}
-          visible={showCommentPanel}
-          onDeleteComment={handleDeleteComment}
-          onDismissAll={handleDismissAllComments}
-        />
       </div>
-      {hasComments && (
-        <button
-          className={`comment-panel-toggle${showCommentPanel ? ' is-open' : ''}`}
-          style={
-            showCommentPanel
-              ? { '--cp-width': `${commentPanelWidth}px` }
-              : undefined
-          }
-          onClick={handleToggleCommentPanel}
-          aria-label={
-            commentPanelOpen ? 'Hide comment panel' : 'Show comment panel'
-          }
-          title={commentPanelOpen ? 'Hide comments' : 'Show comments'}
-          type="button"
-        >
-          <span className="material-symbols-rounded">
-            {commentPanelOpen ? 'chevron_right' : 'chevron_left'}
-          </span>
-        </button>
-      )}
       <div
         ref={resizeGuideRef}
         className={`sidebar-resize-guide${isResizingSidebar ? ' active' : ''}`}
-        aria-hidden="true"
-      />
-      <div
-        ref={commentResizeGuideRef}
-        className={`comment-resize-guide${isResizingCommentPanel ? ' active' : ''}`}
         aria-hidden="true"
       />
 

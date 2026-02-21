@@ -24,6 +24,13 @@ Staging fills this gap by launching a dedicated browser-based review interface w
 - **Inline Comments**: Add threaded comments directly on changed lines to guide agent refinements
 - **Markdown/HTML Preview**: Toggle per-file between diff and rendered preview for `.md` and `.html` files, with selection-based commenting on the rendered output
 
+## Tech Stack
+
+| Layer | Technologies |
+| :--- | :--- |
+| **Frontend** | React 19, Vite, Lucide, Vanilla CSS |
+| **Backend** | Node.js, Hono, ESM |
+| **CLI** | Native Node.js executable |
 
 
 ## Quick Start

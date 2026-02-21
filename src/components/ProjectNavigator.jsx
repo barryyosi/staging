@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, memo } from 'react';
+import { GitBranch, ChevronDown } from 'lucide-react';
 
 function ProjectDropdown({ projects, currentPath, onSelect, onClose }) {
   return (
@@ -94,7 +95,9 @@ function ProjectNavigator({
           <span className="nav-segment-label" title={projectName}>
             {projectName}
           </span>
-          {hasMultipleProjects && <span className="nav-caret">&#x25BE;</span>}
+          {hasMultipleProjects && (
+            <ChevronDown size={14} strokeWidth={2.5} className="nav-caret" />
+          )}
         </button>
         {showProjectDD && hasMultipleProjects && (
           <ProjectDropdown
@@ -119,13 +122,13 @@ function ProjectNavigator({
           }}
           type="button"
         >
-          <span className="material-symbols-rounded nav-segment-icon">
-            merge
-          </span>
+          <GitBranch size={14} strokeWidth={2.5} className="nav-segment-icon" />
           <span className="nav-segment-label" title={branch}>
             {branch}
           </span>
-          {hasMultipleWorktrees && <span className="nav-caret">&#x25BE;</span>}
+          {hasMultipleWorktrees && (
+            <ChevronDown size={14} strokeWidth={2.5} className="nav-caret" />
+          )}
         </button>
         {showWorktreeDD && hasMultipleWorktrees && (
           <WorktreeDropdown

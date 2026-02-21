@@ -1,11 +1,12 @@
 import { useCallback, memo } from 'react';
+import { X, Quote } from 'lucide-react';
 
 function CommentPanel({
   commentsByFile,
   commentCount,
-  visible,
   onDeleteComment,
   onDismissAll,
+  onSelectComment,
 }) {
   const scrollToComment = useCallback((comment) => {
     if (comment.lineType === 'preview') {
@@ -30,13 +31,11 @@ function CommentPanel({
     }
   }, []);
 
-  if (!visible) return null;
-
   return (
-    <aside id="comment-panel">
+    <aside className="comments-dropdown" role="dialog" aria-label="Comments">
       <div className="panel-header">
         <h2>
-          Comments (<span id="comment-count">{commentCount}</span>)
+          Comments (<span className="comment-count">{commentCount}</span>)
         </h2>
         <button
           className="panel-dismiss-all-btn"
@@ -46,7 +45,7 @@ function CommentPanel({
           Dismiss all
         </button>
       </div>
-      <div id="comment-list">
+      <div className="comment-list">
         {Object.entries(commentsByFile).map(([file, fileComments]) => (
           <div key={file} className="panel-comment-group">
             <h3>{file}</h3>
@@ -54,7 +53,10 @@ function CommentPanel({
               <div
                 key={c.id}
                 className="panel-comment-item"
-                onClick={() => scrollToComment(c)}
+                onClick={() => {
+                  scrollToComment(c);
+                  onSelectComment?.();
+                }}
               >
                 <button
                   className="panel-dismiss-btn"
@@ -66,14 +68,12 @@ function CommentPanel({
                     onDeleteComment(c.id);
                   }}
                 >
-                  <span className="material-symbols-rounded">close</span>
+                  <X size={14} strokeWidth={2.5} />
                 </button>
                 <div className="panel-line-ref">
                   {c.lineType === 'preview' ? (
                     <span className="panel-quote-ref">
-                      <span className="material-symbols-rounded">
-                        format_quote
-                      </span>
+                      <Quote size={12} strokeWidth={2.5} />
                       {c.selectedText?.length > 50
                         ? c.selectedText.slice(0, 50) + '...'
                         : c.selectedText}

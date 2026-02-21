@@ -1,7 +1,20 @@
 import { memo, useState, useEffect, useRef, useCallback } from 'react';
+import {
+  HelpCircle,
+  ChevronsUpDown,
+  ChevronsDownUp,
+  MessageSquare,
+  Moon,
+  Sun,
+  ChevronUp,
+  ChevronDown,
+  ToggleRight,
+  ToggleLeft,
+} from 'lucide-react';
 import ProjectNavigator from './ProjectNavigator';
 import ProgressRingWithStats from './ProgressRing';
 import GitActionPicker from './GitActionPicker';
+import CommentPanel from './CommentPanel';
 import {
   CommitIcon,
   CommitAndPushIcon,
@@ -51,11 +64,19 @@ function SendMediumPicker({ selectedMediums, onToggleMedium, onClose }) {
               onClick={() => onToggleMedium(id)}
             >
               <span className="send-medium-option-label">{meta.label}</span>
-              <span
-                className={`material-symbols-rounded send-medium-toggle${checked ? ' is-selected' : ''}`}
-              >
-                {checked ? 'toggle_on' : 'toggle_off'}
-              </span>
+              {checked ? (
+                <ToggleRight
+                  className={`send-medium-toggle${checked ? ' is-selected' : ''}`}
+                  size={20}
+                  strokeWidth={2.5}
+                />
+              ) : (
+                <ToggleLeft
+                  className="send-medium-toggle"
+                  size={20}
+                  strokeWidth={2.5}
+                />
+              )}
             </button>
           );
         })}
@@ -71,6 +92,9 @@ function Header({
   reviewedFiles,
   hasComments,
   commentCount,
+  commentsByFile,
+  onDeleteComment,
+  onDismissAllComments,
   onSendComments,
   committed,
   allCollapsed,
@@ -85,10 +109,13 @@ function Header({
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [gitPickerOpen, setGitPickerOpen] = useState(false);
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  const commentsWrapRef = useRef(null);
   const canSend =
     hasComments && !committed && Array.isArray(selectedMediums)
       ? selectedMediums.length > 0
       : false;
+  const isCommentsOpen = hasComments && commentsOpen;
 
   const handleToggleMedium = useCallback(
     (id) => {
@@ -105,6 +132,7 @@ function Header({
   }, [onSendComments, selectedMediums]);
 
   const handleTogglePicker = useCallback(() => {
+    setCommentsOpen(false);
     setPickerOpen((prev) => !prev);
   }, []);
 
@@ -113,12 +141,46 @@ function Header({
   }, []);
 
   const handleToggleGitPicker = useCallback(() => {
+    setCommentsOpen(false);
     setGitPickerOpen((prev) => !prev);
   }, []);
 
   const handleCloseGitPicker = useCallback(() => {
     setGitPickerOpen(false);
   }, []);
+
+  const handleToggleComments = useCallback(() => {
+    if (!hasComments) return;
+    setPickerOpen(false);
+    setGitPickerOpen(false);
+    setCommentsOpen((prev) => !prev);
+  }, [hasComments]);
+
+  useEffect(() => {
+    if (!isCommentsOpen) return;
+
+    function handlePointerDown(event) {
+      if (
+        commentsWrapRef.current &&
+        !commentsWrapRef.current.contains(event.target)
+      ) {
+        setCommentsOpen(false);
+      }
+    }
+
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') {
+        setCommentsOpen(false);
+      }
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isCommentsOpen]);
 
   const isGitLab = projectInfo?.remoteUrl?.toLowerCase().includes('gitlab');
   const isGitHub = projectInfo?.remoteUrl?.toLowerCase().includes('github');
@@ -175,7 +237,7 @@ function Header({
           title="Keyboard shortcuts (?)"
           type="button"
         >
-          <span className="material-symbols-rounded">help_outline</span>
+          <HelpCircle size={20} strokeWidth={2.5} />
         </button>
         <button
           className="btn-collapse-all"
@@ -184,9 +246,11 @@ function Header({
           title={allCollapsed ? 'Expand all files' : 'Collapse all files'}
           type="button"
         >
-          <span className="material-symbols-rounded">
-            {allCollapsed ? 'unfold_more' : 'unfold_less'}
-          </span>
+          {allCollapsed ? (
+            <ChevronsUpDown size={20} strokeWidth={2.5} />
+          ) : (
+            <ChevronsDownUp size={20} strokeWidth={2.5} />
+          )}
         </button>
         <button
           className="theme-toggle"
@@ -195,10 +259,40 @@ function Header({
           title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
           type="button"
         >
-          <span className="material-symbols-rounded theme-toggle-icon">
-            {theme === 'dark' ? 'dark_mode' : 'light_mode'}
-          </span>
+          {theme === 'dark' ? (
+            <Moon size={20} strokeWidth={2.5} className="theme-toggle-icon" />
+          ) : (
+            <Sun size={20} strokeWidth={2.5} className="theme-toggle-icon" />
+          )}
         </button>
+        {hasComments && (
+          <div className="comments-dropdown-wrap" ref={commentsWrapRef}>
+            <button
+              className={`btn-comments${isCommentsOpen ? ' is-open' : ''}`}
+              onClick={handleToggleComments}
+              aria-label={
+                isCommentsOpen
+                  ? 'Close comments dropdown'
+                  : 'Open comments dropdown'
+              }
+              aria-expanded={isCommentsOpen}
+              title="Comments"
+              type="button"
+            >
+              <MessageSquare size={16} strokeWidth={2.5} />
+              <span className="btn-badge">{commentCount}</span>
+            </button>
+            {isCommentsOpen && (
+              <CommentPanel
+                commentsByFile={commentsByFile}
+                commentCount={commentCount}
+                onDeleteComment={onDeleteComment}
+                onDismissAll={onDismissAllComments}
+                onSelectComment={() => setCommentsOpen(false)}
+              />
+            )}
+          </div>
+        )}
         <div className="header-actions">
           <div
             className={`split-btn-wrap header-action-split${pickerOpen ? ' is-open' : ''}`}
@@ -220,9 +314,11 @@ function Header({
               title="Choose send mediums"
               type="button"
             >
-              <span className="material-symbols-rounded">
-                {pickerOpen ? 'expand_less' : 'expand_more'}
-              </span>
+              {pickerOpen ? (
+                <ChevronUp size={20} strokeWidth={2.5} />
+              ) : (
+                <ChevronDown size={20} strokeWidth={2.5} />
+              )}
             </button>
             {pickerOpen && (
               <SendMediumPicker
@@ -254,9 +350,11 @@ function Header({
               title="Git actions"
               type="button"
             >
-              <span className="material-symbols-rounded">
-                {gitPickerOpen ? 'expand_less' : 'expand_more'}
-              </span>
+              {gitPickerOpen ? (
+                <ChevronUp size={20} strokeWidth={2.5} />
+              ) : (
+                <ChevronDown size={20} strokeWidth={2.5} />
+              )}
             </button>
             {gitPickerOpen && (
               <GitActionPicker

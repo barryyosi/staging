@@ -7,6 +7,18 @@ import {
   memo,
   Fragment,
 } from 'react';
+import {
+  RotateCcw,
+  MinusCircle,
+  Plus,
+  ChevronDown,
+  ChevronUp,
+  ChevronsUpDown,
+  Quote,
+  MessageSquarePlus,
+  CheckCircle,
+  Circle,
+} from 'lucide-react';
 import { slugify } from '../utils/escape';
 import { highlightLine } from '../utils/highlight';
 import { isPreviewable, renderPreview } from '../utils/renderPreview';
@@ -55,7 +67,7 @@ function HunkActions({
         aria-label="Revert hunk"
         onClick={handleRevert}
       >
-        <span className="material-symbols-rounded">undo</span>
+        <RotateCcw size={14} strokeWidth={2.5} />
       </button>
       <button
         className="hunk-action-btn"
@@ -64,7 +76,7 @@ function HunkActions({
         aria-label="Unstage hunk"
         onClick={handleUnstage}
       >
-        <span className="material-symbols-rounded">remove</span>
+        <MinusCircle size={14} strokeWidth={2.5} />
       </button>
     </div>
   );
@@ -88,13 +100,13 @@ function DiffLine({
     <tr className={`diff-line diff-line-${change.type}`}>
       <td className="line-action">
         <button
-          className="btn-comment material-symbols-rounded"
+          className="btn-comment"
           title="Add comment"
           aria-label="Add comment"
           type="button"
           onClick={() => onAddComment(filePath, lineNum, change.type)}
         >
-          add
+          <Plus size={14} strokeWidth={2.5} />
         </button>
       </td>
       <td className="line-num">{lineNum}</td>
@@ -147,7 +159,7 @@ function ExpandRow({ gap, expandedData, onExpand }) {
                 disabled={isLoading}
                 title={`Expand ${EXPAND_STEP} lines down`}
               >
-                <span className="material-symbols-rounded">expand_more</span>
+                <ChevronDown size={14} strokeWidth={2.5} />
                 {EXPAND_STEP}
               </button>
             )}
@@ -158,7 +170,7 @@ function ExpandRow({ gap, expandedData, onExpand }) {
               disabled={isLoading}
               title={`Expand all ${remaining} hidden lines`}
             >
-              <span className="material-symbols-rounded">unfold_more</span>
+              <ChevronsUpDown size={14} strokeWidth={2.5} />
               {isLoading ? 'Loading\u2026' : `${remaining} lines`}
             </button>
             {showDirectional && (
@@ -169,7 +181,7 @@ function ExpandRow({ gap, expandedData, onExpand }) {
                 disabled={isLoading}
                 title={`Expand ${EXPAND_STEP} lines up`}
               >
-                <span className="material-symbols-rounded">expand_less</span>
+                <ChevronUp size={14} strokeWidth={2.5} />
                 {EXPAND_STEP}
               </button>
             )}
@@ -253,9 +265,7 @@ function PreviewCommentBubble({ comment, onEdit, onDelete }) {
       <div className="comment-bubble">
         <div className="comment-bubble-head">
           <span className="comment-loc" title={comment.selectedText}>
-            <span className="material-symbols-rounded" style={{ fontSize: 14 }}>
-              format_quote
-            </span>
+            <Quote size={12} strokeWidth={2.5} />
             {comment.selectedText?.length > 40
               ? comment.selectedText.slice(0, 40) + '...'
               : comment.selectedText}
@@ -446,7 +456,7 @@ function PreviewBody({
           title="Add comment"
           aria-label="Add comment on selection"
         >
-          <span className="material-symbols-rounded">add_comment</span>
+          <MessageSquarePlus size={16} strokeWidth={2.5} />
         </button>
       )}
 
@@ -521,7 +531,8 @@ function DiffViewer({
   }, [expandedGaps]);
 
   // Sync global collapse signal to local state
-  const [prevCollapseVersion, setPrevCollapseVersion] = useState(collapseVersion);
+  const [prevCollapseVersion, setPrevCollapseVersion] =
+    useState(collapseVersion);
   if (collapseVersion !== prevCollapseVersion) {
     setPrevCollapseVersion(collapseVersion);
     setCollapsed(globalCollapsed);
@@ -874,9 +885,11 @@ function DiffViewer({
             aria-label={isReviewed ? 'Mark as unreviewed' : 'Mark as reviewed'}
             onClick={handleToggleReviewed}
           >
-            <span className="material-symbols-rounded">
-              {isReviewed ? 'check_circle' : 'check_circle_outline'}
-            </span>
+            {isReviewed ? (
+              <CheckCircle size={18} strokeWidth={2.5} />
+            ) : (
+              <Circle size={18} strokeWidth={2.5} />
+            )}
           </button>
           <button
             className="file-action-btn"
@@ -885,7 +898,7 @@ function DiffViewer({
             aria-label="Revert file"
             onClick={handleRevertFile}
           >
-            <span className="material-symbols-rounded">undo</span>
+            <RotateCcw size={18} strokeWidth={2.5} />
           </button>
           <button
             className="file-action-btn"
@@ -894,7 +907,7 @@ function DiffViewer({
             aria-label="Unstage file"
             onClick={handleUnstageFile}
           >
-            <span className="material-symbols-rounded">remove</span>
+            <MinusCircle size={18} strokeWidth={2.5} />
           </button>
           <button
             className="file-action-btn file-action-collapse"
@@ -902,7 +915,14 @@ function DiffViewer({
             title={collapsed ? 'Expand' : 'Collapse'}
             aria-label={collapsed ? 'Expand file' : 'Collapse file'}
           >
-            <span className="material-symbols-rounded">expand_less</span>
+            <ChevronUp
+              size={18}
+              strokeWidth={2.5}
+              style={{
+                transform: collapsed ? 'rotate(180deg)' : 'none',
+                transition: 'transform 0.2s',
+              }}
+            />
           </button>
         </div>
       </div>

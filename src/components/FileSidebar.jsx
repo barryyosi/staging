@@ -1,4 +1,5 @@
 import { memo, useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { Plus, List, FolderTree, ChevronRight } from 'lucide-react';
 import { buildFileTree, filterTree } from '../utils/fileTree';
 import { fuzzyFilterFiles, highlightMatch } from '../utils/fuzzySearch';
 
@@ -21,7 +22,7 @@ function StageFileButton({ filePath, fromPath, onStageFile }) {
         onStageFile?.(filePath, fromPath);
       }}
     >
-      <span className="material-symbols-rounded">add</span>
+      <Plus size={14} strokeWidth={2.5} />
     </button>
   );
 }
@@ -160,9 +161,11 @@ function FileTreeNode({
           });
         }}
       >
-        <span className={`tree-caret${isExpanded ? ' expanded' : ''}`}>
-          &#9654;
-        </span>
+        <ChevronRight
+          className={`tree-caret${isExpanded ? ' expanded' : ''}`}
+          size={14}
+          strokeWidth={2.5}
+        />
         <span className="dir-name">{node.name}</span>
       </div>
       {isExpanded && (
@@ -368,12 +371,12 @@ function FileSidebar({
             <span
               className={`file-view-toggle-option${!isTree ? ' active' : ''}`}
             >
-              <span className="material-symbols-rounded">list</span>
+              <List size={14} strokeWidth={2.5} />
             </span>
             <span
               className={`file-view-toggle-option${isTree ? ' active' : ''}`}
             >
-              <span className="material-symbols-rounded">account_tree</span>
+              <FolderTree size={14} strokeWidth={2.5} />
             </span>
             <span
               className="file-view-toggle-thumb"
