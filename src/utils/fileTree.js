@@ -3,13 +3,25 @@
  *
  * @param {Array} fileSummaries - staged file summary objects ({ from, to, status, additions, deletions })
  * @param {string[]|null} allTrackedFiles - optional full list of tracked file paths (for "show all" mode)
+ * @param {Array|null} unstagedFiles - optional unstaged file objects ({ from, to, status, additions, deletions })
  * @returns {Array} tree nodes sorted: directories first, then files, alphabetically within each group
  */
-export function buildFileTree(fileSummaries, allTrackedFiles = null) {
+export function buildFileTree(
+  fileSummaries,
+  allTrackedFiles = null,
+  unstagedFiles = null,
+) {
   const stagedByPath = new Map();
   for (const file of fileSummaries) {
     const filePath = file.to || file.from;
     if (filePath) stagedByPath.set(filePath, file);
+  }
+  const unstagedByPath = new Map();
+  if (unstagedFiles) {
+    for (const file of unstagedFiles) {
+      const filePath = file.to || file.from;
+      if (filePath) unstagedByPath.set(filePath, file);
+    }
   }
 
   // Collect all paths we need to show
@@ -17,6 +29,7 @@ export function buildFileTree(fileSummaries, allTrackedFiles = null) {
   if (allTrackedFiles) {
     for (const p of allTrackedFiles) allPaths.add(p);
   }
+  for (const p of unstagedByPath.keys()) allPaths.add(p);
 
   // Build a map of dir path -> { children map }
   const root = { children: new Map() };
@@ -37,7 +50,9 @@ export function buildFileTree(fileSummaries, allTrackedFiles = null) {
           isFile,
           children: isFile ? null : new Map(),
           file: null,
+          unstagedFile: null,
           isStaged: false,
+          isUnstaged: false,
         });
       }
 
@@ -45,8 +60,11 @@ export function buildFileTree(fileSummaries, allTrackedFiles = null) {
 
       if (isFile) {
         const staged = stagedByPath.get(filePath);
+        const unstaged = unstagedByPath.get(filePath);
         node.isStaged = Boolean(staged);
+        node.isUnstaged = Boolean(unstaged);
         node.file = staged || null;
+        node.unstagedFile = unstaged || null;
       }
 
       current = node;
@@ -67,7 +85,9 @@ export function buildFileTree(fileSummaries, allTrackedFiles = null) {
           path: node.path,
           isFile: true,
           file: node.file,
+          unstagedFile: node.unstagedFile,
           isStaged: node.isStaged,
+          isUnstaged: node.isUnstaged,
         });
       } else {
         dirs.push({

@@ -1,6 +1,16 @@
 import { memo, useState, useEffect, useRef, useCallback } from 'react';
 import ProjectNavigator from './ProjectNavigator';
 import ProgressRingWithStats from './ProgressRing';
+import GitActionPicker from './GitActionPicker';
+import {
+  CommitIcon,
+  CommitAndPushIcon,
+  PushIcon,
+  PullRequestIcon,
+  GitHubIcon,
+  GitLabIcon,
+  BitbucketIcon,
+} from './GitIcons';
 
 const MEDIUM_META = {
   clipboard: { label: 'Clipboard' },
@@ -62,7 +72,6 @@ function Header({
   hasComments,
   commentCount,
   onSendComments,
-  onCommit,
   committed,
   allCollapsed,
   onToggleCollapseAll,
@@ -71,8 +80,11 @@ function Header({
   onSwitchProject,
   selectedMediums,
   onChangeMediums,
+  onGitAction,
+  gitActionType,
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [gitPickerOpen, setGitPickerOpen] = useState(false);
   const canSend =
     hasComments && !committed && Array.isArray(selectedMediums)
       ? selectedMediums.length > 0
@@ -99,6 +111,43 @@ function Header({
   const handleClosePicker = useCallback(() => {
     setPickerOpen(false);
   }, []);
+
+  const handleToggleGitPicker = useCallback(() => {
+    setGitPickerOpen((prev) => !prev);
+  }, []);
+
+  const handleCloseGitPicker = useCallback(() => {
+    setGitPickerOpen(false);
+  }, []);
+
+  const isGitLab = projectInfo?.remoteUrl?.toLowerCase().includes('gitlab');
+  const isGitHub = projectInfo?.remoteUrl?.toLowerCase().includes('github');
+  const isBitbucket = projectInfo?.remoteUrl
+    ?.toLowerCase()
+    .includes('bitbucket');
+
+  const getGitActionInfo = (type) => {
+    switch (type) {
+      case 'commit':
+        return { label: 'Commit', Icon: CommitIcon };
+      case 'commit-and-push':
+        return { label: 'Commit & push', Icon: CommitAndPushIcon };
+      case 'push':
+        return { label: 'Push', Icon: PushIcon };
+      case 'pr': {
+        const prLabel = isGitLab ? 'Create MR' : 'Create PR';
+        let PrIcon = PullRequestIcon;
+        if (isGitHub) PrIcon = GitHubIcon;
+        else if (isGitLab) PrIcon = GitLabIcon;
+        else if (isBitbucket) PrIcon = BitbucketIcon;
+        return { label: prLabel, Icon: PrIcon };
+      }
+      default:
+        return { label: 'Commit', Icon: CommitIcon };
+    }
+  };
+
+  const { label: gitLabel, Icon: GitIcon } = getGitActionInfo(gitActionType);
 
   return (
     <header id="header">
@@ -183,13 +232,41 @@ function Header({
               />
             )}
           </div>
-          <button
-            className="btn btn-secondary header-action-btn header-action-commit"
-            disabled={committed}
-            onClick={onCommit}
+          <div
+            className={`split-btn-wrap header-action-split${gitPickerOpen ? ' is-open' : ''}`}
           >
-            Approve &amp; Commit
-          </button>
+            <button
+              className="btn btn-secondary header-action-btn split-btn-main"
+              disabled={committed}
+              onClick={() => onGitAction(gitActionType || 'commit')}
+              type="button"
+            >
+              <GitIcon
+                className="git-action-icon"
+                style={{ marginRight: '10px' }}
+              />
+              {gitLabel}
+            </button>
+            <button
+              className="btn btn-secondary header-action-btn split-btn-caret"
+              onClick={handleToggleGitPicker}
+              aria-label="Git actions"
+              title="Git actions"
+              type="button"
+            >
+              <span className="material-symbols-rounded">
+                {gitPickerOpen ? 'expand_less' : 'expand_more'}
+              </span>
+            </button>
+            {gitPickerOpen && (
+              <GitActionPicker
+                remoteUrl={projectInfo?.remoteUrl}
+                onAction={onGitAction}
+                onClose={handleCloseGitPicker}
+                committed={committed}
+              />
+            )}
+          </div>
         </div>
       </div>
     </header>

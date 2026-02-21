@@ -47,6 +47,23 @@ function getFilePath(file) {
   return file.to || file.from || '';
 }
 
+function getWebUrlFromRemote(remote, branch) {
+  if (!remote) return '';
+  let url = remote.replace(/\.git$/, '');
+  if (url.startsWith('git@')) {
+    url = url.replace('git@', 'https://').replace(':', '/');
+  }
+
+  if (url.includes('gitlab')) {
+    return `${url}/-/merge_requests/new?merge_request[source_branch]=${branch}`;
+  } else if (url.includes('bitbucket')) {
+    return `${url}/pull-requests/new?source=${branch}`;
+  } else {
+    // Default to github format
+    return `${url}/pull/new/${branch}`;
+  }
+}
+
 function mergeFileDetails(existing, files) {
   const next = { ...existing };
   for (const file of files) {
@@ -55,6 +72,28 @@ function mergeFileDetails(existing, files) {
     next[filePath] = file;
   }
   return next;
+}
+
+function retainLoadedFileDetails(detailsByPath, summaries) {
+  const retained = {};
+  for (const summaryFile of summaries) {
+    const filePath = getFilePath(summaryFile);
+    if (!filePath) continue;
+    if (detailsByPath[filePath]) {
+      retained[filePath] = detailsByPath[filePath];
+    }
+  }
+  return retained;
+}
+
+function countContiguousLoadedFiles(summaries, detailsByPath) {
+  let count = 0;
+  for (const summaryFile of summaries) {
+    const filePath = getFilePath(summaryFile);
+    if (!filePath || !detailsByPath[filePath]) break;
+    count += 1;
+  }
+  return count;
 }
 
 export default function App() {
@@ -70,12 +109,14 @@ export default function App() {
   } = useComments(gitRoot);
 
   const [fileSummaries, setFileSummaries] = useState(null);
+  const [unstagedFiles, setUnstagedFiles] = useState([]);
   const [fileDetailsByPath, setFileDetailsByPath] = useState({});
   const [config, setConfig] = useState(null);
   const [projectInfo, setProjectInfo] = useState(null);
   const [error, setError] = useState(null);
   const [toast, setToast] = useState(null);
   const [showCommitModal, setShowCommitModal] = useState(false);
+  const [gitActionType, setGitActionType] = useState('commit');
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [committed, setCommitted] = useState(false);
   const [isLoadingPage, setIsLoadingPage] = useState(false);
@@ -179,6 +220,15 @@ export default function App() {
     [],
   );
 
+  const requestUnstagedFiles = useCallback(async () => {
+    const response = await fetch('/api/unstaged-files');
+    if (!response.ok) throw new Error('Failed to load unstaged files');
+
+    const data = await response.json();
+    if (data.error) throw new Error(data.error);
+    return data.files || [];
+  }, []);
+
   const loadNextPage = useCallback(async () => {
     if (isLoadingPageRef.current || !hasMoreFilesRef.current) return false;
 
@@ -216,9 +266,10 @@ export default function App() {
 
     async function load() {
       try {
-        const [summaryRes, configRes] = await Promise.all([
+        const [summaryRes, configRes, unstaged] = await Promise.all([
           fetch('/api/diff?mode=summary'),
           fetch('/api/config'),
+          requestUnstagedFiles(),
         ]);
         if (!summaryRes.ok)
           throw new Error('Failed to load staged changes summary');
@@ -238,6 +289,7 @@ export default function App() {
         setGitRoot(summaryData.gitRoot || '');
         setConfig(configData);
         setFileSummaries(summaries);
+        setUnstagedFiles(unstaged);
         setFileDetailsByPath({});
 
         if (summaries.length === 0) {
@@ -285,7 +337,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [requestDiffPage]);
+  }, [requestDiffPage, requestUnstagedFiles]);
 
   // Initialize selectedMediums once config is available
   useEffect(() => {
@@ -336,7 +388,12 @@ export default function App() {
       }
 
       // Ignore if modal/form is open
-      if (showCommitModal || showShortcutsModal || activeForm || editingComment) {
+      if (
+        showCommitModal ||
+        showShortcutsModal ||
+        activeForm ||
+        editingComment
+      ) {
         return;
       }
 
@@ -377,14 +434,26 @@ export default function App() {
       }
 
       // G (shift+g) - Last file
-      if (e.key === 'G' && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      if (
+        e.key === 'G' &&
+        e.shiftKey &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !e.altKey
+      ) {
         e.preventDefault();
         scrollToFile('last');
         return;
       }
 
       // g then g - First file
-      if (e.key === 'g' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+      if (
+        e.key === 'g' &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !e.altKey &&
+        !e.shiftKey
+      ) {
         if (firstG) {
           e.preventDefault();
           if (ggTimer) clearTimeout(ggTimer);
@@ -493,12 +562,7 @@ export default function App() {
       document.removeEventListener('keydown', handleKeyDown);
       if (ggTimer) clearTimeout(ggTimer);
     };
-  }, [
-    showCommitModal,
-    showShortcutsModal,
-    activeForm,
-    editingComment,
-  ]);
+  }, [showCommitModal, showShortcutsModal, activeForm, editingComment]);
 
   const handleAddComment = useCallback((file, line, lineType) => {
     setEditingComment(null);
@@ -627,18 +691,54 @@ export default function App() {
     [allComments, gitRoot, config, showToast],
   );
 
-  const handleCommit = useCallback(() => {
-    if (allComments.length > 0) {
-      if (
-        !confirm(
-          `You have ${allComments.length} unresolved comment${allComments.length === 1 ? '' : 's'}. Commit anyway?`,
-        )
-      ) {
+  const handleGitAction = useCallback(
+    async (action) => {
+      if (action === 'commit' || action === 'commit-and-push') {
+        if (allComments.length > 0) {
+          if (
+            !confirm(
+              `You have ${allComments.length} unresolved comment${allComments.length === 1 ? '' : 's'}. Commit anyway?`,
+            )
+          ) {
+            return;
+          }
+        }
+        setGitActionType(action);
+        setShowCommitModal(true);
         return;
       }
-    }
-    setShowCommitModal(true);
-  }, [allComments]);
+
+      if (action === 'push') {
+        try {
+          showToast('Pushing changes...', 'info');
+          const res = await fetch('/api/push', { method: 'POST' });
+          const data = await res.json();
+          if (data.success) {
+            showToast('Changes pushed successfully!', 'success');
+          } else {
+            showToast(`Push failed: ${data.error}`, 'error');
+          }
+        } catch (err) {
+          showToast(`Push failed: ${err.message}`, 'error');
+        }
+        return;
+      }
+
+      if (action === 'pr') {
+        if (projectInfo?.remoteUrl) {
+          const url = getWebUrlFromRemote(
+            projectInfo.remoteUrl,
+            projectInfo.branch || 'main',
+          );
+          window.open(url, '_blank', 'noopener,noreferrer');
+        } else {
+          showToast('No remote URL found', 'error');
+        }
+        return;
+      }
+    },
+    [allComments.length, projectInfo, showToast],
+  );
 
   const handleDoCommit = useCallback(
     async (message) => {
@@ -647,16 +747,20 @@ export default function App() {
         return;
       }
       try {
+        const isPush = gitActionType === 'commit-and-push';
         const res = await fetch('/api/commit', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: message.trim() }),
+          body: JSON.stringify({ message: message.trim(), push: isPush }),
         });
         const data = await res.json();
         setShowCommitModal(false);
         if (data.success) {
           setCommitted(true);
-          showToast('Changes committed!', 'success');
+          showToast(
+            isPush ? 'Changes committed and pushed!' : 'Changes committed!',
+            'success',
+          );
         } else {
           showToast(`Commit failed: ${data.error}`, 'error');
         }
@@ -665,33 +769,30 @@ export default function App() {
         showToast(`Commit failed: ${err.message}`, 'error');
       }
     },
-    [showToast],
+    [gitActionType, showToast],
   );
 
-  const persistPreferences = useCallback(
-    async (prefs) => {
-      try {
-        const res = await fetch('/api/preferences', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(prefs),
-        });
-        if (!res.ok) throw new Error('Failed to save preferences');
-        const data = await res.json();
-        if (!data.success) {
-          throw new Error(data.error || 'Failed to save preferences');
-        }
-        if (data.preferences) {
-          setConfig((prev) =>
-            prev ? { ...prev, preferences: data.preferences } : prev,
-          );
-        }
-      } catch (err) {
-        console.warn(`Failed to persist preferences: ${err.message}`);
+  const persistPreferences = useCallback(async (prefs) => {
+    try {
+      const res = await fetch('/api/preferences', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(prefs),
+      });
+      if (!res.ok) throw new Error('Failed to save preferences');
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to save preferences');
       }
-    },
-    [],
-  );
+      if (data.preferences) {
+        setConfig((prev) =>
+          prev ? { ...prev, preferences: data.preferences } : prev,
+        );
+      }
+    } catch (err) {
+      console.warn(`Failed to persist preferences: ${err.message}`);
+    }
+  }, []);
 
   const handleChangeMediums = useCallback(
     (mediums) => {
@@ -758,7 +859,10 @@ export default function App() {
     hasMoreFilesRef.current = false;
 
     try {
-      const summaryRes = await fetch('/api/diff?mode=summary');
+      const [summaryRes, unstaged] = await Promise.all([
+        fetch('/api/diff?mode=summary'),
+        requestUnstagedFiles(),
+      ]);
       if (!summaryRes.ok)
         throw new Error('Failed to load staged changes summary');
       const summaryData = await summaryRes.json();
@@ -767,6 +871,7 @@ export default function App() {
       const summaries = summaryData.files || [];
       setGitRoot(summaryData.gitRoot || '');
       setFileSummaries(summaries);
+      setUnstagedFiles(unstaged);
 
       if (summaries.length === 0) return;
 
@@ -790,7 +895,7 @@ export default function App() {
     } catch (err) {
       setError(err.message);
     }
-  }, [requestDiffPage]);
+  }, [requestDiffPage, requestUnstagedFiles]);
 
   const switchProject = useCallback(
     async (targetPath) => {
@@ -843,6 +948,94 @@ export default function App() {
       }
     },
     [reloadDiffs, showToast],
+  );
+
+  const handleStageFile = useCallback(
+    async (filePath, fromPath = null) => {
+      try {
+        const res = await fetch('/api/file-stage', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filePath, fromPath }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          const [summaryRes, unstaged] = await Promise.all([
+            fetch('/api/diff?mode=summary'),
+            requestUnstagedFiles(),
+          ]);
+          if (!summaryRes.ok) {
+            throw new Error('Failed to load staged changes summary');
+          }
+
+          const summaryData = await summaryRes.json();
+          if (summaryData.error) throw new Error(summaryData.error);
+
+          const summaries = summaryData.files || [];
+          const retainedDetails = retainLoadedFileDetails(
+            fileDetailsByPathRef.current,
+            summaries,
+          );
+
+          setGitRoot(summaryData.gitRoot || '');
+          setFileSummaries(summaries);
+          setUnstagedFiles(unstaged);
+          setFileDetailsByPath(retainedDetails);
+
+          fileSummariesRef.current = summaries;
+          fileDetailsByPathRef.current = retainedDetails;
+
+          const contiguousLoadedCount = countContiguousLoadedFiles(
+            summaries,
+            retainedDetails,
+          );
+          const next = Math.min(
+            summaries.length,
+            Math.max(contiguousLoadedCount, nextOffsetRef.current),
+          );
+          const more = next < summaries.length;
+          nextOffsetRef.current = next;
+          hasMoreFilesRef.current = more;
+          setNextOffset(next);
+          setHasMoreFiles(more);
+
+          const targetIndex = summaries.findIndex(
+            (file) => getFilePath(file) === filePath,
+          );
+          if (targetIndex !== -1 && !retainedDetails[filePath]) {
+            const targetPage = await requestDiffPage(
+              targetIndex,
+              FILE_JUMP_LIMIT,
+            );
+            const mergedDetails = mergeFileDetails(
+              fileDetailsByPathRef.current,
+              targetPage.files || [],
+            );
+            setFileDetailsByPath(mergedDetails);
+            fileDetailsByPathRef.current = mergedDetails;
+          }
+
+          showToast('File staged', 'success');
+
+          const targetId = `file-${slugify(filePath)}`;
+          const scrollToTarget = () => {
+            const node = document.getElementById(targetId);
+            if (!node) return false;
+            node.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            return true;
+          };
+          requestAnimationFrame(() => {
+            if (scrollToTarget()) return;
+            requestAnimationFrame(scrollToTarget);
+          });
+        } else {
+          showToast(`Failed to stage file: ${data.error}`, 'error');
+        }
+      } catch (err) {
+        showToast(`Failed to stage file: ${err.message}`, 'error');
+      }
+    },
+    [requestDiffPage, requestUnstagedFiles, showToast],
   );
 
   const handleRevertFile = useCallback(
@@ -1179,7 +1372,8 @@ export default function App() {
         hasComments={hasComments}
         commentCount={allComments.length}
         onSendComments={handleSendComments}
-        onCommit={handleCommit}
+        onGitAction={handleGitAction}
+        gitActionType={gitActionType}
         committed={committed}
         allCollapsed={globalCollapsed}
         onToggleCollapseAll={handleToggleCollapseAll}
@@ -1203,8 +1397,10 @@ export default function App() {
       >
         <FileSidebar
           files={fileSummaries}
+          unstagedFiles={unstagedFiles}
           loadedFilesByPath={fileDetailsByPath}
           onSelectFile={handleSelectFile}
+          onStageFile={handleStageFile}
         />
         <div
           className={`sidebar-resizer${isResizingSidebar ? ' active' : ''}`}
@@ -1219,13 +1415,20 @@ export default function App() {
           onKeyDown={handleSidebarResizeKeyDown}
         />
 
-        <main id="diff-container" className={isSwitchingProject ? 'switching' : ''}>
+        <main
+          id="diff-container"
+          className={isSwitchingProject ? 'switching' : ''}
+        >
           {error ? (
             <div id="loading">Error: {error}</div>
           ) : !fileSummaries ? (
             <div id="loading">Loading staged changes...</div>
           ) : fileSummaries.length === 0 ? (
-            <div id="loading">No staged changes found.</div>
+            <div id="loading">
+              {unstagedFiles.length > 0
+                ? 'No staged changes found. Use "Show unstaged" in the sidebar to stage files.'
+                : 'No staged changes found.'}
+            </div>
           ) : loadedFiles.length === 0 && isLoadingPage ? (
             <div id="loading">Loading staged changes...</div>
           ) : (
@@ -1358,6 +1561,7 @@ export default function App() {
       {showCommitModal && (
         <Suspense fallback={null}>
           <CommitModal
+            actionType={gitActionType}
             onCommit={handleDoCommit}
             onClose={handleCloseCommitModal}
           />

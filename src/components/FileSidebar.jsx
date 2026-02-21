@@ -3,12 +3,36 @@ import { buildFileTree, filterTree } from '../utils/fileTree';
 import { fuzzyFilterFiles, highlightMatch } from '../utils/fuzzySearch';
 
 const VIEW_STORAGE_KEY = 'staging-file-view';
+const SHOW_UNSTAGED_STORAGE_KEY = 'staging-show-unstaged';
 
 function getFilePath(file) {
   return file.to || file.from;
 }
 
-function FlatFileList({ files, loadedFilesByPath, onSelectFile, searchQuery }) {
+function StageFileButton({ filePath, fromPath, onStageFile }) {
+  return (
+    <button
+      className="file-stage-btn"
+      type="button"
+      aria-label={`Stage ${filePath}`}
+      title="Stage file"
+      onClick={(event) => {
+        event.stopPropagation();
+        onStageFile?.(filePath, fromPath);
+      }}
+    >
+      <span className="material-symbols-rounded">add</span>
+    </button>
+  );
+}
+
+function FlatFileList({
+  files,
+  loadedFilesByPath,
+  onSelectFile,
+  searchQuery,
+  onStageFile,
+}) {
   const filteredResults = useMemo(() => {
     return fuzzyFilterFiles(files, searchQuery);
   }, [files, searchQuery]);
@@ -17,17 +41,19 @@ function FlatFileList({ files, loadedFilesByPath, onSelectFile, searchQuery }) {
     <ul id="file-list-items">
       {filteredResults.map(({ file, result }) => {
         const filePath = getFilePath(file);
-        const isLoaded = Boolean(loadedFilesByPath[filePath]);
+        const isUnstaged = Boolean(file.isUnstaged);
+        const isLoaded = !isUnstaged && Boolean(loadedFilesByPath[filePath]);
+        const isPending = !isUnstaged && !isLoaded;
         const highlighted = highlightMatch(result);
 
         return (
           <li
             key={filePath}
-            className={`file-list-item${isLoaded ? '' : ' pending'}`}
-            onClick={() => onSelectFile?.(filePath)}
+            className={`file-list-item${isPending ? ' pending' : ''}${isUnstaged ? ' unstaged' : ''}`}
+            onClick={isUnstaged ? undefined : () => onSelectFile?.(filePath)}
           >
             <span className={`status-dot ${file.status}`} />
-            <span className="file-name">
+            <span className="file-name" title={filePath}>
               {highlighted
                 ? highlighted.map((seg, i) => (
                     <mark key={i} className={seg.highlight ? 'match' : ''}>
@@ -36,6 +62,13 @@ function FlatFileList({ files, loadedFilesByPath, onSelectFile, searchQuery }) {
                   ))
                 : filePath}
             </span>
+            {isUnstaged && (
+              <StageFileButton
+                filePath={filePath}
+                fromPath={file.from || null}
+                onStageFile={onStageFile}
+              />
+            )}
             <span className="stats">
               {file.additions > 0 && (
                 <span className="add">+{file.additions}</span>
@@ -56,6 +89,7 @@ function FileTreeNode({
   depth,
   loadedFilesByPath,
   onSelectFile,
+  onStageFile,
   forceExpanded,
   expandedMap,
 }) {
@@ -68,20 +102,22 @@ function FileTreeNode({
 
   if (node.isFile) {
     const isStaged = node.isStaged;
+    const isUnstaged = !isStaged && node.isUnstaged;
+    const fileMeta = isStaged ? node.file : node.unstagedFile;
+    const isTrackedOnly = !isStaged && !isUnstaged;
     const filePath = node.path;
     const isLoaded = isStaged && Boolean(loadedFilesByPath[filePath]);
+    const isPending = isStaged && !isLoaded;
     const highlighted = highlightMatch(node.fuzzyResult);
 
     return (
       <li
-        className={`file-tree-file${isStaged ? '' : ' unstaged'}${isLoaded ? '' : ' pending'}`}
+        className={`file-tree-file${isPending ? ' pending' : ''}${isUnstaged ? ' unstaged' : ''}${isTrackedOnly ? ' tracked-only' : ''}`}
         style={{ paddingLeft: `${depth * 16 + 12}px` }}
         onClick={isStaged ? () => onSelectFile?.(filePath) : undefined}
       >
-        {isStaged && node.file && (
-          <span className={`status-dot ${node.file.status}`} />
-        )}
-        <span className="file-name">
+        {fileMeta && <span className={`status-dot ${fileMeta.status}`} />}
+        <span className="file-name" title={filePath}>
           {highlighted
             ? highlighted.map((seg, i) => (
                 <mark key={i} className={seg.highlight ? 'match' : ''}>
@@ -90,13 +126,20 @@ function FileTreeNode({
               ))
             : node.name}
         </span>
-        {isStaged && node.file && (
+        {isUnstaged && (
+          <StageFileButton
+            filePath={filePath}
+            fromPath={fileMeta?.from || null}
+            onStageFile={onStageFile}
+          />
+        )}
+        {fileMeta && (
           <span className="stats">
-            {node.file.additions > 0 && (
-              <span className="add">+{node.file.additions}</span>
+            {fileMeta.additions > 0 && (
+              <span className="add">+{fileMeta.additions}</span>
             )}
-            {node.file.deletions > 0 && (
-              <span className="del">-{node.file.deletions}</span>
+            {fileMeta.deletions > 0 && (
+              <span className="del">-{fileMeta.deletions}</span>
             )}
           </span>
         )}
@@ -131,6 +174,7 @@ function FileTreeNode({
               depth={depth + 1}
               loadedFilesByPath={loadedFilesByPath}
               onSelectFile={onSelectFile}
+              onStageFile={onStageFile}
               forceExpanded={forceExpanded}
               expandedMap={expandedMap}
             />
@@ -148,12 +192,26 @@ function FileTreeView({
   searchQuery,
   showAllFiles,
   trackedFiles,
+  unstagedFiles,
+  showUnstaged,
+  onStageFile,
   expandedMap,
 }) {
   const tree = useMemo(() => {
-    const base = buildFileTree(files, showAllFiles ? trackedFiles : null);
+    const base = buildFileTree(
+      files,
+      showAllFiles ? trackedFiles : null,
+      showUnstaged ? unstagedFiles : null,
+    );
     return filterTree(base, searchQuery);
-  }, [files, showAllFiles, trackedFiles, searchQuery]);
+  }, [
+    files,
+    showAllFiles,
+    trackedFiles,
+    showUnstaged,
+    unstagedFiles,
+    searchQuery,
+  ]);
 
   const isSearching = Boolean(searchQuery);
 
@@ -166,6 +224,7 @@ function FileTreeView({
           depth={0}
           loadedFilesByPath={loadedFilesByPath}
           onSelectFile={onSelectFile}
+          onStageFile={onStageFile}
           forceExpanded={isSearching}
           expandedMap={expandedMap}
         />
@@ -174,10 +233,20 @@ function FileTreeView({
   );
 }
 
-function FileSidebar({ files, loadedFilesByPath = {}, onSelectFile }) {
+function FileSidebar({
+  files,
+  unstagedFiles = [],
+  loadedFilesByPath = {},
+  onSelectFile,
+  onStageFile,
+}) {
   const [viewMode, setViewMode] = useState(() => {
     if (typeof window === 'undefined') return 'flat';
     return localStorage.getItem(VIEW_STORAGE_KEY) || 'flat';
+  });
+  const [showUnstaged, setShowUnstaged] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem(SHOW_UNSTAGED_STORAGE_KEY) === 'true';
   });
   const [searchQuery, setSearchQuery] = useState('');
   const [showAllFiles, setShowAllFiles] = useState(false);
@@ -188,6 +257,10 @@ function FileSidebar({ files, loadedFilesByPath = {}, onSelectFile }) {
   useEffect(() => {
     localStorage.setItem(VIEW_STORAGE_KEY, viewMode);
   }, [viewMode]);
+
+  useEffect(() => {
+    localStorage.setItem(SHOW_UNSTAGED_STORAGE_KEY, String(showUnstaged));
+  }, [showUnstaged]);
 
   // Fetch tracked files when "show all" is toggled on for the first time
   useEffect(() => {
@@ -208,6 +281,36 @@ function FileSidebar({ files, loadedFilesByPath = {}, onSelectFile }) {
     setSearchQuery(e.target.value);
   }, []);
 
+  const unstagedOnlyCount = useMemo(() => {
+    if (!Array.isArray(files) || !Array.isArray(unstagedFiles)) return 0;
+    const stagedPaths = new Set(files.map(getFilePath).filter(Boolean));
+
+    let count = 0;
+    for (const file of unstagedFiles) {
+      const filePath = getFilePath(file);
+      if (!filePath || stagedPaths.has(filePath)) continue;
+      count += 1;
+    }
+
+    return count;
+  }, [files, unstagedFiles]);
+
+  const flatFiles = useMemo(() => {
+    if (!Array.isArray(files)) return files;
+    if (!showUnstaged || unstagedFiles.length === 0) return files;
+
+    const mergedFiles = [...files];
+    const stagedPaths = new Set(files.map(getFilePath).filter(Boolean));
+
+    for (const file of unstagedFiles) {
+      const filePath = getFilePath(file);
+      if (!filePath || stagedPaths.has(filePath)) continue;
+      mergedFiles.push({ ...file, isUnstaged: true });
+    }
+
+    return mergedFiles;
+  }, [files, showUnstaged, unstagedFiles]);
+
   if (!files) {
     return (
       <nav id="file-list">
@@ -224,27 +327,62 @@ function FileSidebar({ files, loadedFilesByPath = {}, onSelectFile }) {
     <nav id="file-list">
       <div className="file-sidebar-header">
         <h2>Files</h2>
-        <button
-          className="file-view-toggle"
-          type="button"
-          role="switch"
-          aria-checked={isTree}
-          aria-label="Toggle tree view"
-          onClick={() => setViewMode(isTree ? 'flat' : 'tree')}
-        >
-          <span
-            className={`file-view-toggle-option${!isTree ? ' active' : ''}`}
+        <div className="file-sidebar-header-controls">
+          <div
+            className="file-sidebar-filters"
+            role="group"
+            aria-label="File filters"
           >
-            <span className="material-symbols-rounded">list</span>
-          </span>
-          <span className={`file-view-toggle-option${isTree ? ' active' : ''}`}>
-            <span className="material-symbols-rounded">account_tree</span>
-          </span>
-          <span
-            className="file-view-toggle-thumb"
-            style={{ transform: isTree ? 'translateX(30px)' : 'translateX(0)' }}
-          />
-        </button>
+            <button
+              className={`file-sidebar-filter${showUnstaged ? ' on' : ''}`}
+              type="button"
+              aria-pressed={showUnstaged}
+              onClick={() => setShowUnstaged((v) => !v)}
+            >
+              <span className="file-sidebar-filter-label">Unstaged</span>
+              <span className="file-sidebar-filter-count">
+                {unstagedOnlyCount}
+              </span>
+            </button>
+
+            {isTree && (
+              <button
+                className={`file-sidebar-filter${showAllFiles ? ' on' : ''}`}
+                type="button"
+                aria-pressed={showAllFiles}
+                onClick={() => setShowAllFiles((v) => !v)}
+              >
+                <span className="file-sidebar-filter-label">All files</span>
+              </button>
+            )}
+          </div>
+
+          <button
+            className="file-view-toggle"
+            type="button"
+            role="switch"
+            aria-checked={isTree}
+            aria-label="Toggle tree view"
+            onClick={() => setViewMode(isTree ? 'flat' : 'tree')}
+          >
+            <span
+              className={`file-view-toggle-option${!isTree ? ' active' : ''}`}
+            >
+              <span className="material-symbols-rounded">list</span>
+            </span>
+            <span
+              className={`file-view-toggle-option${isTree ? ' active' : ''}`}
+            >
+              <span className="material-symbols-rounded">account_tree</span>
+            </span>
+            <span
+              className="file-view-toggle-thumb"
+              style={{
+                transform: isTree ? 'translateX(24px)' : 'translateX(0)',
+              }}
+            />
+          </button>
+        </div>
       </div>
 
       <div className="file-sidebar-search">
@@ -256,27 +394,13 @@ function FileSidebar({ files, loadedFilesByPath = {}, onSelectFile }) {
         />
       </div>
 
-      {isTree && (
-        <button
-          className={`file-sidebar-toggle${showAllFiles ? ' on' : ''}`}
-          type="button"
-          role="switch"
-          aria-checked={showAllFiles}
-          onClick={() => setShowAllFiles((v) => !v)}
-        >
-          <span className="toggle-track">
-            <span className="toggle-thumb" />
-          </span>
-          <span className="toggle-label">Show all files</span>
-        </button>
-      )}
-
       {!isTree ? (
         <FlatFileList
-          files={files}
+          files={flatFiles}
           loadedFilesByPath={loadedFilesByPath}
           onSelectFile={onSelectFile}
           searchQuery={searchQuery}
+          onStageFile={onStageFile}
         />
       ) : (
         <FileTreeView
@@ -286,6 +410,9 @@ function FileSidebar({ files, loadedFilesByPath = {}, onSelectFile }) {
           searchQuery={searchQuery}
           showAllFiles={showAllFiles}
           trackedFiles={trackedFiles}
+          unstagedFiles={unstagedFiles}
+          showUnstaged={showUnstaged}
+          onStageFile={onStageFile}
           expandedMap={expandedMap}
         />
       )}

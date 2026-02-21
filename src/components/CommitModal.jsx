@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 
-export default function CommitModal({ onCommit, onClose }) {
+export default function CommitModal({ actionType, onCommit, onClose }) {
   const [message, setMessage] = useState('');
   const textareaRef = useRef(null);
 
@@ -22,10 +22,17 @@ export default function CommitModal({ onCommit, onClose }) {
     if (e.target === e.currentTarget) onClose();
   }
 
+  const title =
+    actionType === 'commit-and-push'
+      ? 'Commit & Push Changes'
+      : 'Commit Staged Changes';
+  const btnLabel =
+    actionType === 'commit-and-push' ? 'Commit & Push' : 'Commit';
+
   return (
     <div className="modal-overlay" onClick={handleOverlayClick}>
       <div className="modal">
-        <h3>Commit Staged Changes</h3>
+        <h3>{title}</h3>
         <textarea
           ref={textareaRef}
           placeholder="Enter commit message..."
@@ -38,7 +45,7 @@ export default function CommitModal({ onCommit, onClose }) {
             Cancel
           </button>
           <button className="btn btn-commit" onClick={() => onCommit(message)}>
-            Commit
+            {btnLabel}
           </button>
         </div>
       </div>

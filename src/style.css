@@ -3,6 +3,7 @@
   --bg-body: #f8f9fa;
   --bg-surface: #ffffff;
   --bg-surface-2: #f8f9fa;
+  --bg-dropdown: rgba(255, 255, 255, 0.75);
   --bg-hover: #f1f3f5;
 
   --text-1: #1a1a1a;
@@ -84,6 +85,7 @@
   --bg-body: #0d1117;
   --bg-surface: #161b22;
   --bg-surface-2: #0d1117;
+  --bg-dropdown: rgba(22, 27, 34, 0.8);
   --bg-hover: #1c2128;
 
   --text-1: #e6edf3;
@@ -429,7 +431,9 @@ body {
   top: calc(100% + 6px);
   left: 0;
   min-width: 220px;
-  background: var(--bg-surface);
+  background: var(--bg-dropdown);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
   border: 1px solid var(--border-1);
   border-radius: 8px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
@@ -879,7 +883,9 @@ body {
   width: max-content;
   white-space: nowrap;
   max-width: calc(100vw - 24px);
-  background: var(--bg-surface);
+  background: var(--bg-dropdown);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
   border: 1px solid var(--border-1);
   border-radius: 8px;
   padding: 4px;
@@ -948,7 +954,50 @@ body {
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+}
+
+/* === GIT ACTION OPTION === */
+.git-action-option {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  border: none;
+  background: transparent;
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: 6px;
+  text-align: left;
+  cursor: pointer;
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.1s;
+}
+
+.git-action-option:hover {
+  background: var(--bg-hover);
+  color: var(--text-1);
+}
+
+.git-action-option:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.git-action-icon {
+  color: var(--text-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  transition: color 0.1s;
+}
+
+.git-action-option:hover .git-action-icon {
+  color: var(--text-1);
 }
 
 .send-medium-toggle {
@@ -1009,9 +1058,10 @@ body {
 }
 
 #layout.has-comments {
-  grid-template-columns:
-    var(--sidebar-width, 240px) 10px minmax(0, 1fr)
-    10px var(--comment-panel-width, 280px);
+  grid-template-columns: var(--sidebar-width, 240px) 10px minmax(
+      0,
+      1fr
+    ) 10px var(--comment-panel-width, 280px);
 }
 
 /* === FILE SIDEBAR === */
@@ -1189,9 +1239,9 @@ body.is-resizing-comment-panel * {
 .file-sidebar-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 8px;
   padding: 0 12px;
-  margin-bottom: 6px;
+  margin-bottom: 10px;
 }
 
 .file-sidebar-header h2 {
@@ -1202,6 +1252,15 @@ body.is-resizing-comment-panel * {
   color: var(--text-3);
   margin: 0;
   padding: 0;
+  flex-shrink: 0;
+}
+
+.file-sidebar-header-controls {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
 }
 
 /* === FILE VIEW TOGGLE (pill switch) === */
@@ -1209,8 +1268,8 @@ body.is-resizing-comment-panel * {
   position: relative;
   display: inline-flex;
   align-items: center;
-  width: 60px;
-  height: 28px;
+  width: 52px;
+  height: 24px;
   border: none;
   border-radius: 999px;
   background: transparent;
@@ -1238,16 +1297,16 @@ body.is-resizing-comment-panel * {
 }
 
 .file-view-toggle-option .material-symbols-rounded {
-  font-size: 15px;
+  font-size: 14px;
   line-height: 1;
 }
 
 .file-view-toggle-thumb {
   position: absolute;
-  top: 4px;
+  top: 3px;
   left: 5px;
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   border-radius: 999px;
   background: var(--bg-hover);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
@@ -1283,58 +1342,62 @@ body.is-resizing-comment-panel * {
   box-shadow: 0 0 0 2px var(--accent-soft);
 }
 
-/* === FILE SIDEBAR SHOW-ALL TOGGLE === */
-.file-sidebar-toggle {
+/* === FILE SIDEBAR FILTERS === */
+.file-sidebar-filters {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 11px;
-  color: var(--text-3);
-  padding: 0 12px;
-  margin-bottom: 8px;
-  cursor: pointer;
-  user-select: none;
-  background: none;
-  border: none;
-  font-family: var(--font-mono);
+  gap: 4px;
+  min-width: 0;
 }
 
-.file-sidebar-toggle:hover .toggle-label {
+.file-sidebar-filter {
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: var(--bg-surface-2);
+  font-size: 10px;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  letter-spacing: 0.01em;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background 0.15s var(--ease),
+    color 0.15s var(--ease),
+    border-color 0.15s var(--ease);
+}
+
+.file-sidebar-filter:hover {
+  background: var(--bg-hover);
   color: var(--text-2);
 }
 
-.toggle-track {
-  position: relative;
-  width: 26px;
-  height: 14px;
-  border-radius: 999px;
-  background: var(--border-1);
+.file-sidebar-filter.on {
+  background: var(--bg-hover);
+  border-color: var(--border-1);
+  color: var(--text-1);
+}
+
+.file-sidebar-filter:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.file-sidebar-filter-count {
+  color: var(--text-3);
   flex-shrink: 0;
-  transition: background 0.2s var(--ease);
 }
 
-.file-sidebar-toggle.on .toggle-track {
-  background: var(--text-2);
+.file-sidebar-filter.on .file-sidebar-filter-count {
+  color: var(--text-2);
 }
 
-.toggle-thumb {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  background: var(--bg-surface);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-  transition: transform 0.2s var(--ease);
-}
-
-.file-sidebar-toggle.on .toggle-thumb {
-  transform: translateX(12px);
-}
-
-.toggle-label {
-  transition: color 0.15s var(--ease);
+.file-sidebar-filter-label {
+  line-height: 1;
 }
 
 /* === FILE TREE VIEW === */
@@ -1388,10 +1451,10 @@ body.is-resizing-comment-panel * {
   gap: 8px;
   font-family: var(--font-mono);
   font-size: 12px;
-  word-break: break-all;
   color: var(--text-1);
   transition: all 0.15s var(--ease);
   margin-bottom: 1px;
+  min-width: 0;
 }
 
 .file-tree-file:hover {
@@ -1402,14 +1465,57 @@ body.is-resizing-comment-panel * {
   opacity: 0.7;
 }
 
-.file-tree-file.unstaged {
+.file-tree-file.unstaged,
+.file-list-item.unstaged {
+  cursor: default;
+}
+
+.file-tree-file.unstaged .file-name,
+.file-list-item.unstaged .file-name {
+  color: var(--text-2);
+}
+
+.file-tree-file.tracked-only {
   opacity: 0.4;
   cursor: default;
   font-style: italic;
 }
 
-.file-tree-file.unstaged:hover {
+.file-tree-file.tracked-only:hover {
   background: transparent;
+}
+
+.file-stage-btn {
+  width: 16px;
+  height: 16px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+  opacity: 0.72;
+  transition:
+    color 0.12s var(--ease),
+    opacity 0.12s var(--ease);
+}
+
+.file-stage-btn:hover {
+  color: var(--text-2);
+  opacity: 1;
+}
+
+.file-stage-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 1px var(--border-1);
+}
+
+.file-stage-btn .material-symbols-rounded {
+  font-size: 13px;
+  line-height: 1;
 }
 
 .file-tree-file .status-dot {
@@ -1419,15 +1525,41 @@ body.is-resizing-comment-panel * {
   flex-shrink: 0;
 }
 
+.file-tree-file .file-name,
+.file-list-item .file-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
+
 .file-tree-file .stats {
   margin-left: auto;
   font-size: 11px;
   white-space: nowrap;
+  min-width: 72px;
   flex-shrink: 0;
   font-family: var(--font-mono);
   font-weight: 500;
   display: flex;
+  justify-content: flex-end;
   gap: 4px;
+}
+
+.file-tree-file.unstaged .file-stage-btn,
+.file-list-item.unstaged .file-stage-btn {
+  margin-left: auto;
+  align-self: flex-start;
+  margin-top: 1px;
+}
+
+.file-tree-file.unstaged .stats,
+.file-list-item.unstaged .stats {
+  align-self: flex-start;
+  margin-top: 1px;
+  margin-left: 4px;
 }
 
 .file-tree-file .stats .add {
@@ -1451,10 +1583,10 @@ body.is-resizing-comment-panel * {
   gap: 8px;
   font-family: var(--font-mono);
   font-size: 12px;
-  word-break: break-all;
   color: var(--text-1);
   transition: all 0.15s var(--ease);
   margin-bottom: 1px;
+  min-width: 0;
 }
 
 .file-list-item:hover {
@@ -1501,10 +1633,12 @@ body.is-resizing-comment-panel * {
   margin-left: auto;
   font-size: 11px;
   white-space: nowrap;
+  min-width: 72px;
   flex-shrink: 0;
   font-family: var(--font-mono);
   font-weight: 500;
   display: flex;
+  justify-content: flex-end;
   gap: 4px;
 }
 
