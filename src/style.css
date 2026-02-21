@@ -1556,6 +1556,16 @@ body {
   opacity: 1;
 }
 
+.file-stage-btn.is-stage:hover,
+.file-stage-btn.is-stage:focus-visible {
+  color: var(--add-text);
+}
+
+.file-stage-btn.is-unstage:hover,
+.file-stage-btn.is-unstage:focus-visible {
+  color: var(--del-text);
+}
+
 .file-stage-btn:focus-visible {
   outline: none;
   color: var(--text-1);
@@ -1606,8 +1616,8 @@ body {
   gap: 4px;
 }
 
-.file-tree-file.unstaged .file-stage-btn,
-.file-list-item.unstaged .file-stage-btn {
+.file-tree-file .file-stage-btn,
+.file-list-item .file-stage-btn {
   align-self: center;
 }
 
@@ -1616,18 +1626,18 @@ body {
   align-self: center;
 }
 
-.file-tree-file.unstaged:hover .file-stage-btn,
-.file-tree-file.unstaged:focus-within .file-stage-btn,
-.file-list-item.unstaged:hover .file-stage-btn,
-.file-list-item.unstaged:focus-within .file-stage-btn {
+.file-tree-file:hover .file-stage-btn,
+.file-tree-file:focus-within .file-stage-btn,
+.file-list-item:hover .file-stage-btn,
+.file-list-item:focus-within .file-stage-btn {
   opacity: 1;
   pointer-events: auto;
   transform: translateX(0);
 }
 
 @media (hover: none) {
-  .file-tree-file.unstaged .file-stage-btn,
-  .file-list-item.unstaged .file-stage-btn {
+  .file-tree-file .file-stage-btn,
+  .file-list-item .file-stage-btn {
     opacity: 0.88;
     pointer-events: auto;
     transform: translateX(0);

@@ -1,5 +1,5 @@
 import { memo, useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Plus, List, FolderTree, ChevronRight } from 'lucide-react';
+import { Plus, Minus, List, FolderTree, ChevronRight } from 'lucide-react';
 import { buildFileTree, filterTree } from '../utils/fileTree';
 import { fuzzyFilterFiles, highlightMatch } from '../utils/fuzzySearch';
 
@@ -14,19 +14,32 @@ function isActivationKey(event) {
   return event.key === 'Enter' || event.key === ' ';
 }
 
-function StageFileButton({ filePath, fromPath, onStageFile }) {
+function FileStageButton({
+  mode,
+  filePath,
+  fromPath,
+  onStageFile,
+  onUnstageFile,
+}) {
+  const isStage = mode === 'stage';
+
   return (
     <button
-      className="file-stage-btn"
+      className={`file-stage-btn${isStage ? ' is-stage' : ' is-unstage'}`}
       type="button"
-      aria-label={`Stage ${filePath}`}
-      title="Stage file"
+      aria-label={`${isStage ? 'Stage' : 'Unstage'} ${filePath}`}
+      title={isStage ? 'Stage file' : 'Unstage file'}
       onClick={(event) => {
         event.stopPropagation();
-        onStageFile?.(filePath, fromPath);
+        if (isStage) onStageFile?.(filePath, fromPath);
+        else onUnstageFile?.(filePath);
       }}
     >
-      <Plus size={14} strokeWidth={1.5} />
+      {isStage ? (
+        <Plus size={14} strokeWidth={1.5} />
+      ) : (
+        <Minus size={14} strokeWidth={1.5} />
+      )}
     </button>
   );
 }
@@ -37,6 +50,7 @@ function FlatFileList({
   onSelectFile,
   searchQuery,
   onStageFile,
+  onUnstageFile,
 }) {
   const filteredResults = useMemo(() => {
     return fuzzyFilterFiles(files, searchQuery);
@@ -62,6 +76,7 @@ function FlatFileList({
               isUnstaged
                 ? undefined
                 : (event) => {
+                    if (event.target !== event.currentTarget) return;
                     if (!isActivationKey(event)) return;
                     event.preventDefault();
                     onSelectFile?.(filePath);
@@ -86,13 +101,13 @@ function FlatFileList({
                 <span className="del">-{file.deletions}</span>
               )}
             </span>
-            {isUnstaged && (
-              <StageFileButton
-                filePath={filePath}
-                fromPath={file.from || null}
-                onStageFile={onStageFile}
-              />
-            )}
+            <FileStageButton
+              mode={isUnstaged ? 'stage' : 'unstage'}
+              filePath={filePath}
+              fromPath={file.from || null}
+              onStageFile={onStageFile}
+              onUnstageFile={onUnstageFile}
+            />
           </li>
         );
       })}
@@ -106,6 +121,7 @@ function FileTreeNode({
   loadedFilesByPath,
   onSelectFile,
   onStageFile,
+  onUnstageFile,
   forceExpanded,
   expandedMap,
 }) {
@@ -136,6 +152,7 @@ function FileTreeNode({
         onKeyDown={
           isStaged
             ? (event) => {
+                if (event.target !== event.currentTarget) return;
                 if (!isActivationKey(event)) return;
                 event.preventDefault();
                 onSelectFile?.(filePath);
@@ -163,11 +180,13 @@ function FileTreeNode({
             )}
           </span>
         )}
-        {isUnstaged && (
-          <StageFileButton
+        {(isStaged || isUnstaged) && (
+          <FileStageButton
+            mode={isUnstaged ? 'stage' : 'unstage'}
             filePath={filePath}
             fromPath={fileMeta?.from || null}
             onStageFile={onStageFile}
+            onUnstageFile={onUnstageFile}
           />
         )}
       </li>
@@ -206,6 +225,7 @@ function FileTreeNode({
               loadedFilesByPath={loadedFilesByPath}
               onSelectFile={onSelectFile}
               onStageFile={onStageFile}
+              onUnstageFile={onUnstageFile}
               forceExpanded={forceExpanded}
               expandedMap={expandedMap}
             />
@@ -226,6 +246,7 @@ function FileTreeView({
   unstagedFiles,
   showUnstaged,
   onStageFile,
+  onUnstageFile,
   expandedMap,
 }) {
   const tree = useMemo(() => {
@@ -256,6 +277,7 @@ function FileTreeView({
           loadedFilesByPath={loadedFilesByPath}
           onSelectFile={onSelectFile}
           onStageFile={onStageFile}
+          onUnstageFile={onUnstageFile}
           forceExpanded={isSearching}
           expandedMap={expandedMap}
         />
@@ -270,6 +292,7 @@ function FileSidebar({
   loadedFilesByPath = {},
   onSelectFile,
   onStageFile,
+  onUnstageFile,
 }) {
   const [viewMode, setViewMode] = useState(() => {
     if (typeof window === 'undefined') return 'flat';
@@ -433,6 +456,7 @@ function FileSidebar({
           onSelectFile={onSelectFile}
           searchQuery={searchQuery}
           onStageFile={onStageFile}
+          onUnstageFile={onUnstageFile}
         />
       ) : (
         <FileTreeView
@@ -445,6 +469,7 @@ function FileSidebar({
           unstagedFiles={unstagedFiles}
           showUnstaged={showUnstaged}
           onStageFile={onStageFile}
+          onUnstageFile={onUnstageFile}
           expandedMap={expandedMap}
         />
       )}
