@@ -10,6 +10,10 @@ function getFilePath(file) {
   return file.to || file.from;
 }
 
+function isActivationKey(event) {
+  return event.key === 'Enter' || event.key === ' ';
+}
+
 function StageFileButton({ filePath, fromPath, onStageFile }) {
   return (
     <button
@@ -52,15 +56,26 @@ function FlatFileList({
             key={filePath}
             className={`file-list-item${isPending ? ' pending' : ''}${isUnstaged ? ' unstaged' : ''}`}
             onClick={isUnstaged ? undefined : () => onSelectFile?.(filePath)}
+            role={isUnstaged ? undefined : 'button'}
+            tabIndex={isUnstaged ? undefined : 0}
+            onKeyDown={
+              isUnstaged
+                ? undefined
+                : (event) => {
+                    if (!isActivationKey(event)) return;
+                    event.preventDefault();
+                    onSelectFile?.(filePath);
+                  }
+            }
           >
             <span className={`status-dot ${file.status}`} />
             <span className="file-name" title={filePath}>
               {highlighted
                 ? highlighted.map((seg, i) => (
-                  <mark key={i} className={seg.highlight ? 'match' : ''}>
-                    {seg.text}
-                  </mark>
-                ))
+                    <mark key={i} className={seg.highlight ? 'match' : ''}>
+                      {seg.text}
+                    </mark>
+                  ))
                 : filePath}
             </span>
             {isUnstaged && (
@@ -116,15 +131,26 @@ function FileTreeNode({
         className={`file-tree-file${isPending ? ' pending' : ''}${isUnstaged ? ' unstaged' : ''}${isTrackedOnly ? ' tracked-only' : ''}`}
         style={{ paddingLeft: `${depth * 16 + 12}px` }}
         onClick={isStaged ? () => onSelectFile?.(filePath) : undefined}
+        role={isStaged ? 'button' : undefined}
+        tabIndex={isStaged ? 0 : undefined}
+        onKeyDown={
+          isStaged
+            ? (event) => {
+                if (!isActivationKey(event)) return;
+                event.preventDefault();
+                onSelectFile?.(filePath);
+              }
+            : undefined
+        }
       >
         {fileMeta && <span className={`status-dot ${fileMeta.status}`} />}
         <span className="file-name" title={filePath}>
           {highlighted
             ? highlighted.map((seg, i) => (
-              <mark key={i} className={seg.highlight ? 'match' : ''}>
-                {seg.text}
-              </mark>
-            ))
+                <mark key={i} className={seg.highlight ? 'match' : ''}>
+                  {seg.text}
+                </mark>
+              ))
             : node.name}
         </span>
         {isUnstaged && (
@@ -150,8 +176,10 @@ function FileTreeNode({
 
   return (
     <li className="file-tree-dir">
-      <div
+      <button
         className="file-tree-dir-label"
+        type="button"
+        aria-expanded={isExpanded}
         style={{ paddingLeft: `${depth * 16 + 12}px` }}
         onClick={() => {
           setExpanded((prev) => {
@@ -167,7 +195,7 @@ function FileTreeNode({
           strokeWidth={1.5}
         />
         <span className="dir-name">{node.name}</span>
-      </div>
+      </button>
       {isExpanded && (
         <ul className="file-tree-children">
           {node.children.map((child) => (
@@ -391,6 +419,7 @@ function FileSidebar({
       <div className="file-sidebar-search">
         <input
           type="text"
+          aria-label="Search files"
           placeholder="Search files..."
           value={searchQuery}
           onChange={handleSearchChange}

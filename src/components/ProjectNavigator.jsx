@@ -1,13 +1,17 @@
 import { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { GitBranch, ChevronDown } from 'lucide-react';
 
-function ProjectDropdown({ projects, currentPath, onSelect, onClose }) {
+const PROJECT_DROPDOWN_ID = 'project-dropdown';
+const WORKTREE_DROPDOWN_ID = 'worktree-dropdown';
+
+function ProjectDropdown({ id, projects, currentPath, onSelect, onClose }) {
   return (
-    <div className="nav-dropdown">
+    <div id={id} className="nav-dropdown" role="menu" aria-label="Project list">
       {projects.map((project) => (
         <button
           key={project.path}
           className={`nav-dropdown-item${project.path === currentPath ? ' active' : ''}`}
+          role="menuitem"
           onClick={() => {
             onSelect(project.path);
             onClose();
@@ -22,13 +26,19 @@ function ProjectDropdown({ projects, currentPath, onSelect, onClose }) {
   );
 }
 
-function WorktreeDropdown({ worktrees, onSelect, onClose }) {
+function WorktreeDropdown({ id, worktrees, onSelect, onClose }) {
   return (
-    <div className="nav-dropdown">
+    <div
+      id={id}
+      className="nav-dropdown"
+      role="menu"
+      aria-label="Worktree list"
+    >
       {worktrees.map((wt) => (
         <button
           key={wt.path}
           className={`nav-dropdown-item${wt.isCurrent ? ' active' : ''}`}
+          role="menuitem"
           onClick={() => {
             onSelect(wt.path);
             onClose();
@@ -54,10 +64,24 @@ function ProjectNavigator({
   const [showWorktreeDD, setShowWorktreeDD] = useState(false);
   const projectRef = useRef(null);
   const worktreeRef = useRef(null);
+  const projectButtonRef = useRef(null);
+  const worktreeButtonRef = useRef(null);
+  const lastOpenedDropdownRef = useRef(null);
 
-  const closeAll = useCallback(() => {
+  const closeAll = useCallback((restoreFocus = false) => {
     setShowProjectDD(false);
     setShowWorktreeDD(false);
+
+    if (restoreFocus) {
+      const dropdown = lastOpenedDropdownRef.current;
+      requestAnimationFrame(() => {
+        if (dropdown === 'project') {
+          projectButtonRef.current?.focus();
+        } else if (dropdown === 'worktree') {
+          worktreeButtonRef.current?.focus();
+        }
+      });
+    }
   }, []);
 
   useEffect(() => {
@@ -66,11 +90,21 @@ function ProjectNavigator({
     function handleClick(e) {
       if (projectRef.current && projectRef.current.contains(e.target)) return;
       if (worktreeRef.current && worktreeRef.current.contains(e.target)) return;
-      closeAll();
+      closeAll(true);
+    }
+
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') {
+        closeAll(true);
+      }
     }
 
     document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
   }, [showProjectDD, showWorktreeDD, closeAll]);
 
   const hasMultipleProjects = projects && projects.length > 1;
@@ -83,11 +117,19 @@ function ProjectNavigator({
 
       <div className="nav-segment-wrap" ref={projectRef}>
         <button
+          ref={projectButtonRef}
           className={`nav-segment${!hasMultipleProjects ? ' nav-segment-static' : ''}`}
+          aria-haspopup={hasMultipleProjects ? 'menu' : undefined}
+          aria-expanded={hasMultipleProjects ? showProjectDD : undefined}
+          aria-controls={showProjectDD ? PROJECT_DROPDOWN_ID : undefined}
           onClick={() => {
             if (hasMultipleProjects) {
               setShowWorktreeDD(false);
-              setShowProjectDD((v) => !v);
+              setShowProjectDD((v) => {
+                const next = !v;
+                if (next) lastOpenedDropdownRef.current = 'project';
+                return next;
+              });
             }
           }}
           type="button"
@@ -101,10 +143,11 @@ function ProjectNavigator({
         </button>
         {showProjectDD && hasMultipleProjects && (
           <ProjectDropdown
+            id={PROJECT_DROPDOWN_ID}
             projects={projects}
             currentPath={gitRoot}
             onSelect={onSwitchProject}
-            onClose={closeAll}
+            onClose={() => closeAll(true)}
           />
         )}
       </div>
@@ -113,11 +156,19 @@ function ProjectNavigator({
 
       <div className="nav-segment-wrap" ref={worktreeRef}>
         <button
+          ref={worktreeButtonRef}
           className={`nav-segment${!hasMultipleWorktrees ? ' nav-segment-static' : ''}`}
+          aria-haspopup={hasMultipleWorktrees ? 'menu' : undefined}
+          aria-expanded={hasMultipleWorktrees ? showWorktreeDD : undefined}
+          aria-controls={showWorktreeDD ? WORKTREE_DROPDOWN_ID : undefined}
           onClick={() => {
             if (hasMultipleWorktrees) {
               setShowProjectDD(false);
-              setShowWorktreeDD((v) => !v);
+              setShowWorktreeDD((v) => {
+                const next = !v;
+                if (next) lastOpenedDropdownRef.current = 'worktree';
+                return next;
+              });
             }
           }}
           type="button"
@@ -132,9 +183,10 @@ function ProjectNavigator({
         </button>
         {showWorktreeDD && hasMultipleWorktrees && (
           <WorktreeDropdown
+            id={WORKTREE_DROPDOWN_ID}
             worktrees={worktrees}
             onSelect={onSwitchProject}
-            onClose={closeAll}
+            onClose={() => closeAll(true)}
           />
         )}
       </div>

@@ -1,4 +1,5 @@
-import { useEffect, memo } from 'react';
+import { useRef, memo } from 'react';
+import { useModalAccessibility } from '../hooks/useModalAccessibility';
 
 const isMac =
   typeof navigator !== 'undefined' &&
@@ -6,16 +7,13 @@ const isMac =
 const modKey = isMac ? '⌘' : 'Ctrl';
 
 function ShortcutsModal({ onClose }) {
-  useEffect(() => {
-    function handleEscape(e) {
-      if (e.key === 'Escape') {
-        onClose();
-      }
-    }
+  const titleId = 'shortcuts-modal-title';
+  const modalRef = useRef(null);
 
-    document.addEventListener('keydown', handleEscape);
-    return () => document.removeEventListener('keydown', handleEscape);
-  }, [onClose]);
+  useModalAccessibility({
+    containerRef: modalRef,
+    onClose,
+  });
 
   const handleOverlayClick = (e) => {
     if (e.target === e.currentTarget) {
@@ -25,8 +23,15 @@ function ShortcutsModal({ onClose }) {
 
   return (
     <div className="modal-overlay" onClick={handleOverlayClick}>
-      <div className="modal-shortcuts">
-        <h2>Keyboard Shortcuts</h2>
+      <div
+        ref={modalRef}
+        className="modal-shortcuts"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+      >
+        <h2 id={titleId}>Keyboard Shortcuts</h2>
 
         <div className="shortcuts-grid">
           <div className="shortcut-category">
@@ -65,7 +70,9 @@ function ShortcutsModal({ onClose }) {
               <div className="shortcut-keys">
                 <kbd className="shortcut-key">x</kbd>
               </div>
-              <span className="shortcut-desc">Toggle collapse current file</span>
+              <span className="shortcut-desc">
+                Toggle collapse current file
+              </span>
             </div>
             <div className="shortcut-row">
               <div className="shortcut-keys">

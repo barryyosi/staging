@@ -10,6 +10,8 @@ import {
 } from './GitIcons';
 
 export default function GitActionPicker({
+  id,
+  labelledBy,
   remoteUrl,
   onAction,
   onClose,
@@ -23,10 +25,22 @@ export default function GitActionPicker({
         onClose();
       }
     }
+
+    function handleKeyDown(e) {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    }
+
     document.addEventListener('pointerdown', handleClickOutside);
-    return () =>
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
       document.removeEventListener('pointerdown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
   }, [onClose]);
+
+  const titleId = `${id}-title`;
 
   const isGitLab = remoteUrl && remoteUrl.toLowerCase().includes('gitlab');
   const isGitHub = remoteUrl && remoteUrl.toLowerCase().includes('github');
@@ -46,15 +60,21 @@ export default function GitActionPicker({
 
   return (
     <div
+      id={id}
       className="send-medium-picker"
       ref={ref}
+      role="menu"
+      aria-labelledby={labelledBy || titleId}
       style={{ right: 0, left: 'auto', minWidth: '160px' }}
     >
-      <div className="send-medium-title">Git actions</div>
+      <div className="send-medium-title" id={titleId}>
+        Git actions
+      </div>
       <div className="send-medium-list">
         <button
           type="button"
           className="git-action-option"
+          role="menuitem"
           disabled={committed}
           onClick={() => handleAction('commit')}
         >
@@ -64,6 +84,7 @@ export default function GitActionPicker({
         <button
           type="button"
           className="git-action-option"
+          role="menuitem"
           disabled={committed}
           onClick={() => handleAction('commit-and-push')}
         >
@@ -73,6 +94,7 @@ export default function GitActionPicker({
         <button
           type="button"
           className="git-action-option"
+          role="menuitem"
           onClick={() => handleAction('push')}
         >
           <PushIcon className="git-action-icon" />
@@ -81,6 +103,7 @@ export default function GitActionPicker({
         <button
           type="button"
           className="git-action-option"
+          role="menuitem"
           onClick={() => handleAction('pr')}
         >
           <PrIcon className="git-action-icon" />

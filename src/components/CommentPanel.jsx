@@ -2,6 +2,7 @@ import { useCallback, memo } from 'react';
 import { X, Quote } from 'lucide-react';
 
 function CommentPanel({
+  id,
   commentsByFile,
   commentCount,
   onDeleteComment,
@@ -31,8 +32,21 @@ function CommentPanel({
     }
   }, []);
 
+  const handleCommentActivate = useCallback(
+    (comment) => {
+      scrollToComment(comment);
+      onSelectComment?.();
+    },
+    [onSelectComment, scrollToComment],
+  );
+
   return (
-    <aside className="comments-dropdown" role="dialog" aria-label="Comments">
+    <aside
+      id={id}
+      className="comments-dropdown"
+      role="dialog"
+      aria-label="Comments"
+    >
       <div className="panel-header">
         <h2>
           Comments (<span className="comment-count">{commentCount}</span>)
@@ -53,9 +67,13 @@ function CommentPanel({
               <div
                 key={c.id}
                 className="panel-comment-item"
-                onClick={() => {
-                  scrollToComment(c);
-                  onSelectComment?.();
+                role="button"
+                tabIndex={0}
+                onClick={() => handleCommentActivate(c)}
+                onKeyDown={(event) => {
+                  if (event.key !== 'Enter' && event.key !== ' ') return;
+                  event.preventDefault();
+                  handleCommentActivate(c);
                 }}
               >
                 <button

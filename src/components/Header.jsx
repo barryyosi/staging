@@ -33,7 +33,17 @@ const MEDIUM_META = {
 
 const ALL_MEDIUMS = ['clipboard', 'file', 'cli'];
 
-function SendMediumPicker({ selectedMediums, onToggleMedium, onClose }) {
+const SEND_MEDIUM_PICKER_ID = 'send-medium-picker';
+const GIT_ACTION_PICKER_ID = 'git-action-picker';
+const COMMENTS_PANEL_ID = 'comments-dropdown-panel';
+
+function SendMediumPicker({
+  id,
+  labelledBy,
+  selectedMediums,
+  onToggleMedium,
+  onClose,
+}) {
   const ref = useRef(null);
 
   useEffect(() => {
@@ -42,26 +52,47 @@ function SendMediumPicker({ selectedMediums, onToggleMedium, onClose }) {
         onClose();
       }
     }
+
+    function handleKeyDown(e) {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    }
+
     document.addEventListener('pointerdown', handleClickOutside);
-    return () =>
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
       document.removeEventListener('pointerdown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
   }, [onClose]);
 
+  const titleId = `${id}-title`;
+
   return (
-    <div className="send-medium-picker" ref={ref}>
-      <div className="send-medium-title">Send via</div>
+    <div
+      id={id}
+      className="send-medium-picker"
+      ref={ref}
+      role="menu"
+      aria-labelledby={labelledBy || titleId}
+    >
+      <div className="send-medium-title" id={titleId}>
+        Send via
+      </div>
       <div className="send-medium-list">
-        {ALL_MEDIUMS.map((id) => {
-          const meta = MEDIUM_META[id];
-          const checked = selectedMediums.includes(id);
+        {ALL_MEDIUMS.map((mediumId) => {
+          const meta = MEDIUM_META[mediumId];
+          const checked = selectedMediums.includes(mediumId);
           return (
             <button
-              key={id}
+              key={mediumId}
               type="button"
               className={`send-medium-option${checked ? ' active' : ''}`}
-              aria-pressed={checked}
+              role="menuitemcheckbox"
+              aria-checked={checked}
               aria-label={`${checked ? 'Disable' : 'Enable'} ${meta.label}`}
-              onClick={() => onToggleMedium(id)}
+              onClick={() => onToggleMedium(mediumId)}
             >
               <span className="send-medium-option-label">{meta.label}</span>
               {checked ? (
@@ -111,6 +142,9 @@ function Header({
   const [gitPickerOpen, setGitPickerOpen] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const commentsWrapRef = useRef(null);
+  const commentsButtonRef = useRef(null);
+  const sendPickerToggleRef = useRef(null);
+  const gitPickerToggleRef = useRef(null);
   const canSend =
     hasComments && !committed && Array.isArray(selectedMediums)
       ? selectedMediums.length > 0
@@ -131,22 +165,37 @@ function Header({
     onSendComments(selectedMediums);
   }, [onSendComments, selectedMediums]);
 
-  const handleTogglePicker = useCallback(() => {
-    setCommentsOpen(false);
-    setPickerOpen((prev) => !prev);
+  const closePicker = useCallback((restoreFocus = true) => {
+    setPickerOpen(false);
+    if (restoreFocus) {
+      requestAnimationFrame(() => sendPickerToggleRef.current?.focus());
+    }
   }, []);
 
-  const handleClosePicker = useCallback(() => {
-    setPickerOpen(false);
+  const closeGitPicker = useCallback((restoreFocus = true) => {
+    setGitPickerOpen(false);
+    if (restoreFocus) {
+      requestAnimationFrame(() => gitPickerToggleRef.current?.focus());
+    }
+  }, []);
+
+  const closeComments = useCallback((restoreFocus = true) => {
+    setCommentsOpen(false);
+    if (restoreFocus) {
+      requestAnimationFrame(() => commentsButtonRef.current?.focus());
+    }
+  }, []);
+
+  const handleTogglePicker = useCallback(() => {
+    setCommentsOpen(false);
+    setGitPickerOpen(false);
+    setPickerOpen((prev) => !prev);
   }, []);
 
   const handleToggleGitPicker = useCallback(() => {
     setCommentsOpen(false);
+    setPickerOpen(false);
     setGitPickerOpen((prev) => !prev);
-  }, []);
-
-  const handleCloseGitPicker = useCallback(() => {
-    setGitPickerOpen(false);
   }, []);
 
   const handleToggleComments = useCallback(() => {
@@ -164,13 +213,13 @@ function Header({
         commentsWrapRef.current &&
         !commentsWrapRef.current.contains(event.target)
       ) {
-        setCommentsOpen(false);
+        closeComments(true);
       }
     }
 
     function handleKeyDown(event) {
       if (event.key === 'Escape') {
-        setCommentsOpen(false);
+        closeComments(true);
       }
     }
 
@@ -180,7 +229,7 @@ function Header({
       document.removeEventListener('pointerdown', handlePointerDown);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isCommentsOpen]);
+  }, [closeComments, isCommentsOpen]);
 
   const isGitLab = projectInfo?.remoteUrl?.toLowerCase().includes('gitlab');
   const isGitHub = projectInfo?.remoteUrl?.toLowerCase().includes('github');
@@ -268,6 +317,7 @@ function Header({
         {hasComments && (
           <div className="comments-dropdown-wrap" ref={commentsWrapRef}>
             <button
+              ref={commentsButtonRef}
               className={`btn-comments${isCommentsOpen ? ' is-open' : ''}`}
               onClick={handleToggleComments}
               aria-label={
@@ -275,7 +325,9 @@ function Header({
                   ? 'Close comments dropdown'
                   : 'Open comments dropdown'
               }
+              aria-haspopup="dialog"
               aria-expanded={isCommentsOpen}
+              aria-controls={isCommentsOpen ? COMMENTS_PANEL_ID : undefined}
               title="Comments"
               type="button"
             >
@@ -284,11 +336,12 @@ function Header({
             </button>
             {isCommentsOpen && (
               <CommentPanel
+                id={COMMENTS_PANEL_ID}
                 commentsByFile={commentsByFile}
                 commentCount={commentCount}
                 onDeleteComment={onDeleteComment}
                 onDismissAll={onDismissAllComments}
-                onSelectComment={() => setCommentsOpen(false)}
+                onSelectComment={() => closeComments(true)}
               />
             )}
           </div>
@@ -307,10 +360,15 @@ function Header({
               {hasComments && <span className="btn-badge">{commentCount}</span>}
             </button>
             <button
+              ref={sendPickerToggleRef}
+              id="send-medium-picker-trigger"
               className={`btn btn-secondary header-action-btn split-btn-caret${hasComments ? ' is-ready' : ''}`}
               disabled={!hasComments || committed}
               onClick={handleTogglePicker}
               aria-label="Choose send mediums"
+              aria-haspopup="menu"
+              aria-expanded={pickerOpen}
+              aria-controls={pickerOpen ? SEND_MEDIUM_PICKER_ID : undefined}
               title="Choose send mediums"
               type="button"
             >
@@ -322,9 +380,11 @@ function Header({
             </button>
             {pickerOpen && (
               <SendMediumPicker
+                id={SEND_MEDIUM_PICKER_ID}
+                labelledBy="send-medium-picker-trigger"
                 selectedMediums={selectedMediums}
                 onToggleMedium={handleToggleMedium}
-                onClose={handleClosePicker}
+                onClose={() => closePicker(true)}
               />
             )}
           </div>
@@ -344,9 +404,14 @@ function Header({
               {gitLabel}
             </button>
             <button
+              ref={gitPickerToggleRef}
+              id="git-action-picker-trigger"
               className="btn btn-secondary header-action-btn split-btn-caret"
               onClick={handleToggleGitPicker}
               aria-label="Git actions"
+              aria-haspopup="menu"
+              aria-expanded={gitPickerOpen}
+              aria-controls={gitPickerOpen ? GIT_ACTION_PICKER_ID : undefined}
               title="Git actions"
               type="button"
             >
@@ -358,9 +423,11 @@ function Header({
             </button>
             {gitPickerOpen && (
               <GitActionPicker
+                id={GIT_ACTION_PICKER_ID}
+                labelledBy="git-action-picker-trigger"
                 remoteUrl={projectInfo?.remoteUrl}
                 onAction={onGitAction}
-                onClose={handleCloseGitPicker}
+                onClose={() => closeGitPicker(true)}
                 committed={committed}
               />
             )}

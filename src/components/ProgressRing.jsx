@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useMemo, memo } from 'react';
 
+const STATS_POPOVER_ID = 'progress-stats-popover';
+
 function ProgressRing({ reviewed, total }) {
   const size = 20;
   const stroke = 2.5;
@@ -27,7 +29,7 @@ function ProgressRing({ reviewed, total }) {
   );
 }
 
-function StatsPopover({ additions, deletions, onClose }) {
+function StatsPopover({ id, additions, deletions, onClose }) {
   const popoverRef = useRef(null);
 
   useEffect(() => {
@@ -37,12 +39,28 @@ function StatsPopover({ additions, deletions, onClose }) {
       }
     }
 
+    function handleKeyDown(e) {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    }
+
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
   }, [onClose]);
 
   return (
-    <div ref={popoverRef} className="stats-popover">
+    <div
+      id={id}
+      ref={popoverRef}
+      className="stats-popover"
+      role="dialog"
+      aria-label="Line change statistics"
+    >
       {additions > 0 && <span className="add">+{additions}</span>}
       {additions > 0 && deletions > 0 && <span className="stats-sep">/</span>}
       {deletions > 0 && <span className="del">-{deletions}</span>}
@@ -53,6 +71,7 @@ function StatsPopover({ additions, deletions, onClose }) {
 
 function ProgressRingWithStats({ files, reviewedFiles }) {
   const [showStats, setShowStats] = useState(false);
+  const triggerRef = useRef(null);
 
   const stats = useMemo(() => {
     return {
@@ -67,16 +86,24 @@ function ProgressRingWithStats({ files, reviewedFiles }) {
     setShowStats((prev) => !prev);
   };
 
-  const handleCloseStats = () => {
+  const handleCloseStats = (restoreFocus = true) => {
     setShowStats(false);
+    if (restoreFocus) {
+      requestAnimationFrame(() => triggerRef.current?.focus());
+    }
   };
 
   return (
     <div className="progress-ring-wrap">
       <button
+        id="progress-stats-trigger"
+        ref={triggerRef}
         className="progress-ring-btn"
         onClick={handleClick}
         aria-label={`${stats.reviewed} of ${stats.total} files reviewed`}
+        aria-haspopup="dialog"
+        aria-expanded={showStats}
+        aria-controls={showStats ? STATS_POPOVER_ID : undefined}
         title="Click to view line stats"
         type="button"
       >
@@ -87,9 +114,10 @@ function ProgressRingWithStats({ files, reviewedFiles }) {
       </button>
       {showStats && (
         <StatsPopover
+          id={STATS_POPOVER_ID}
           additions={stats.additions}
           deletions={stats.deletions}
-          onClose={handleCloseStats}
+          onClose={() => handleCloseStats(true)}
         />
       )}
     </div>
