@@ -676,7 +676,12 @@ function DiffViewer({
   const handleToggleReviewed = useCallback(
     (e) => {
       e.stopPropagation();
-      if (onFileReviewed) onFileReviewed(filePath, !isReviewed);
+      const willBeReviewed = !isReviewed;
+      if (onFileReviewed) onFileReviewed(filePath, willBeReviewed);
+      // Auto-collapse when marking as reviewed
+      if (willBeReviewed) {
+        setCollapsed(true);
+      }
     },
     [filePath, isReviewed, onFileReviewed],
   );

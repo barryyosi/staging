@@ -615,14 +615,23 @@ export default function App() {
   }, [deleteAllComments]);
 
   const handleSendComments = useCallback(
-    async (mediums = ['clipboard', 'file']) => {
-      if (allComments.length === 0) return;
+    async (mediums = ['clipboard', 'file'], options = {}) => {
       if (!config) {
         showToast('Config is still loading', 'error');
         return;
       }
 
-      const formatted = formatComments(allComments, gitRoot);
+      let formatted;
+
+      if (options.approvalMessage) {
+        formatted =
+          '## Review: Approved\n\nLooks good, no changes needed. Approved to proceed.';
+      } else if (options.customMessage) {
+        formatted = `## Review Feedback\n\n${options.customMessage}`;
+      } else {
+        if (allComments.length === 0) return;
+        formatted = formatComments(allComments, gitRoot);
+      }
 
       if (mediums.includes('clipboard')) {
         try {
@@ -643,11 +652,11 @@ export default function App() {
           });
           const data = await res.json();
           if (!data.success) {
-            showToast(`Failed to send comments: ${data.error}`, 'error');
+            showToast(`Failed to send: ${data.error}`, 'error');
             return;
           }
         } catch (err) {
-          showToast(`Failed to send comments: ${err.message}`, 'error');
+          showToast(`Failed to send: ${err.message}`, 'error');
           return;
         }
       }
@@ -657,7 +666,13 @@ export default function App() {
       if (mediums.includes('file'))
         parts.push(`saved to ${config.reviewFileName}`);
       if (mediums.includes('cli')) parts.push('printed to CLI');
-      showToast(`Comments ${parts.join(' and ')}`, 'success');
+
+      const actionLabel = options.approvalMessage
+        ? 'Approval'
+        : options.customMessage
+          ? 'Message'
+          : 'Comments';
+      showToast(`${actionLabel} ${parts.join(' and ')}`, 'success');
 
       // CLI medium exits the server — close the browser tab
       if (mediums.includes('cli')) {
