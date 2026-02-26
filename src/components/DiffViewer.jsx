@@ -954,6 +954,7 @@ function DiffViewer({
       className={`diff-file${className ? ` ${className}` : ''}`}
       style={style}
       id={`file-${slugify(filePath)}`}
+      data-file-path={filePath}
     >
       <div
         className={`diff-file-header ${collapsed ? 'collapsed' : ''}`}

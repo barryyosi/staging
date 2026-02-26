@@ -51,10 +51,24 @@ function FlatFileList({
   searchQuery,
   onStageFile,
   onUnstageFile,
+  reviewedFiles = new Set(),
+  commentsByFile = {},
+  activeFile = null,
 }) {
   const filteredResults = useMemo(() => {
     return fuzzyFilterFiles(files, searchQuery);
   }, [files, searchQuery]);
+
+  const activeRef = useRef(null);
+
+  useEffect(() => {
+    if (activeRef.current) {
+      activeRef.current.scrollIntoView({
+        block: 'nearest',
+        behavior: 'smooth',
+      });
+    }
+  }, [activeFile]);
 
   return (
     <ul id="file-list-items">
@@ -64,11 +78,15 @@ function FlatFileList({
         const isLoaded = !isUnstaged && Boolean(loadedFilesByPath[filePath]);
         const isPending = !isUnstaged && !isLoaded;
         const highlighted = highlightMatch(result);
+        const isActive = filePath === activeFile;
+        const isReviewed = reviewedFiles.has(filePath);
+        const fileCommentCount = (commentsByFile[filePath] || []).length;
 
         return (
           <li
             key={filePath}
-            className={`file-list-item${isPending ? ' pending' : ''}${isUnstaged ? ' unstaged' : ''}`}
+            ref={isActive ? activeRef : undefined}
+            className={`file-list-item${isPending ? ' pending' : ''}${isUnstaged ? ' unstaged' : ''}${isActive ? ' active' : ''}${isReviewed ? ' reviewed' : ''}`}
             onClick={isUnstaged ? undefined : () => onSelectFile?.(filePath)}
             role={isUnstaged ? undefined : 'button'}
             tabIndex={isUnstaged ? undefined : 0}
@@ -93,6 +111,23 @@ function FlatFileList({
                   ))
                 : filePath}
             </span>
+            {fileCommentCount > 0 && (
+              <span
+                className="file-comment-count"
+                title={`${fileCommentCount} comment${fileCommentCount > 1 ? 's' : ''}`}
+              >
+                {fileCommentCount}
+              </span>
+            )}
+            {isReviewed && (
+              <span
+                className="file-reviewed-check"
+                title="Reviewed"
+                aria-label="Reviewed"
+              >
+                &#10003;
+              </span>
+            )}
             <span className="stats">
               {file.additions > 0 && (
                 <span className="add">+{file.additions}</span>
@@ -124,6 +159,9 @@ function FileTreeNode({
   onUnstageFile,
   forceExpanded,
   expandedMap,
+  reviewedFiles = new Set(),
+  commentsByFile = {},
+  activeFile = null,
 }) {
   const [expanded, setExpanded] = useState(() => {
     if (expandedMap.has(node.path)) return expandedMap.get(node.path);
@@ -131,6 +169,16 @@ function FileTreeNode({
   });
 
   const isExpanded = forceExpanded || expanded;
+  const activeRef = useRef(null);
+
+  useEffect(() => {
+    if (activeRef.current && node.isFile && node.path === activeFile) {
+      activeRef.current.scrollIntoView({
+        block: 'nearest',
+        behavior: 'smooth',
+      });
+    }
+  }, [activeFile, node.isFile, node.path]);
 
   if (node.isFile) {
     const isStaged = node.isStaged;
@@ -141,10 +189,14 @@ function FileTreeNode({
     const isLoaded = isStaged && Boolean(loadedFilesByPath[filePath]);
     const isPending = isStaged && !isLoaded;
     const highlighted = highlightMatch(node.fuzzyResult);
+    const isActive = filePath === activeFile;
+    const isReviewed = reviewedFiles.has(filePath);
+    const fileCommentCount = (commentsByFile[filePath] || []).length;
 
     return (
       <li
-        className={`file-tree-file${isPending ? ' pending' : ''}${isUnstaged ? ' unstaged' : ''}${isTrackedOnly ? ' tracked-only' : ''}`}
+        ref={isActive ? activeRef : undefined}
+        className={`file-tree-file${isPending ? ' pending' : ''}${isUnstaged ? ' unstaged' : ''}${isTrackedOnly ? ' tracked-only' : ''}${isActive ? ' active' : ''}${isReviewed ? ' reviewed' : ''}`}
         style={{ paddingLeft: `${depth * 16 + 12}px` }}
         onClick={isStaged ? () => onSelectFile?.(filePath) : undefined}
         role={isStaged ? 'button' : undefined}
@@ -170,6 +222,23 @@ function FileTreeNode({
               ))
             : node.name}
         </span>
+        {fileCommentCount > 0 && (
+          <span
+            className="file-comment-count"
+            title={`${fileCommentCount} comment${fileCommentCount > 1 ? 's' : ''}`}
+          >
+            {fileCommentCount}
+          </span>
+        )}
+        {isReviewed && (
+          <span
+            className="file-reviewed-check"
+            title="Reviewed"
+            aria-label="Reviewed"
+          >
+            &#10003;
+          </span>
+        )}
         {fileMeta && (
           <span className="stats">
             {fileMeta.additions > 0 && (
@@ -228,6 +297,9 @@ function FileTreeNode({
               onUnstageFile={onUnstageFile}
               forceExpanded={forceExpanded}
               expandedMap={expandedMap}
+              reviewedFiles={reviewedFiles}
+              commentsByFile={commentsByFile}
+              activeFile={activeFile}
             />
           ))}
         </ul>
@@ -248,6 +320,9 @@ function FileTreeView({
   onStageFile,
   onUnstageFile,
   expandedMap,
+  reviewedFiles = new Set(),
+  commentsByFile = {},
+  activeFile = null,
 }) {
   const tree = useMemo(() => {
     const base = buildFileTree(
@@ -280,6 +355,9 @@ function FileTreeView({
           onUnstageFile={onUnstageFile}
           forceExpanded={isSearching}
           expandedMap={expandedMap}
+          reviewedFiles={reviewedFiles}
+          commentsByFile={commentsByFile}
+          activeFile={activeFile}
         />
       ))}
     </ul>
@@ -293,6 +371,9 @@ function FileSidebar({
   onSelectFile,
   onStageFile,
   onUnstageFile,
+  reviewedFiles = new Set(),
+  commentsByFile = {},
+  activeFile = null,
 }) {
   const [viewMode, setViewMode] = useState(() => {
     if (typeof window === 'undefined') return 'flat';
@@ -457,6 +538,9 @@ function FileSidebar({
           searchQuery={searchQuery}
           onStageFile={onStageFile}
           onUnstageFile={onUnstageFile}
+          reviewedFiles={reviewedFiles}
+          commentsByFile={commentsByFile}
+          activeFile={activeFile}
         />
       ) : (
         <FileTreeView
@@ -471,6 +555,9 @@ function FileSidebar({
           onStageFile={onStageFile}
           onUnstageFile={onUnstageFile}
           expandedMap={expandedMap}
+          reviewedFiles={reviewedFiles}
+          commentsByFile={commentsByFile}
+          activeFile={activeFile}
         />
       )}
     </nav>
