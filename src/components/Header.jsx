@@ -37,6 +37,114 @@ const SEND_MEDIUM_PICKER_ID = 'send-medium-picker';
 const GIT_ACTION_PICKER_ID = 'git-action-picker';
 const COMMENTS_PANEL_ID = 'comments-dropdown-panel';
 
+function NoCommentsDialog({ onSendApproval, onSendCustom, onClose }) {
+  const [mode, setMode] = useState(null); // null = choosing, 'custom' = typing
+  const [customMsg, setCustomMsg] = useState('');
+  const ref = useRef(null);
+  const textareaRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (ref.current && !ref.current.contains(e.target)) onClose();
+    }
+    function handleKeyDown(e) {
+      if (e.key === 'Escape') onClose();
+    }
+    document.addEventListener('pointerdown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose]);
+
+  useEffect(() => {
+    if (mode === 'custom' && textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  }, [mode]);
+
+  if (mode === 'custom') {
+    return (
+      <div className="no-comments-dialog" ref={ref}>
+        <div className="no-comments-dialog-title">Custom message</div>
+        <textarea
+          ref={textareaRef}
+          className="no-comments-custom-input"
+          placeholder="Type your message..."
+          value={customMsg}
+          onChange={(e) => setCustomMsg(e.target.value)}
+          onKeyDown={(e) => {
+            if (
+              e.key === 'Enter' &&
+              (e.ctrlKey || e.metaKey) &&
+              customMsg.trim()
+            ) {
+              e.preventDefault();
+              onSendCustom(customMsg.trim());
+            }
+          }}
+          rows={3}
+        />
+        <div className="no-comments-dialog-actions">
+          <button
+            className="btn btn-sm"
+            onClick={() => setMode(null)}
+            type="button"
+          >
+            Back
+          </button>
+          <button
+            className="btn btn-sm btn-primary"
+            disabled={!customMsg.trim()}
+            onClick={() => onSendCustom(customMsg.trim())}
+            type="button"
+          >
+            Send
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="no-comments-dialog" ref={ref}>
+      <div className="no-comments-dialog-title">No comments to send</div>
+      <div className="no-comments-dialog-subtitle">
+        What would you like to send?
+      </div>
+      <div className="no-comments-dialog-options">
+        <button
+          className="no-comments-option"
+          onClick={onSendApproval}
+          type="button"
+        >
+          <span className="no-comments-option-icon">&#10003;</span>
+          <div>
+            <div className="no-comments-option-label">Approve</div>
+            <div className="no-comments-option-desc">
+              Send &ldquo;Looks good, no changes needed&rdquo;
+            </div>
+          </div>
+        </button>
+        <button
+          className="no-comments-option"
+          onClick={() => setMode('custom')}
+          type="button"
+        >
+          <span className="no-comments-option-icon">&#9998;</span>
+          <div>
+            <div className="no-comments-option-label">Custom message</div>
+            <div className="no-comments-option-desc">
+              Write your own feedback
+            </div>
+          </div>
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function SendMediumPicker({
   id,
   labelledBy,
@@ -141,14 +249,13 @@ function Header({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [gitPickerOpen, setGitPickerOpen] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
+  const [noCommentsDialogOpen, setNoCommentsDialogOpen] = useState(false);
   const commentsWrapRef = useRef(null);
   const commentsButtonRef = useRef(null);
   const sendPickerToggleRef = useRef(null);
   const gitPickerToggleRef = useRef(null);
   const canSend =
-    hasComments && !committed && Array.isArray(selectedMediums)
-      ? selectedMediums.length > 0
-      : false;
+    !committed && Array.isArray(selectedMediums) && selectedMediums.length > 0;
   const isCommentsOpen = hasComments && commentsOpen;
 
   const handleToggleMedium = useCallback(
@@ -162,8 +269,16 @@ function Header({
   );
 
   const handleMainClick = useCallback(() => {
+    if (!hasComments) {
+      // Close other dropdowns
+      setPickerOpen(false);
+      setGitPickerOpen(false);
+      setCommentsOpen(false);
+      setNoCommentsDialogOpen(true);
+      return;
+    }
     onSendComments(selectedMediums);
-  }, [onSendComments, selectedMediums]);
+  }, [hasComments, onSendComments, selectedMediums]);
 
   const closePicker = useCallback((restoreFocus = true) => {
     setPickerOpen(false);
@@ -186,15 +301,34 @@ function Header({
     }
   }, []);
 
+  const handleSendApproval = useCallback(() => {
+    setNoCommentsDialogOpen(false);
+    onSendComments(selectedMediums, { approvalMessage: true });
+  }, [onSendComments, selectedMediums]);
+
+  const handleSendCustom = useCallback(
+    (message) => {
+      setNoCommentsDialogOpen(false);
+      onSendComments(selectedMediums, { customMessage: message });
+    },
+    [onSendComments, selectedMediums],
+  );
+
+  const closeNoCommentsDialog = useCallback(() => {
+    setNoCommentsDialogOpen(false);
+  }, []);
+
   const handleTogglePicker = useCallback(() => {
     setCommentsOpen(false);
     setGitPickerOpen(false);
+    setNoCommentsDialogOpen(false);
     setPickerOpen((prev) => !prev);
   }, []);
 
   const handleToggleGitPicker = useCallback(() => {
     setCommentsOpen(false);
     setPickerOpen(false);
+    setNoCommentsDialogOpen(false);
     setGitPickerOpen((prev) => !prev);
   }, []);
 
@@ -202,6 +336,7 @@ function Header({
     if (!hasComments) return;
     setPickerOpen(false);
     setGitPickerOpen(false);
+    setNoCommentsDialogOpen(false);
     setCommentsOpen((prev) => !prev);
   }, [hasComments]);
 
@@ -351,7 +486,7 @@ function Header({
             className={`split-btn-wrap header-action-split${pickerOpen ? ' is-open' : ''}`}
           >
             <button
-              className={`btn btn-secondary header-action-btn split-btn-main${hasComments ? ' is-ready' : ''}`}
+              className={`btn btn-secondary header-action-btn split-btn-main${canSend ? ' is-ready' : ''}`}
               disabled={!canSend}
               onClick={handleMainClick}
               type="button"
@@ -362,8 +497,8 @@ function Header({
             <button
               ref={sendPickerToggleRef}
               id="send-medium-picker-trigger"
-              className={`btn btn-secondary header-action-btn split-btn-caret${hasComments ? ' is-ready' : ''}`}
-              disabled={!hasComments || committed}
+              className={`btn btn-secondary header-action-btn split-btn-caret${canSend ? ' is-ready' : ''}`}
+              disabled={!canSend}
               onClick={handleTogglePicker}
               aria-label="Choose send mediums"
               aria-haspopup="menu"
@@ -385,6 +520,13 @@ function Header({
                 selectedMediums={selectedMediums}
                 onToggleMedium={handleToggleMedium}
                 onClose={() => closePicker(true)}
+              />
+            )}
+            {noCommentsDialogOpen && (
+              <NoCommentsDialog
+                onSendApproval={handleSendApproval}
+                onSendCustom={handleSendCustom}
+                onClose={closeNoCommentsDialog}
               />
             )}
           </div>
