@@ -529,10 +529,19 @@ export default function App() {
     };
   }, [showCommitModal, showShortcutsModal, activeForm, editingComment]);
 
-  const handleAddComment = useCallback((file, line, lineType) => {
-    setEditingComment(null);
-    setActiveForm({ file, line, lineType });
-  }, []);
+  const handleAddComment = useCallback(
+    (file, line, lineType, endLine, endLineType) => {
+      setEditingComment(null);
+      setActiveForm({
+        file,
+        line,
+        lineType,
+        endLine: endLine || null,
+        endLineType: endLineType || null,
+      });
+    },
+    [],
+  );
 
   const handleAddPreviewComment = useCallback(
     (file, selectedText, textOffset, textLength) => {
@@ -556,14 +565,16 @@ export default function App() {
         updateComment(editingComment.id, content);
         setEditingComment(null);
       } else if (activeForm) {
-        const extra =
-          activeForm.lineType === 'preview'
-            ? {
-                selectedText: activeForm.selectedText,
-                textOffset: activeForm.textOffset,
-                textLength: activeForm.textLength,
-              }
-            : {};
+        const extra = {};
+        if (activeForm.lineType === 'preview') {
+          extra.selectedText = activeForm.selectedText;
+          extra.textOffset = activeForm.textOffset;
+          extra.textLength = activeForm.textLength;
+        }
+        if (activeForm.endLine) {
+          extra.endLine = activeForm.endLine;
+          extra.endLineType = activeForm.endLineType;
+        }
         addComment(
           activeForm.file,
           activeForm.line,

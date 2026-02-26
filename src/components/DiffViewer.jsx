@@ -91,6 +91,9 @@ function DiffLine({
   commentCount = 0,
   commentsExpanded = false,
   onToggleComments = null,
+  onDragStart,
+  onDragOver,
+  isInDragRange = false,
 }) {
   const lineNum = change.type === 'context' ? change.ln2 : change.ln;
 
@@ -100,8 +103,16 @@ function DiffLine({
   );
 
   return (
-    <tr className={`diff-line diff-line-${change.type}`}>
-      <td className="line-action">
+    <tr
+      className={`diff-line diff-line-${change.type}${isInDragRange ? ' in-drag-range' : ''}`}
+    >
+      <td
+        className="line-action"
+        onMouseDown={(e) => {
+          if (e.button === 0) onDragStart?.(lineNum, change.type, e);
+        }}
+        onMouseOver={() => onDragOver?.(lineNum, change.type)}
+      >
         <button
           className="btn-comment"
           title="Add comment"
@@ -116,6 +127,10 @@ function DiffLine({
         className={`line-num${commentCount > 0 ? ' has-comments' : ''}`}
         data-comment-line={lineNum}
         data-comment-type={change.type}
+        onMouseDown={(e) => {
+          if (e.button === 0) onDragStart?.(lineNum, change.type, e);
+        }}
+        onMouseOver={() => onDragOver?.(lineNum, change.type)}
       >
         {commentCount > 0 ? (
           <button
@@ -137,6 +152,7 @@ function DiffLine({
       </td>
       <td
         className={`line-content${isLastChange ? ' hunk-actions-anchor' : ''}`}
+        onMouseOver={() => onDragOver?.(lineNum, change.type)}
       >
         {html ? (
           <span
@@ -550,6 +566,8 @@ function DiffViewer({
   const expandedGapsRef = useRef(expandedGaps);
   const fileContentCache = useRef(null);
   const bodyRef = useRef(null);
+  const [dragState, setDragState] = useState(null);
+  // dragState: { startLine, startType, endLine, endType, isDragging }
 
   useEffect(() => {
     expandedGapsRef.current = expandedGaps;
@@ -594,6 +612,66 @@ function DiffViewer({
 
   const filePath = file.to || file.from;
   const canPreview = isPreviewable(filePath);
+
+  // Drag selection handlers
+  const handleDragStart = useCallback((lineNum, lineType, e) => {
+    e.preventDefault(); // Prevent text selection
+    setDragState({
+      startLine: lineNum,
+      startType: lineType,
+      endLine: lineNum,
+      endType: lineType,
+      isDragging: true,
+    });
+  }, []);
+
+  const handleDragOver = useCallback((lineNum, lineType) => {
+    setDragState((prev) => {
+      if (!prev || !prev.isDragging) return prev;
+      return { ...prev, endLine: lineNum, endType: lineType };
+    });
+  }, []);
+
+  const handleDragEnd = useCallback(() => {
+    setDragState((prev) => {
+      if (!prev || !prev.isDragging) return null;
+      const startLine = Math.min(prev.startLine, prev.endLine);
+      const endLine = Math.max(prev.startLine, prev.endLine);
+
+      if (startLine === endLine) {
+        // Single line - use existing behavior
+        onAddComment(filePath, startLine, prev.startType);
+      } else {
+        // Multi-line range
+        onAddComment(
+          filePath,
+          startLine,
+          prev.startType,
+          endLine,
+          prev.endType,
+        );
+      }
+      return null;
+    });
+  }, [filePath, onAddComment]);
+
+  useEffect(() => {
+    if (!dragState?.isDragging) return;
+
+    const handleMouseUp = () => handleDragEnd();
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => window.removeEventListener('mouseup', handleMouseUp);
+  }, [dragState?.isDragging, handleDragEnd]);
+
+  const isLineInDragRange = useCallback(
+    (lineNum) => {
+      if (!dragState || !dragState.isDragging) return false;
+      const minLine = Math.min(dragState.startLine, dragState.endLine);
+      const maxLine = Math.max(dragState.startLine, dragState.endLine);
+      return lineNum >= minLine && lineNum <= maxLine;
+    },
+    [dragState],
+  );
 
   const handleToggleReviewed = useCallback(
     (e) => {
@@ -883,6 +961,9 @@ function DiffViewer({
                 commentCount={commentCount}
                 commentsExpanded={commentsExpanded}
                 onToggleComments={() => toggleCommentLine(lineKey)}
+                onDragStart={handleDragStart}
+                onDragOver={handleDragOver}
+                isInDragRange={isLineInDragRange(lineNum)}
               />
               {lineComments &&
                 commentsExpanded &&
@@ -915,7 +996,10 @@ function DiffViewer({
               {activeForm &&
                 !editingComment &&
                 activeForm.file === filePath &&
-                String(activeForm.line) === String(lineNum) &&
+                ((String(activeForm.line) === String(lineNum) &&
+                  !activeForm.endLine) ||
+                  (activeForm.endLine &&
+                    String(activeForm.endLine) === String(lineNum))) &&
                 activeForm.lineType === 'context' &&
                 commentsExpanded && (
                   <CommentForm
@@ -1049,7 +1133,9 @@ function DiffViewer({
           file.isBinary ? (
             <div className="binary-notice">Binary file not shown</div>
           ) : (
-            <table className="diff-table">
+            <table
+              className={`diff-table${dragState?.isDragging ? ' is-dragging' : ''}`}
+            >
               {gapsByAfterChunk[-1] && renderGap(gapsByAfterChunk[-1])}
               {file.chunks.map((chunk, ci) => (
                 <Fragment key={ci}>
@@ -1072,6 +1158,9 @@ function DiffViewer({
                       onToggleCommentLine={toggleCommentLine}
                       getVisibleCommentIndex={getVisibleCommentIndex}
                       onShiftVisibleComment={shiftVisibleComment}
+                      onDragStart={handleDragStart}
+                      onDragOver={handleDragOver}
+                      isLineInDragRange={isLineInDragRange}
                     />
                   </tbody>
                   {gapsByAfterChunk[ci] && renderGap(gapsByAfterChunk[ci])}
@@ -1118,6 +1207,9 @@ function ChunkRows({
   onToggleCommentLine,
   getVisibleCommentIndex,
   onShiftVisibleComment,
+  onDragStart,
+  onDragOver,
+  isLineInDragRange,
 }) {
   const rows = [];
 
@@ -1164,6 +1256,9 @@ function ChunkRows({
         commentCount={commentCount}
         commentsExpanded={commentsExpanded}
         onToggleComments={() => onToggleCommentLine(lineKey)}
+        onDragStart={onDragStart}
+        onDragOver={onDragOver}
+        isInDragRange={isLineInDragRange(lineNum)}
       />,
     );
 
@@ -1201,24 +1296,35 @@ function ChunkRows({
       }
     }
 
-    // Show new comment form after this line
+    // Show new comment form after this line (or at the end of a multi-line range)
     if (
       activeForm &&
       !editingComment &&
       activeForm.file === filePath &&
-      String(activeForm.line) === String(lineNum) &&
-      activeForm.lineType === change.type &&
       commentsExpanded
     ) {
-      rows.push(
-        <CommentForm
-          key="new-form"
-          initialContent=""
-          onSubmit={onSubmitComment}
-          onCancel={onCancelForm}
-          stackIndex={visibleComment ? 1 : 0}
-        />,
-      );
+      // For single-line comments or start of multi-line
+      const isSingleLine =
+        !activeForm.endLine &&
+        String(activeForm.line) === String(lineNum) &&
+        activeForm.lineType === change.type;
+      // For multi-line comments, show at the end line
+      const isMultiLineEnd =
+        activeForm.endLine &&
+        String(activeForm.endLine) === String(lineNum) &&
+        activeForm.endLineType === change.type;
+
+      if (isSingleLine || isMultiLineEnd) {
+        rows.push(
+          <CommentForm
+            key="new-form"
+            initialContent=""
+            onSubmit={onSubmitComment}
+            onCancel={onCancelForm}
+            stackIndex={visibleComment ? 1 : 0}
+          />,
+        );
+      }
     }
   }
 

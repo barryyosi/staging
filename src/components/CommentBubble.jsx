@@ -10,7 +10,9 @@ function CommentBubble({
   onPrevComment = null,
   onNextComment = null,
 }) {
-  const location = `${comment.file}:${comment.line}`;
+  const location = comment.endLine
+    ? `${comment.file}:${comment.line}-${comment.endLine}`
+    : `${comment.file}:${comment.line}`;
   const showPager = commentCount > 1;
 
   return (

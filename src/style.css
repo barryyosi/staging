@@ -2157,6 +2157,33 @@ body {
   pointer-events: auto;
 }
 
+/* Drag selection highlighting */
+.diff-line.in-drag-range {
+  background: var(--accent-soft) !important;
+}
+
+.diff-line.in-drag-range .line-num {
+  background: var(--accent-soft);
+}
+
+/* Change cursor during drag */
+.diff-table.is-dragging {
+  user-select: none;
+  cursor: crosshair;
+}
+
+.diff-table.is-dragging .line-action,
+.diff-table.is-dragging .line-num {
+  cursor: crosshair;
+}
+
+/* Multi-line comment indicator */
+.comment-range-label {
+  font-size: 10px;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+}
+
 /* Line types */
 .diff-line:hover {
   filter: brightness(0.98);

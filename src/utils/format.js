@@ -15,7 +15,10 @@ export function formatComments(comments, gitRoot) {
         const quote = c.selectedText?.slice(0, 60) || '';
         output += `- **Preview** "${quote}": ${c.content}\n`;
       } else {
-        output += `- **Line ${c.line}** (${c.lineType}): ${c.content}\n`;
+        const lineRef = c.endLine
+          ? `Lines ${c.line}-${c.endLine}`
+          : `Line ${c.line}`;
+        output += `- **${lineRef}** (${c.lineType}): ${c.content}\n`;
       }
     }
     output += '\n';
