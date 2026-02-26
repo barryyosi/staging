@@ -1601,6 +1601,37 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
   display: block;
+  position: relative;
+}
+
+/* === FILE NAME MARQUEE === */
+.file-name-inner {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.file-name-inner.is-marquee {
+  animation: marquee-scroll var(--marquee-duration, 3s) linear 0.3s forwards;
+}
+
+@keyframes marquee-scroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(var(--marquee-offset, 0));
+  }
+}
+
+/* Remove ellipsis when marquee is active to prevent visual glitch */
+.file-name:has(.is-marquee) {
+  text-overflow: clip;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .file-name-inner.is-marquee {
+    animation: none;
+  }
 }
 
 .file-tree-file .stats {
@@ -1905,6 +1936,12 @@ body {
   font-weight: 500;
   font-size: 12px;
   color: var(--text-1);
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  position: relative;
 }
 
 .diff-file-header .file-stats {

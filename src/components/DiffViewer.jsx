@@ -29,6 +29,7 @@ import {
 } from '../utils/gapCalc';
 import CommentForm from './CommentForm';
 import CommentBubble from './CommentBubble';
+import { MarqueeFileName } from './FileSidebar';
 
 function HunkHeader({ chunk }) {
   return (
@@ -960,7 +961,9 @@ function DiffViewer({
         onClick={toggleCollapse}
       >
         <span className={`file-status ${file.status}`}>{file.status}</span>
-        <span className="file-path">{filePath}</span>
+        <MarqueeFileName title={filePath} className="file-path">
+          {filePath}
+        </MarqueeFileName>
         <span className="file-stats">
           {file.additions > 0 && <span className="add">+{file.additions}</span>}
           {file.deletions > 0 && <span className="del">-{file.deletions}</span>}

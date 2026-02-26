@@ -6,6 +6,48 @@ import { fuzzyFilterFiles, highlightMatch } from '../utils/fuzzySearch';
 const VIEW_STORAGE_KEY = 'staging-file-view';
 const SHOW_UNSTAGED_STORAGE_KEY = 'staging-show-unstaged';
 
+function MarqueeFileName({ children, title, className = '' }) {
+  const outerRef = useRef(null);
+  const innerRef = useRef(null);
+
+  const handleMouseEnter = useCallback(() => {
+    const outer = outerRef.current;
+    const inner = innerRef.current;
+    if (!outer || !inner) return;
+
+    const overflow = inner.scrollWidth - outer.clientWidth;
+    if (overflow <= 0) return; // No truncation, skip
+
+    // Calculate duration based on overflow (pixels / speed)
+    const duration = Math.max(1.5, overflow / 40); // ~40px per second
+    inner.style.setProperty('--marquee-offset', `-${overflow}px`);
+    inner.style.setProperty('--marquee-duration', `${duration}s`);
+    inner.classList.add('is-marquee');
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    const inner = innerRef.current;
+    if (!inner) return;
+    inner.classList.remove('is-marquee');
+    inner.style.removeProperty('--marquee-offset');
+    inner.style.removeProperty('--marquee-duration');
+  }, []);
+
+  return (
+    <span
+      ref={outerRef}
+      className={`file-name ${className}`}
+      title={title}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
+      <span ref={innerRef} className="file-name-inner">
+        {children}
+      </span>
+    </span>
+  );
+}
+
 function getFilePath(file) {
   return file.to || file.from;
 }
@@ -84,7 +126,7 @@ function FlatFileList({
             }
           >
             <span className={`status-dot ${file.status}`} />
-            <span className="file-name" title={filePath}>
+            <MarqueeFileName title={filePath}>
               {highlighted
                 ? highlighted.map((seg, i) => (
                     <mark key={i} className={seg.highlight ? 'match' : ''}>
@@ -92,7 +134,7 @@ function FlatFileList({
                     </mark>
                   ))
                 : filePath}
-            </span>
+            </MarqueeFileName>
             <span className="stats">
               {file.additions > 0 && (
                 <span className="add">+{file.additions}</span>
@@ -161,7 +203,7 @@ function FileTreeNode({
         }
       >
         {fileMeta && <span className={`status-dot ${fileMeta.status}`} />}
-        <span className="file-name" title={filePath}>
+        <MarqueeFileName title={filePath}>
           {highlighted
             ? highlighted.map((seg, i) => (
                 <mark key={i} className={seg.highlight ? 'match' : ''}>
@@ -169,7 +211,7 @@ function FileTreeNode({
                 </mark>
               ))
             : node.name}
-        </span>
+        </MarqueeFileName>
         {fileMeta && (
           <span className="stats">
             {fileMeta.additions > 0 && (
@@ -478,3 +520,4 @@ function FileSidebar({
 }
 
 export default memo(FileSidebar);
+export { MarqueeFileName };
