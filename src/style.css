@@ -1888,6 +1888,59 @@ body {
   color: var(--del-text);
 }
 
+/* Active file in sidebar */
+.file-list-item.active,
+.file-tree-file.active {
+  background: var(--accent-soft);
+  border-left: 2px solid var(--accent);
+  padding-left: 10px;
+}
+
+/* Reviewed file indicator */
+.file-reviewed-check {
+  font-size: 10px;
+  color: var(--add-text);
+  flex-shrink: 0;
+  margin-left: 4px;
+  opacity: 0.8;
+}
+
+/* Reviewed file styling - subtle */
+.file-list-item.reviewed .file-name,
+.file-tree-file.reviewed .file-name {
+  opacity: 0.6;
+  text-decoration: line-through;
+  text-decoration-color: var(--text-3);
+  text-decoration-thickness: 1px;
+}
+
+/* Comment count badge */
+.file-comment-count {
+  font-size: 10px;
+  min-width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--comment-border);
+  color: var(--text-1);
+  font-weight: 600;
+  flex-shrink: 0;
+  margin-left: 4px;
+  padding: 0 4px;
+}
+
+/* Smooth hover transitions */
+.file-list-item,
+.file-tree-file {
+  transition:
+    background 0.12s var(--ease),
+    padding-left 0.12s var(--ease),
+    border-color 0.12s var(--ease);
+  border-left: 2px solid transparent;
+}
+
 /* === MAIN DIFF AREA === */
 #diff-container {
   min-width: 0;

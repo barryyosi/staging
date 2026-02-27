@@ -130,6 +130,7 @@ export default function App() {
   const [collapseVersion, setCollapseVersion] = useState(0);
   const [reviewedFiles, setReviewedFiles] = useState(new Set());
   const [selectedMediums, setSelectedMediums] = useState(null);
+  const [activeFilePath, setActiveFilePath] = useState(null);
 
   // Active comment form state
   const [activeForm, setActiveForm] = useState(null); // { file, line, lineType }
@@ -1135,6 +1136,7 @@ export default function App() {
   const handleSelectFile = useCallback(
     async (filePath) => {
       if (!filePath) return;
+      setActiveFilePath(filePath);
       const requestId = fileSelectionRequestIdRef.current + 1;
       fileSelectionRequestIdRef.current = requestId;
 
@@ -1238,6 +1240,27 @@ export default function App() {
     return orderedLoadedFiles;
   }, [fileSummaries, fileDetailsByPath]);
 
+  // Track which file is currently visible in the viewport
+  useEffect(() => {
+    const diffFiles = document.querySelectorAll('.diff-file');
+    if (diffFiles.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            const path = entry.target.dataset.filePath;
+            if (path) setActiveFilePath(path);
+          }
+        }
+      },
+      { rootMargin: '-64px 0px -60% 0px', threshold: 0 },
+    );
+
+    diffFiles.forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, [loadedFiles]);
+
   const contiguousLoadedCount = useMemo(() => {
     if (!fileSummaries) return 0;
 
@@ -1310,6 +1333,9 @@ export default function App() {
           onSelectFile={handleSelectFile}
           onStageFile={handleStageFile}
           onUnstageFile={handleUnstageFile}
+          reviewedFiles={reviewedFiles}
+          commentsByFile={commentsByFile}
+          activeFile={activeFilePath}
         />
         <div
           className={`sidebar-resizer${isResizingSidebar ? ' active' : ''}`}
