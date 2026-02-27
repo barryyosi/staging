@@ -29,6 +29,7 @@ import {
 } from '../utils/gapCalc';
 import CommentForm from './CommentForm';
 import CommentBubble from './CommentBubble';
+import { MarqueeFileName } from './FileSidebar';
 
 function HunkHeader({ chunk }) {
   return (
@@ -598,7 +599,12 @@ function DiffViewer({
   const handleToggleReviewed = useCallback(
     (e) => {
       e.stopPropagation();
-      if (onFileReviewed) onFileReviewed(filePath, !isReviewed);
+      const willBeReviewed = !isReviewed;
+      if (onFileReviewed) onFileReviewed(filePath, willBeReviewed);
+      // Auto-collapse when marking as reviewed
+      if (willBeReviewed) {
+        setCollapsed(true);
+      }
     },
     [filePath, isReviewed, onFileReviewed],
   );
@@ -961,7 +967,9 @@ function DiffViewer({
         onClick={toggleCollapse}
       >
         <span className={`file-status ${file.status}`}>{file.status}</span>
-        <span className="file-path">{filePath}</span>
+        <MarqueeFileName title={filePath} className="file-path">
+          {filePath}
+        </MarqueeFileName>
         <span className="file-stats">
           {file.additions > 0 && <span className="add">+{file.additions}</span>}
           {file.deletions > 0 && <span className="del">-{file.deletions}</span>}
