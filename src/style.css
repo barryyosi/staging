@@ -1554,7 +1554,7 @@ body {
   border-radius: var(--radius-sm);
   cursor: pointer;
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--text-md);
   font-weight: 600;
   color: var(--text-2);
   transition: background 0.15s var(--ease);
@@ -1594,7 +1594,7 @@ body {
   align-items: center;
   gap: 8px;
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--text-md);
   color: var(--text-1);
   transition: all 0.15s var(--ease);
   margin-bottom: 1px;
@@ -1817,7 +1817,7 @@ body {
   align-items: center;
   gap: 8px;
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--text-md);
   color: var(--text-1);
   transition: all 0.15s var(--ease);
   margin-bottom: 1px;
