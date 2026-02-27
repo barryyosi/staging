@@ -1032,6 +1032,116 @@ body {
   text-overflow: ellipsis;
 }
 
+/* === NO COMMENTS DIALOG === */
+.no-comments-dialog {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 300px;
+  background: var(--bg-dropdown);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  z-index: 200;
+  box-shadow: var(--dropdown-shadow);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  animation: dropdown-enter 0.15s var(--ease);
+}
+
+.no-comments-dialog-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-1);
+  margin-bottom: 4px;
+}
+
+.no-comments-dialog-subtitle {
+  font-size: 12px;
+  color: var(--text-3);
+  margin-bottom: 12px;
+}
+
+.no-comments-dialog-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.no-comments-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-2);
+  background: var(--bg-surface);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+  font-family: inherit;
+  color: inherit;
+}
+
+.no-comments-option:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-1);
+}
+
+.no-comments-option:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--bg-surface),
+    0 0 0 4px var(--focus-ring-outer);
+}
+
+.no-comments-option-icon {
+  font-size: 16px;
+  line-height: 1;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.no-comments-option-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.no-comments-option-desc {
+  font-size: 11px;
+  color: var(--text-3);
+  margin-top: 2px;
+}
+
+.no-comments-custom-input {
+  width: 100%;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-sm);
+  color: var(--text-1);
+  padding: 8px 10px;
+  resize: vertical;
+  margin-bottom: 10px;
+}
+
+.no-comments-custom-input:focus {
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--bg-surface),
+    0 0 0 4px var(--focus-ring-outer);
+}
+
+.no-comments-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
 /* === GIT ACTION OPTION === */
 .git-action-option {
   display: flex;
@@ -3156,6 +3266,18 @@ body {
   to {
     opacity: 1;
     transform: scale(1);
+  }
+}
+
+@keyframes dropdown-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
