@@ -416,6 +416,7 @@ function FileSidebar({
   reviewedFiles = new Set(),
   commentsByFile = {},
   activeFile = null,
+  unstagedChunksByPath = {},
 }) {
   const [viewMode, setViewMode] = useState(() => {
     if (typeof window === 'undefined') return 'flat';
@@ -472,6 +473,16 @@ function FileSidebar({
     return count;
   }, [files, unstagedFiles]);
 
+  const partiallyUnstagedCount = useMemo(() => {
+    if (!Array.isArray(files)) return 0;
+    let count = 0;
+    for (const file of files) {
+      const filePath = getFilePath(file);
+      if (filePath && unstagedChunksByPath[filePath]?.length > 0) count += 1;
+    }
+    return count;
+  }, [files, unstagedChunksByPath]);
+
   const flatFiles = useMemo(() => {
     if (!Array.isArray(files)) return files;
     if (!showUnstaged || unstagedFiles.length === 0) return files;
@@ -519,6 +530,14 @@ function FileSidebar({
               <span className="file-sidebar-filter-label">Unstaged</span>
               <span className="file-sidebar-filter-count">
                 {unstagedOnlyCount}
+                {partiallyUnstagedCount > 0 && (
+                  <span
+                    className="file-sidebar-filter-partial"
+                    title={`${partiallyUnstagedCount} staged file${partiallyUnstagedCount > 1 ? 's' : ''} with additional unstaged changes`}
+                  >
+                    +{partiallyUnstagedCount}
+                  </span>
+                )}
               </span>
             </button>
 

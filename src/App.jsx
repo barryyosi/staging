@@ -103,6 +103,7 @@ export default function App() {
   const [fileSummaries, setFileSummaries] = useState(null);
   const [unstagedFiles, setUnstagedFiles] = useState([]);
   const [fileDetailsByPath, setFileDetailsByPath] = useState({});
+  const [unstagedChunksByPath, setUnstagedChunksByPath] = useState({});
   const [config, setConfig] = useState(null);
   const [projectInfo, setProjectInfo] = useState(null);
   const [error, setError] = useState(null);
@@ -204,6 +205,29 @@ export default function App() {
     return data.files || [];
   }, []);
 
+  const requestUnstagedHunksForStagedFiles = useCallback(
+    async (stagedFilePaths) => {
+      if (!stagedFilePaths || stagedFilePaths.length === 0) return {};
+      try {
+        const params = stagedFilePaths.map(encodeURIComponent).join(',');
+        const response = await fetch(`/api/unstaged-hunks?filePaths=${params}`);
+        if (!response.ok) return {};
+        const data = await response.json();
+        const map = {};
+        for (const file of data.files || []) {
+          const fp = file.to || file.from || '';
+          if (fp && file.chunks?.length > 0) {
+            map[fp] = file.chunks;
+          }
+        }
+        return map;
+      } catch {
+        return {};
+      }
+    },
+    [],
+  );
+
   const loadNextPage = useCallback(async () => {
     if (isLoadingPageRef.current || !hasMoreFilesRef.current) return false;
 
@@ -260,6 +284,7 @@ export default function App() {
         if (cancelled) return;
 
         const summaries = summaryData.files || [];
+        const stagedPaths = summaries.map((f) => getFilePath(f)).filter(Boolean);
 
         setGitRoot(summaryData.gitRoot || '');
         setConfig(configData);
@@ -279,11 +304,15 @@ export default function App() {
         setIsLoadingPage(true);
 
         try {
-          const firstPage = await requestDiffPage(0, DIFF_PAGE_SIZE);
+          const [firstPage, hunksMap] = await Promise.all([
+            requestDiffPage(0, DIFF_PAGE_SIZE),
+            requestUnstagedHunksForStagedFiles(stagedPaths),
+          ]);
           if (cancelled) return;
 
           const firstPageFiles = firstPage.files || [];
           setFileDetailsByPath(mergeFileDetails({}, firstPageFiles));
+          setUnstagedChunksByPath(hunksMap);
 
           const initialNextOffset = Number.isFinite(firstPage.nextOffset)
             ? firstPage.nextOffset
@@ -312,7 +341,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [requestDiffPage, requestUnstagedFiles]);
+  }, [requestDiffPage, requestUnstagedFiles, requestUnstagedHunksForStagedFiles]);
 
   // Initialize selectedMediums once config is available
   useEffect(() => {
@@ -851,6 +880,7 @@ export default function App() {
   const reloadDiffs = useCallback(async () => {
     setFileSummaries(null);
     setFileDetailsByPath({});
+    setUnstagedChunksByPath({});
     setNextOffset(0);
     setHasMoreFiles(false);
     setCommitted(false);
@@ -869,6 +899,7 @@ export default function App() {
       if (summaryData.error) throw new Error(summaryData.error);
 
       const summaries = summaryData.files || [];
+      const stagedPaths = summaries.map((f) => getFilePath(f)).filter(Boolean);
       setGitRoot(summaryData.gitRoot || '');
       setFileSummaries(summaries);
       setUnstagedFiles(unstaged);
@@ -878,8 +909,12 @@ export default function App() {
       isLoadingPageRef.current = true;
       setIsLoadingPage(true);
       try {
-        const firstPage = await requestDiffPage(0, DIFF_PAGE_SIZE);
+        const [firstPage, hunksMap] = await Promise.all([
+          requestDiffPage(0, DIFF_PAGE_SIZE),
+          requestUnstagedHunksForStagedFiles(stagedPaths),
+        ]);
         setFileDetailsByPath(mergeFileDetails({}, firstPage.files || []));
+        setUnstagedChunksByPath(hunksMap);
         const initialNext = Number.isFinite(firstPage.nextOffset)
           ? firstPage.nextOffset
           : (firstPage.files || []).length;
@@ -895,7 +930,7 @@ export default function App() {
     } catch (err) {
       setError(err.message);
     }
-  }, [requestDiffPage, requestUnstagedFiles]);
+  }, [requestDiffPage, requestUnstagedFiles, requestUnstagedHunksForStagedFiles]);
 
   const switchProject = useCallback(
     async (targetPath) => {
@@ -1104,6 +1139,58 @@ export default function App() {
     [reloadDiffs, showToast],
   );
 
+  const handleEditFile = useCallback(
+    async (filePath, content) => {
+      const writeRes = await fetch('/api/file-write', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filePath, content }),
+      });
+      const writeData = await writeRes.json();
+      if (!writeData.success) {
+        showToast(`Failed to write file: ${writeData.error}`, 'error');
+        throw new Error(writeData.error);
+      }
+
+      const stageRes = await fetch('/api/file-stage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filePath }),
+      });
+      const stageData = await stageRes.json();
+      if (!stageData.success) {
+        showToast(`Failed to stage file: ${stageData.error}`, 'error');
+        throw new Error(stageData.error);
+      }
+
+      showToast('File saved and staged', 'success');
+      await reloadDiffs();
+    },
+    [reloadDiffs, showToast],
+  );
+
+  const handleStageHunk = useCallback(
+    async (filePath, chunkIndex, oldStart) => {
+      try {
+        const res = await fetch('/api/hunk-stage', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filePath, chunkIndex, oldStart }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast('Hunk staged', 'success');
+          await reloadDiffs();
+        } else {
+          showToast(`Failed to stage hunk: ${data.error}`, 'error');
+        }
+      } catch (err) {
+        showToast(`Failed to stage hunk: ${err.message}`, 'error');
+      }
+    },
+    [reloadDiffs, showToast],
+  );
+
   const handleUnstageAll = useCallback(async () => {
     if (!confirm('Unstage all files? Changes will remain in the working tree.'))
       return;
@@ -1252,12 +1339,17 @@ export default function App() {
       if (!filePath) continue;
       const loadedFile = fileDetailsByPath[filePath];
       if (loadedFile) {
-        orderedLoadedFiles.push(loadedFile);
+        const unstagedChunks = unstagedChunksByPath[filePath] || [];
+        orderedLoadedFiles.push(
+          unstagedChunks.length > 0
+            ? { ...loadedFile, unstagedChunks }
+            : loadedFile,
+        );
       }
     }
 
     return orderedLoadedFiles;
-  }, [fileSummaries, fileDetailsByPath]);
+  }, [fileSummaries, fileDetailsByPath, unstagedChunksByPath]);
 
   // Track which file is currently visible in the viewport
   useEffect(() => {
@@ -1355,6 +1447,7 @@ export default function App() {
           reviewedFiles={reviewedFiles}
           commentsByFile={commentsByFile}
           activeFile={activeFilePath}
+          unstagedChunksByPath={unstagedChunksByPath}
         />
         <div
           className={`sidebar-resizer${isResizingSidebar ? ' active' : ''}`}
@@ -1413,6 +1506,8 @@ export default function App() {
                     onRevertFile={handleRevertFile}
                     onUnstageHunk={handleUnstageHunk}
                     onRevertHunk={handleRevertHunk}
+                    onStageHunk={handleStageHunk}
+                    onEditFile={handleEditFile}
                     onFileReviewed={handleFileReviewed}
                     isReviewed={reviewedFiles.has(filePath)}
                     globalCollapsed={globalCollapsed}

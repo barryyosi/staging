@@ -11,6 +11,8 @@ import {
   RotateCcw,
   MinusCircle,
   Plus,
+  PlusCircle,
+  Pencil,
   ChevronDown,
   ChevronUp,
   ChevronsUpDown,
@@ -29,6 +31,7 @@ import {
 } from '../utils/gapCalc';
 import CommentForm from './CommentForm';
 import CommentBubble from './CommentBubble';
+import FileEditor from './FileEditor';
 import { MarqueeFileName } from './FileSidebar';
 
 function HunkHeader({ chunk }) {
@@ -78,6 +81,27 @@ function HunkActions({
         onClick={handleUnstage}
       >
         <MinusCircle size={14} strokeWidth={1.5} />
+      </button>
+    </div>
+  );
+}
+
+function UnstagedHunkActions({ filePath, chunkIndex, chunk, onStageHunk }) {
+  const handleStage = (e) => {
+    e.stopPropagation();
+    onStageHunk(filePath, chunkIndex, chunk.oldStart);
+  };
+
+  return (
+    <div className="hunk-action-pill">
+      <button
+        className="hunk-action-btn"
+        type="button"
+        title="Stage hunk"
+        aria-label="Stage hunk"
+        onClick={handleStage}
+      >
+        <PlusCircle size={14} strokeWidth={1.5} />
       </button>
     </div>
   );
@@ -538,6 +562,8 @@ function DiffViewer({
   onRevertFile,
   onUnstageHunk,
   onRevertHunk,
+  onStageHunk,
+  onEditFile,
   onFileReviewed,
   isReviewed,
   globalCollapsed,
@@ -547,6 +573,7 @@ function DiffViewer({
   const [viewMode, setViewMode] = useState('diff');
   const [previewHtml, setPreviewHtml] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [expandedGaps, setExpandedGaps] = useState({});
   const expandedGapsRef = useRef(expandedGaps);
   const fileContentCache = useRef(null);
@@ -743,6 +770,31 @@ function DiffViewer({
     },
     [previewHtml],
   );
+
+  const handleEnterEditMode = useCallback(
+    (e) => {
+      e.stopPropagation();
+      setViewMode('edit');
+    },
+    [],
+  );
+
+  const handleSaveEdit = useCallback(
+    async (content) => {
+      setIsSaving(true);
+      try {
+        await onEditFile(filePath, content);
+        setViewMode('diff');
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [filePath, onEditFile],
+  );
+
+  const handleCancelEdit = useCallback(() => {
+    setViewMode('diff');
+  }, []);
 
   const handleRevertFile = useCallback(
     (e) => {
@@ -985,7 +1037,7 @@ function DiffViewer({
           {file.additions > 0 && <span className="add">+{file.additions}</span>}
           {file.deletions > 0 && <span className="del">-{file.deletions}</span>}
         </span>
-        {canPreview && (
+        {canPreview && viewMode !== 'edit' && (
           <button
             className="view-mode-toggle"
             type="button"
@@ -1012,6 +1064,17 @@ function DiffViewer({
           </button>
         )}
         <div className="file-actions">
+          {!file.isBinary && file.status !== 'deleted' && (
+            <button
+              className={`file-action-btn${viewMode === 'edit' ? ' is-active' : ''}`}
+              type="button"
+              title="Edit file"
+              aria-label="Edit file"
+              onClick={handleEnterEditMode}
+            >
+              <Pencil size={18} strokeWidth={1.5} />
+            </button>
+          )}
           <button
             className={`file-action-btn file-action-reviewed${isReviewed ? ' is-reviewed' : ''}`}
             type="button"
@@ -1065,7 +1128,14 @@ function DiffViewer({
         ref={bodyRef}
         className={`diff-file-body ${collapsed ? 'collapsed' : ''}`}
       >
-        {viewMode === 'diff' ? (
+        {viewMode === 'edit' ? (
+          <FileEditor
+            filePath={filePath}
+            onSave={handleSaveEdit}
+            onCancel={handleCancelEdit}
+            isSaving={isSaving}
+          />
+        ) : viewMode === 'diff' ? (
           file.isBinary ? (
             <div className="binary-notice">Binary file not shown</div>
           ) : (
@@ -1097,6 +1167,42 @@ function DiffViewer({
                   {gapsByAfterChunk[ci] && renderGap(gapsByAfterChunk[ci])}
                 </Fragment>
               ))}
+              {file.unstagedChunks?.length > 0 && (
+                <>
+                  <tbody className="unstaged-section-header">
+                    <tr>
+                      <td className="line-action" />
+                      <td className="line-num" />
+                      <td className="line-content">UNSTAGED CHANGES</td>
+                    </tr>
+                  </tbody>
+                  {file.unstagedChunks.map((chunk, ci) => (
+                    <tbody key={`unstaged-${ci}`} className="hunk-tbody unstaged-hunk-tbody">
+                      <ChunkRows
+                        chunk={chunk}
+                        chunkIndex={ci}
+                        filePath={filePath}
+                        commentMap={{}}
+                        activeForm={null}
+                        editingComment={null}
+                        onAddComment={() => {}}
+                        onSubmitComment={() => {}}
+                        onCancelForm={() => {}}
+                        onEditComment={() => {}}
+                        onDeleteComment={() => {}}
+                        onUnstageHunk={null}
+                        onRevertHunk={null}
+                        onStageHunk={onStageHunk}
+                        isUnstaged={true}
+                        isCommentLineExpanded={() => false}
+                        onToggleCommentLine={() => {}}
+                        getVisibleCommentIndex={() => 0}
+                        onShiftVisibleComment={() => {}}
+                      />
+                    </tbody>
+                  ))}
+                </>
+              )}
             </table>
           )
         ) : previewLoading ? (
@@ -1134,6 +1240,8 @@ function ChunkRows({
   onDeleteComment,
   onUnstageHunk,
   onRevertHunk,
+  onStageHunk,
+  isUnstaged = false,
   isCommentLineExpanded,
   onToggleCommentLine,
   getVisibleCommentIndex,
@@ -1152,7 +1260,14 @@ function ChunkRows({
     }
   }
 
-  const actionsSlot = (
+  const actionsSlot = isUnstaged ? (
+    <UnstagedHunkActions
+      filePath={filePath}
+      chunkIndex={chunkIndex}
+      chunk={chunk}
+      onStageHunk={onStageHunk}
+    />
+  ) : (
     <HunkActions
       filePath={filePath}
       chunkIndex={chunkIndex}
