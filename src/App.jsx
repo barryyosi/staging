@@ -14,7 +14,7 @@ import Header from './components/Header';
 import FileSidebar from './components/FileSidebar';
 import DiffViewer from './components/DiffViewer';
 import Toast from './components/Toast';
-import { formatComments } from './utils/format';
+import { formatComments, formatCommitMessageRequest } from './utils/format';
 import { slugify } from './utils/escape';
 
 const CommitModal = lazy(() => import('./components/CommitModal'));
@@ -618,6 +618,8 @@ export default function App() {
           '## Review: Approved\n\nLooks good, no changes needed. Approved to proceed.';
       } else if (options.customMessage) {
         formatted = `## Review Feedback\n\n${options.customMessage}`;
+      } else if (options.rawFormatted) {
+        formatted = options.rawFormatted;
       } else {
         if (allComments.length === 0) return;
         formatted = formatComments(allComments, gitRoot);
@@ -661,8 +663,12 @@ export default function App() {
         ? 'Approval'
         : options.customMessage
           ? 'Message'
-          : 'Comments';
-      showToast(`${actionLabel} ${parts.join(' and ')}`, 'success');
+          : options.rawFormatted
+            ? 'Prompt'
+            : 'Comments';
+      if (!options.suppressToast) {
+        showToast(`${actionLabel} ${parts.join(' and ')}`, 'success');
+      }
 
       // CLI medium exits the server — close the browser tab
       if (mediums.includes('cli')) {
@@ -671,6 +677,19 @@ export default function App() {
     },
     [allComments, gitRoot, config, showToast],
   );
+
+  const handleGenerateCommitViaAgent = useCallback(async () => {
+    const formatted = formatCommitMessageRequest(allComments, gitRoot);
+    setShowCommitModal(false);
+    await handleSendComments(selectedMediums || ['clipboard', 'file'], {
+      rawFormatted: formatted,
+      suppressToast: true,
+    });
+    showToast(
+      'Commit message prompt sent — paste the generated message when ready',
+      'success',
+    );
+  }, [allComments, gitRoot, selectedMediums, handleSendComments, showToast]);
 
   const handleGitAction = useCallback(
     async (action) => {
@@ -1452,6 +1471,10 @@ export default function App() {
             actionType={gitActionType}
             onCommit={handleDoCommit}
             onClose={handleCloseCommitModal}
+            onGenerateViaAgent={handleGenerateCommitViaAgent}
+            canGenerateViaAgent={
+              Array.isArray(selectedMediums) && selectedMediums.length > 0
+            }
           />
         </Suspense>
       )}

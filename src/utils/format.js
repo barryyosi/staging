@@ -24,3 +24,28 @@ export function formatComments(comments, gitRoot) {
   output += `---\nPlease address these review comments and update the staged changes.\n`;
   return output;
 }
+
+export function formatCommitMessageRequest(comments, gitRoot) {
+  let out = `## Generate Commit Message\n\nRepository: ${gitRoot}\n\n`;
+
+  if (comments?.length) {
+    out += `### Inline Review Notes\n\n`;
+    const grouped = {};
+    for (const c of comments) {
+      (grouped[c.file] ??= []).push(c);
+    }
+    for (const [file, fc] of Object.entries(grouped)) {
+      out += `**${file}**\n`;
+      for (const c of fc.sort((a, b) => a.line - b.line)) {
+        out += `- Line ${c.line}: ${c.content}\n`;
+      }
+      out += '\n';
+    }
+  }
+
+  out += `---\nPlease write a concise commit message for the staged changes in this repository. `;
+  out += `Use conventional commit format if applicable: \`type(scope): subject\`. `;
+  out += `Then ask the user if it's ok to run \`git commit -m "<generated message>"\` on their behalf, and if so, run it.`;
+  out += `Otherwise, just return the generated message.\n\n`;
+  return out;
+}

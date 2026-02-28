@@ -1,7 +1,13 @@
 import { useState, useRef } from 'react';
 import { useModalAccessibility } from '../hooks/useModalAccessibility';
 
-export default function CommitModal({ actionType, onCommit, onClose }) {
+export default function CommitModal({
+  actionType,
+  onCommit,
+  onClose,
+  onGenerateViaAgent,
+  canGenerateViaAgent,
+}) {
   const [message, setMessage] = useState('');
   const textareaRef = useRef(null);
   const modalRef = useRef(null);
@@ -54,6 +60,21 @@ export default function CommitModal({ actionType, onCommit, onClose }) {
           <button className="btn" type="button" onClick={onClose}>
             Cancel
           </button>
+          {onGenerateViaAgent && (
+            <button
+              className="btn btn-generate-via-agent"
+              type="button"
+              disabled={!canGenerateViaAgent}
+              title={
+                canGenerateViaAgent
+                  ? 'Send a prompt to your agent to generate a commit message'
+                  : 'No send mediums selected'
+              }
+              onClick={onGenerateViaAgent}
+            >
+              Generate via Agent
+            </button>
+          )}
           <button
             className="btn btn-commit"
             type="button"

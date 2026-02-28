@@ -1245,6 +1245,23 @@ body {
   transform: translateY(0);
 }
 
+.btn-generate-via-agent {
+  background: var(--bg-surface-2);
+  color: var(--text-2);
+  border: 1px solid var(--border-1);
+}
+
+.btn-generate-via-agent:not(:disabled):hover {
+  background: var(--bg-hover);
+  border-color: var(--text-3);
+  color: var(--text-1);
+}
+
+.btn-generate-via-agent:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .btn-sm {
   height: 24px;
   padding: 0 10px;
