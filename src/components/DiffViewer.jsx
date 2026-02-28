@@ -688,6 +688,17 @@ function DiffViewer({
     });
   }, []);
 
+  useEffect(() => {
+    if (expandedCommentLines.size === 0) return;
+    function handleKeyDown(e) {
+      if (e.key === 'Escape') {
+        setExpandedCommentLines(new Set());
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [expandedCommentLines]);
+
   const getVisibleCommentIndex = useCallback(
     (lineKey, lineComments) => {
       if (!lineComments || lineComments.length === 0) return 0;

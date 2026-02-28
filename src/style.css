@@ -2549,6 +2549,11 @@ body {
 }
 
 /* === COMMENTS === */
+.diff-file-body:has(.comment-form-row),
+.diff-file-body:has(.comment-row) {
+  padding-bottom: 110px;
+}
+
 .comment-form-row .comment-form-cell {
   position: relative;
   height: 0;
