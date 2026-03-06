@@ -245,6 +245,9 @@ function Header({
   onChangeMediums,
   onGitAction,
   gitActionType,
+  updateStatus,
+  onUpdate,
+  onRestart,
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [gitPickerOpen, setGitPickerOpen] = useState(false);
@@ -575,6 +578,38 @@ function Header({
             )}
           </div>
         </div>
+        {updateStatus?.status === 'update-available' && (
+          <button
+            className="update-indicator"
+            onClick={onUpdate}
+            aria-label="Update available"
+            type="button"
+          >
+            <span className="update-indicator-dot" />
+            <span className="update-indicator-label">update</span>
+          </button>
+        )}
+        {updateStatus?.status === 'updating' && (
+          <button
+            className="update-indicator is-updating"
+            disabled
+            type="button"
+          >
+            <span className="update-indicator-dot" />
+            <span className="update-indicator-label">updating</span>
+          </button>
+        )}
+        {updateStatus?.status === 'restart-needed' && (
+          <button
+            className="update-indicator is-restart"
+            onClick={onRestart}
+            aria-label="Restart to apply update"
+            type="button"
+          >
+            <span className="update-indicator-dot" />
+            <span className="update-indicator-label">restart</span>
+          </button>
+        )}
       </div>
     </header>
   );

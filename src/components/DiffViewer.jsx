@@ -335,6 +335,96 @@ const isMac =
   navigator.platform.toUpperCase().indexOf('MAC') >= 0;
 const modKey = isMac ? '\u2318' : 'Ctrl';
 
+function FileCommentBubble({ comment, onEdit, onDelete }) {
+  const location = `${comment.file}`;
+  return (
+    <div className="file-comment-row" data-comment-id={comment.id}>
+      <div className="comment-bubble">
+        <div className="comment-bubble-head">
+          <span className="comment-loc" title={location}>
+            {location}
+          </span>
+          <div className="comment-actions">
+            <button type="button" onClick={() => onEdit(comment)}>
+              Edit
+            </button>
+            <button
+              type="button"
+              className="comment-action-delete"
+              onClick={() => onDelete(comment.id)}
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+        <div className="comment-text">{comment.content}</div>
+      </div>
+    </div>
+  );
+}
+
+function FileCommentForm({ initialContent, onSubmit, onCancel }) {
+  const [value, setValue] = useState(initialContent || '');
+  const textareaRef = useRef(null);
+  const canSubmit = value.trim().length > 0;
+
+  useEffect(() => {
+    const ta = textareaRef.current;
+    if (ta) {
+      ta.focus();
+      if (initialContent) {
+        ta.selectionStart = ta.value.length;
+      }
+    }
+  }, [initialContent]);
+
+  function handleKeyDown(e) {
+    if (canSubmit && e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      onSubmit(value);
+    }
+    if (e.key === 'Escape') {
+      onCancel();
+    }
+  }
+
+  return (
+    <div className="file-comment-row">
+      <div className="comment-form">
+        <div className="comment-form-input-wrap">
+          <textarea
+            ref={textareaRef}
+            placeholder="Leave a file comment..."
+            rows="2"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            aria-label="File comment"
+          />
+          <div className="comment-form-actions">
+            <button className="btn btn-sm" onClick={onCancel} type="button">
+              Cancel
+            </button>
+            <div className="comment-form-submit-wrap">
+              <span className="comment-form-hint">
+                <kbd>{modKey}</kbd> + <kbd>Enter</kbd>
+              </span>
+              <button
+                className="btn btn-sm btn-primary"
+                onClick={() => onSubmit(value)}
+                disabled={!canSubmit}
+                type="button"
+              >
+                {initialContent ? 'Save' : 'Comment'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PreviewCommentForm({ initialContent, onSubmit, onCancel }) {
   const [value, setValue] = useState(initialContent || '');
   const textareaRef = useRef(null);
@@ -753,7 +843,7 @@ function DiffViewer({
     const map = {};
     if (!fileComments) return map;
     for (const c of fileComments) {
-      if (c.lineType === 'preview') continue; // Preview comments are handled separately
+      if (c.lineType === 'preview' || c.lineType === 'file') continue;
       const key = `${c.line}-${c.lineType}`;
       if (!map[key]) map[key] = [];
       map[key].push(c);
@@ -761,17 +851,24 @@ function DiffViewer({
     return map;
   }, [fileComments]);
 
+  const fileLevelComments = useMemo(() => {
+    if (!fileComments) return [];
+    return fileComments.filter((c) => c.lineType === 'file');
+  }, [fileComments]);
+
   const activeLineKey =
     activeForm &&
     activeForm.file === filePath &&
-    activeForm.lineType !== 'preview'
+    activeForm.lineType !== 'preview' &&
+    activeForm.lineType !== 'file'
       ? `${activeForm.line}-${activeForm.lineType}`
       : null;
 
   const editingLineKey =
     editingComment &&
     editingComment.file === filePath &&
-    editingComment.lineType !== 'preview'
+    editingComment.lineType !== 'preview' &&
+    editingComment.lineType !== 'file'
       ? `${editingComment.line}-${editingComment.lineType}`
       : null;
 
@@ -1147,6 +1244,23 @@ function DiffViewer({
         )}
         <div className="file-actions">
           <button
+            className={`file-action-btn${fileLevelComments.length > 0 ? ' has-file-comments' : ''}`}
+            type="button"
+            title="Add file comment"
+            aria-label="Add file comment"
+            onClick={(e) => {
+              e.stopPropagation();
+              onAddComment(filePath, 0, 'file');
+            }}
+          >
+            <MessageSquarePlus size={18} strokeWidth={1.5} />
+            {fileLevelComments.length > 0 && (
+              <span className="file-comment-badge">
+                {fileLevelComments.length}
+              </span>
+            )}
+          </button>
+          <button
             className={`file-action-btn file-action-reviewed${isReviewed ? ' is-reviewed' : ''}`}
             type="button"
             title={isReviewed ? 'Mark as unreviewed' : 'Mark as reviewed'}
@@ -1194,6 +1308,47 @@ function DiffViewer({
           </button>
         </div>
       </div>
+
+      {(fileLevelComments.length > 0 ||
+        (activeForm &&
+          activeForm.file === filePath &&
+          activeForm.lineType === 'file') ||
+        (editingComment &&
+          editingComment.file === filePath &&
+          editingComment.lineType === 'file')) && (
+        <div className="file-comments-section">
+          {fileLevelComments.map((c) => {
+            const isEditing = editingComment && editingComment.id === c.id;
+            if (isEditing) {
+              return (
+                <FileCommentForm
+                  key={`edit-${c.id}`}
+                  initialContent={c.content}
+                  onSubmit={onSubmitComment}
+                  onCancel={onCancelForm}
+                />
+              );
+            }
+            return (
+              <FileCommentBubble
+                key={c.id}
+                comment={c}
+                onEdit={onEditComment}
+                onDelete={onDeleteComment}
+              />
+            );
+          })}
+          {activeForm &&
+            activeForm.file === filePath &&
+            activeForm.lineType === 'file' &&
+            !editingComment && (
+              <FileCommentForm
+                onSubmit={onSubmitComment}
+                onCancel={onCancelForm}
+              />
+            )}
+        </div>
+      )}
 
       <div
         ref={bodyRef}
@@ -1245,7 +1400,10 @@ function DiffViewer({
                     </tr>
                   </tbody>
                   {file.unstagedChunks.map((chunk, ci) => (
-                    <tbody key={`unstaged-${ci}`} className="hunk-tbody unstaged-hunk-tbody">
+                    <tbody
+                      key={`unstaged-${ci}`}
+                      className="hunk-tbody unstaged-hunk-tbody"
+                    >
                       <ChunkRows
                         chunk={chunk}
                         chunkIndex={ci}

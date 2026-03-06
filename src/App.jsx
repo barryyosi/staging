@@ -132,6 +132,7 @@ export default function App() {
   const [reviewedFiles, setReviewedFiles] = useState(new Set());
   const [selectedMediums, setSelectedMediums] = useState(null);
   const [activeFilePath, setActiveFilePath] = useState(null);
+  const [updateStatus, setUpdateStatus] = useState(null);
 
   // Active comment form state
   const [activeForm, setActiveForm] = useState(null); // { file, line, lineType }
@@ -177,6 +178,62 @@ export default function App() {
       setToast(null);
       toastTimerRef.current = null;
     }, 3000);
+  }, []);
+
+  // Check for updates after 2s delay on mount
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch('/api/update-check');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.status === 'update-available') {
+          setUpdateStatus({ status: 'update-available' });
+        }
+      } catch {
+        // Silently ignore
+      }
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const handleUpdate = useCallback(async () => {
+    setUpdateStatus({ status: 'updating' });
+    try {
+      const res = await fetch('/api/update', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        setUpdateStatus({ status: 'restart-needed' });
+        showToast('Update complete — restart to apply', 'success');
+      } else {
+        setUpdateStatus({ status: 'update-available' });
+        showToast(`Update failed: ${data.error}`, 'error');
+      }
+    } catch (err) {
+      setUpdateStatus({ status: 'update-available' });
+      showToast(`Update failed: ${err.message}`, 'error');
+    }
+  }, [showToast]);
+
+  const handleRestart = useCallback(async () => {
+    try {
+      await fetch('/api/restart', { method: 'POST' });
+    } catch {
+      // Server is restarting, connection will drop
+    }
+    // Wait for new server to come up, then reload
+    const poll = setInterval(async () => {
+      try {
+        const res = await fetch('/api/config');
+        if (res.ok) {
+          clearInterval(poll);
+          window.location.reload();
+        }
+      } catch {
+        // Still restarting
+      }
+    }, 500);
+    setTimeout(() => clearInterval(poll), 15000);
   }, []);
 
   const requestDiffPage = useCallback(
@@ -284,7 +341,9 @@ export default function App() {
         if (cancelled) return;
 
         const summaries = summaryData.files || [];
-        const stagedPaths = summaries.map((f) => getFilePath(f)).filter(Boolean);
+        const stagedPaths = summaries
+          .map((f) => getFilePath(f))
+          .filter(Boolean);
 
         setGitRoot(summaryData.gitRoot || '');
         setConfig(configData);
@@ -341,7 +400,11 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [requestDiffPage, requestUnstagedFiles, requestUnstagedHunksForStagedFiles]);
+  }, [
+    requestDiffPage,
+    requestUnstagedFiles,
+    requestUnstagedHunksForStagedFiles,
+  ]);
 
   // Initialize selectedMediums once config is available
   useEffect(() => {
@@ -930,7 +993,11 @@ export default function App() {
     } catch (err) {
       setError(err.message);
     }
-  }, [requestDiffPage, requestUnstagedFiles, requestUnstagedHunksForStagedFiles]);
+  }, [
+    requestDiffPage,
+    requestUnstagedFiles,
+    requestUnstagedHunksForStagedFiles,
+  ]);
 
   const switchProject = useCallback(
     async (targetPath) => {
@@ -1422,6 +1489,9 @@ export default function App() {
         onSwitchProject={switchProject}
         selectedMediums={selectedMediums || ['clipboard', 'file']}
         onChangeMediums={handleChangeMediums}
+        updateStatus={updateStatus}
+        onUpdate={handleUpdate}
+        onRestart={handleRestart}
       />
 
       <div

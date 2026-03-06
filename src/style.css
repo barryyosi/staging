@@ -2148,6 +2148,7 @@ body {
 }
 
 .file-action-btn {
+  position: relative;
   display: grid;
   place-items: center;
   width: 26px;
@@ -3927,4 +3928,161 @@ body.is-resizing-sidebar * {
   color: var(--add-text);
   font-size: 10px;
   margin-left: 2px;
+}
+
+/* === UPDATE INDICATOR (Status LED) === */
+
+.update-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 8px;
+  background: transparent;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 150ms ease;
+}
+
+.update-indicator:hover {
+  background: var(--bg-hover);
+}
+
+.update-indicator:focus-visible {
+  outline: 2px solid var(--focus-ring, #6366f1);
+  outline-offset: 2px;
+}
+
+.update-indicator:disabled {
+  cursor: default;
+  opacity: 0.8;
+}
+
+.update-indicator-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #e5a000;
+  flex-shrink: 0;
+  animation: led-breathe 2.5s ease-in-out infinite;
+}
+
+.update-indicator.is-updating .update-indicator-dot {
+  width: 10px;
+  height: 10px;
+  background: transparent;
+  border: 2px solid var(--text-3, #888);
+  border-top-color: #e5a000;
+  animation: led-spin 0.8s linear infinite;
+}
+
+.update-indicator.is-restart .update-indicator-dot {
+  background: #22c55e;
+  animation: none;
+}
+
+.update-indicator-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-2);
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  transition:
+    max-width 250ms ease,
+    opacity 250ms ease;
+}
+
+.update-indicator:hover .update-indicator-label {
+  max-width: 80px;
+  opacity: 1;
+}
+
+.update-indicator.is-updating .update-indicator-label {
+  max-width: 80px;
+  opacity: 0.6;
+}
+
+.update-indicator.is-restart .update-indicator-label {
+  max-width: 80px;
+  opacity: 1;
+  color: var(--add-text);
+}
+
+@keyframes led-breathe {
+  0%,
+  100% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+
+@keyframes led-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* File-level comments */
+.file-comments-section {
+  padding: var(--space-2) 14px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  border-bottom: 1px solid var(--border);
+}
+
+.file-comment-row .comment-bubble {
+  position: relative;
+  top: auto;
+  left: auto;
+  transform: none;
+}
+
+.file-comment-row .comment-form {
+  position: relative;
+  top: auto;
+  left: auto;
+  transform: none;
+  width: 100%;
+}
+
+.file-action-btn.has-file-comments {
+  color: var(--accent);
+  overflow: visible;
+}
+
+.file-comment-badge {
+  font-size: 10px;
+  font-weight: 600;
+  background: var(--accent);
+  color: var(--bg);
+  border-radius: 50%;
+  min-width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  line-height: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .update-indicator-dot {
+    animation: none;
+  }
+
+  .update-indicator.is-updating .update-indicator-dot {
+    animation: none;
+    border-color: #e5a000;
+  }
 }

@@ -11,7 +11,9 @@ export function formatComments(comments, gitRoot) {
   for (const [file, fileComments] of Object.entries(grouped)) {
     output += `### ${file}\n\n`;
     for (const c of fileComments.sort((a, b) => a.line - b.line)) {
-      if (c.lineType === 'preview') {
+      if (c.lineType === 'file') {
+        output += `- **File comment**: ${c.content}\n`;
+      } else if (c.lineType === 'preview') {
         const quote = c.selectedText?.slice(0, 60) || '';
         output += `- **Preview** "${quote}": ${c.content}\n`;
       } else {
@@ -37,7 +39,11 @@ export function formatCommitMessageRequest(comments, gitRoot) {
     for (const [file, fc] of Object.entries(grouped)) {
       out += `**${file}**\n`;
       for (const c of fc.sort((a, b) => a.line - b.line)) {
-        out += `- Line ${c.line}: ${c.content}\n`;
+        if (c.lineType === 'file') {
+          out += `- File comment: ${c.content}\n`;
+        } else {
+          out += `- Line ${c.line}: ${c.content}\n`;
+        }
       }
       out += '\n';
     }

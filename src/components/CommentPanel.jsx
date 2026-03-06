@@ -10,7 +10,13 @@ function CommentPanel({
   onSelectComment,
 }) {
   const scrollToComment = useCallback((comment) => {
-    if (comment.lineType === 'preview') {
+    if (comment.lineType === 'file') {
+      const el = document.querySelector(
+        `.file-comment-row[data-comment-id="${comment.id}"]`,
+      );
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    } else if (comment.lineType === 'preview') {
       const mark = document.querySelector(
         `mark.preview-highlight[data-comment-id="${comment.id}"]`,
       );
@@ -99,7 +105,9 @@ function CommentPanel({
                   <X size={14} strokeWidth={1.5} />
                 </button>
                 <div className="panel-line-ref">
-                  {c.lineType === 'preview' ? (
+                  {c.lineType === 'file' ? (
+                    'File comment'
+                  ) : c.lineType === 'preview' ? (
                     <span className="panel-quote-ref">
                       <Quote size={12} strokeWidth={1.5} />
                       {c.selectedText?.length > 50
