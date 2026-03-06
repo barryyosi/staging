@@ -1139,31 +1139,23 @@ export default function App() {
     [reloadDiffs, showToast],
   );
 
-  const handleEditFile = useCallback(
-    async (filePath, content) => {
-      const writeRes = await fetch('/api/file-write', {
+  const handleEditLine = useCallback(
+    async (filePath, lineNum, newContent) => {
+      const res = await fetch('/api/edit-line', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filePath, content }),
+        body: JSON.stringify({ filePath, lineNum, newContent }),
       });
-      const writeData = await writeRes.json();
-      if (!writeData.success) {
-        showToast(`Failed to write file: ${writeData.error}`, 'error');
-        throw new Error(writeData.error);
+      const data = await res.json();
+      if (!data.success) {
+        showToast(`Failed to apply edit: ${data.error}`, 'error');
+        throw new Error(data.error);
       }
-
-      const stageRes = await fetch('/api/file-stage', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filePath }),
-      });
-      const stageData = await stageRes.json();
-      if (!stageData.success) {
-        showToast(`Failed to stage file: ${stageData.error}`, 'error');
-        throw new Error(stageData.error);
+      if (data.changed === false) {
+        showToast('No changes detected', 'info');
+        return;
       }
-
-      showToast('File saved and staged', 'success');
+      showToast('Line updated and staged', 'success');
       await reloadDiffs();
     },
     [reloadDiffs, showToast],
@@ -1507,7 +1499,7 @@ export default function App() {
                     onUnstageHunk={handleUnstageHunk}
                     onRevertHunk={handleRevertHunk}
                     onStageHunk={handleStageHunk}
-                    onEditFile={handleEditFile}
+                    onEditLine={handleEditLine}
                     onFileReviewed={handleFileReviewed}
                     isReviewed={reviewedFiles.has(filePath)}
                     globalCollapsed={globalCollapsed}

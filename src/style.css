@@ -3801,84 +3801,96 @@ body.is-resizing-sidebar * {
   flex-shrink: 0;
 }
 
-/* === FILE EDITOR (inline edit mode) === */
+/* === INLINE LINE EDITING === */
 
-.file-editor {
-  display: flex;
-  flex-direction: column;
-  padding: var(--space-3);
-  gap: var(--space-2);
-  background: var(--bg-surface-2);
+.diff-line.is-editing {
+  background: var(--add-bg);
 }
 
-.file-editor-textarea {
+.line-content.is-editing {
+  padding: 0;
+}
+
+.line-edit-wrap {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: var(--space-1);
+}
+
+.line-edit-input {
+  flex: 1;
   font-family: var(--font-mono);
   font-size: var(--text-sm);
   color: var(--text-code);
   background: var(--bg-surface);
-  border: 1px solid var(--border-1);
-  border-radius: var(--radius-xs);
-  padding: var(--space-3);
-  min-height: 320px;
-  resize: vertical;
-  line-height: var(--line-relaxed);
-  tab-size: 2;
+  border: 1px solid var(--focus-ring);
+  border-radius: 3px;
+  padding: 1px var(--space-1);
   outline: none;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.file-editor-textarea:focus {
-  border-color: var(--focus-ring);
+  line-height: inherit;
+  min-width: 0;
   box-shadow: 0 0 0 2px var(--focus-ring-outer);
 }
 
-.file-editor-textarea:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.file-editor-toolbar {
-  display: flex;
+.line-edit-actions {
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  flex-wrap: wrap;
+  gap: 2px;
+  flex-shrink: 0;
+  padding: 2px;
+  border-radius: 999px;
+  background: linear-gradient(145deg, var(--pill-bg-1), var(--pill-bg-2));
+  border: 1px solid var(--pill-border);
+  box-shadow: var(--pill-shadow);
 }
 
-.file-editor-hint {
-  font-size: var(--text-xs);
-  color: var(--text-3);
+.line-edit-btn {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  border-radius: 50%;
+  border: none;
+  background: var(--pill-btn-bg);
+  color: var(--pill-btn-color);
+  cursor: pointer;
+  padding: 0;
+  transition:
+    background 0.12s var(--ease),
+    color 0.12s var(--ease);
+  -webkit-tap-highlight-color: transparent;
 }
 
-.file-editor-hint kbd {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  background: var(--bg-hover);
-  border: 1px solid var(--border-1);
-  border-radius: 3px;
-  padding: 1px 4px;
+.line-edit-btn svg {
+  display: block;
 }
 
-.file-editor-actions {
-  display: flex;
-  gap: var(--space-2);
+.line-edit-confirm {
+  color: var(--add-text);
 }
 
-.file-editor-loading,
-.file-editor-error {
-  font-size: var(--text-sm);
-  color: var(--text-2);
-  padding: var(--space-4);
+.line-edit-btn:hover {
+  background: var(--pill-btn-bg-hover);
+  color: var(--pill-btn-color-hover);
 }
 
-.file-editor-error {
+.line-edit-confirm:hover {
+  background: var(--add-bg-strong);
+  color: var(--add-text);
+}
+
+.line-edit-cancel:hover {
+  background: var(--danger-hover-bg);
   color: var(--del-text);
 }
 
-.file-action-btn.is-active {
-  color: var(--add-text);
-  background: var(--add-bg);
+.line-edit-btn:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--bg-surface),
+    0 0 0 4px var(--focus-ring-outer);
 }
 
 /* === UNSTAGED SECTION (Feature B) === */

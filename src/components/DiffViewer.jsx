@@ -12,7 +12,8 @@ import {
   MinusCircle,
   Plus,
   PlusCircle,
-  Pencil,
+  Check,
+  X,
   ChevronDown,
   ChevronUp,
   ChevronsUpDown,
@@ -31,7 +32,6 @@ import {
 } from '../utils/gapCalc';
 import CommentForm from './CommentForm';
 import CommentBubble from './CommentBubble';
-import FileEditor from './FileEditor';
 import { MarqueeFileName } from './FileSidebar';
 
 function HunkHeader({ chunk }) {
@@ -107,6 +107,65 @@ function UnstagedHunkActions({ filePath, chunkIndex, chunk, onStageHunk }) {
   );
 }
 
+function LineEditInput({ content, onConfirm, onCancel }) {
+  const [value, setValue] = useState(content);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    const el = inputRef.current;
+    if (el) {
+      el.focus();
+      el.select();
+    }
+  }, []);
+
+  function handleKeyDown(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      onConfirm(value);
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      onCancel();
+    }
+  }
+
+  return (
+    <span className="line-edit-wrap">
+      <input
+        ref={inputRef}
+        className="line-edit-input"
+        type="text"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={handleKeyDown}
+        spellCheck={false}
+        aria-label="Edit line"
+      />
+      <span className="line-edit-actions">
+        <button
+          type="button"
+          className="line-edit-btn line-edit-confirm"
+          onClick={() => onConfirm(value)}
+          title="Approve edit (Enter)"
+          aria-label="Approve edit"
+        >
+          <Check size={14} strokeWidth={1.8} />
+        </button>
+        <button
+          type="button"
+          className="line-edit-btn line-edit-cancel"
+          onClick={onCancel}
+          title="Decline edit (Esc)"
+          aria-label="Decline edit"
+        >
+          <X size={14} strokeWidth={1.8} />
+        </button>
+      </span>
+    </span>
+  );
+}
+
 function DiffLine({
   change,
   filePath,
@@ -116,8 +175,16 @@ function DiffLine({
   commentCount = 0,
   commentsExpanded = false,
   onToggleComments = null,
+  isEditing = false,
+  onStartEdit = null,
+  onConfirmEdit = null,
+  onCancelEdit = null,
 }) {
   const lineNum = change.type === 'context' ? change.ln2 : change.ln;
+  const canEdit =
+    onStartEdit != null &&
+    !isEditing &&
+    (change.type === 'add' || change.type === 'context');
 
   const html = useMemo(
     () => highlightLine(change.content, filePath),
@@ -125,17 +192,26 @@ function DiffLine({
   );
 
   return (
-    <tr className={`diff-line diff-line-${change.type}`}>
+    <tr
+      className={`diff-line diff-line-${change.type}${isEditing ? ' is-editing' : ''}`}
+      onDoubleClick={
+        canEdit
+          ? () => onStartEdit(lineNum, change.type, change.content)
+          : undefined
+      }
+    >
       <td className="line-action">
-        <button
-          className="btn-comment"
-          title="Add comment"
-          aria-label="Add comment"
-          type="button"
-          onClick={() => onAddComment(filePath, lineNum, change.type)}
-        >
-          <Plus size={14} strokeWidth={1.5} />
-        </button>
+        {!isEditing && (
+          <button
+            className="btn-comment"
+            title="Add comment"
+            aria-label="Add comment"
+            type="button"
+            onClick={() => onAddComment(filePath, lineNum, change.type)}
+          >
+            <Plus size={14} strokeWidth={1.5} />
+          </button>
+        )}
       </td>
       <td
         className={`line-num${commentCount > 0 ? ' has-comments' : ''}`}
@@ -161,17 +237,27 @@ function DiffLine({
         )}
       </td>
       <td
-        className={`line-content${isLastChange ? ' hunk-actions-anchor' : ''}`}
+        className={`line-content${isLastChange ? ' hunk-actions-anchor' : ''}${isEditing ? ' is-editing' : ''}`}
       >
-        {html ? (
-          <span
-            className="line-code"
-            dangerouslySetInnerHTML={{ __html: html }}
+        {isEditing ? (
+          <LineEditInput
+            content={change.content}
+            onConfirm={onConfirmEdit}
+            onCancel={onCancelEdit}
           />
         ) : (
-          <span className="line-code">{change.content}</span>
+          <>
+            {html ? (
+              <span
+                className="line-code"
+                dangerouslySetInnerHTML={{ __html: html }}
+              />
+            ) : (
+              <span className="line-code">{change.content}</span>
+            )}
+            {isLastChange && hunkActionsSlot}
+          </>
         )}
-        {isLastChange && hunkActionsSlot}
       </td>
     </tr>
   );
@@ -563,7 +649,7 @@ function DiffViewer({
   onUnstageHunk,
   onRevertHunk,
   onStageHunk,
-  onEditFile,
+  onEditLine,
   onFileReviewed,
   isReviewed,
   globalCollapsed,
@@ -573,7 +659,7 @@ function DiffViewer({
   const [viewMode, setViewMode] = useState('diff');
   const [previewHtml, setPreviewHtml] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
+  const [editingLine, setEditingLine] = useState(null); // { lineNum, lineType, content }
   const [expandedGaps, setExpandedGaps] = useState({});
   const expandedGapsRef = useRef(expandedGaps);
   const fileContentCache = useRef(null);
@@ -591,11 +677,12 @@ function DiffViewer({
     setCollapsed(globalCollapsed);
   }
 
-  // Clear expanded context when diff data changes (reload/unstage/revert)
+  // Clear expanded context and any active line edit when diff data changes
   const [prevChunks, setPrevChunks] = useState(file.chunks);
   if (file.chunks !== prevChunks) {
     setPrevChunks(file.chunks);
     setExpandedGaps({});
+    if (editingLine !== null) setEditingLine(null);
   }
 
   useEffect(() => {
@@ -771,29 +858,24 @@ function DiffViewer({
     [previewHtml],
   );
 
-  const handleEnterEditMode = useCallback(
-    (e) => {
-      e.stopPropagation();
-      setViewMode('edit');
-    },
-    [],
-  );
+  const handleStartEditLine = useCallback((lineNum, lineType, content) => {
+    setEditingLine({ lineNum, lineType, content });
+  }, []);
 
-  const handleSaveEdit = useCallback(
-    async (content) => {
-      setIsSaving(true);
+  const handleConfirmEditLine = useCallback(
+    async (lineNum, newContent) => {
       try {
-        await onEditFile(filePath, content);
-        setViewMode('diff');
-      } finally {
-        setIsSaving(false);
+        await onEditLine(filePath, lineNum, newContent);
+        setEditingLine(null);
+      } catch {
+        // keep editing active on error so the user can retry
       }
     },
-    [filePath, onEditFile],
+    [filePath, onEditLine],
   );
 
-  const handleCancelEdit = useCallback(() => {
-    setViewMode('diff');
+  const handleCancelEditLine = useCallback(() => {
+    setEditingLine(null);
   }, []);
 
   const handleRevertFile = useCallback(
@@ -1037,7 +1119,7 @@ function DiffViewer({
           {file.additions > 0 && <span className="add">+{file.additions}</span>}
           {file.deletions > 0 && <span className="del">-{file.deletions}</span>}
         </span>
-        {canPreview && viewMode !== 'edit' && (
+        {canPreview && (
           <button
             className="view-mode-toggle"
             type="button"
@@ -1064,17 +1146,6 @@ function DiffViewer({
           </button>
         )}
         <div className="file-actions">
-          {!file.isBinary && file.status !== 'deleted' && (
-            <button
-              className={`file-action-btn${viewMode === 'edit' ? ' is-active' : ''}`}
-              type="button"
-              title="Edit file"
-              aria-label="Edit file"
-              onClick={handleEnterEditMode}
-            >
-              <Pencil size={18} strokeWidth={1.5} />
-            </button>
-          )}
           <button
             className={`file-action-btn file-action-reviewed${isReviewed ? ' is-reviewed' : ''}`}
             type="button"
@@ -1128,14 +1199,7 @@ function DiffViewer({
         ref={bodyRef}
         className={`diff-file-body ${collapsed ? 'collapsed' : ''}`}
       >
-        {viewMode === 'edit' ? (
-          <FileEditor
-            filePath={filePath}
-            onSave={handleSaveEdit}
-            onCancel={handleCancelEdit}
-            isSaving={isSaving}
-          />
-        ) : viewMode === 'diff' ? (
+        {viewMode === 'diff' ? (
           file.isBinary ? (
             <div className="binary-notice">Binary file not shown</div>
           ) : (
@@ -1158,6 +1222,10 @@ function DiffViewer({
                       onDeleteComment={onDeleteComment}
                       onUnstageHunk={onUnstageHunk}
                       onRevertHunk={onRevertHunk}
+                      editingLine={editingLine}
+                      onStartEditLine={handleStartEditLine}
+                      onConfirmEditLine={handleConfirmEditLine}
+                      onCancelEditLine={handleCancelEditLine}
                       isCommentLineExpanded={isCommentLineExpanded}
                       onToggleCommentLine={toggleCommentLine}
                       getVisibleCommentIndex={getVisibleCommentIndex}
@@ -1242,6 +1310,10 @@ function ChunkRows({
   onRevertHunk,
   onStageHunk,
   isUnstaged = false,
+  editingLine = null,
+  onStartEditLine = null,
+  onConfirmEditLine = null,
+  onCancelEditLine = null,
   isCommentLineExpanded,
   onToggleCommentLine,
   getVisibleCommentIndex,
@@ -1288,6 +1360,7 @@ function ChunkRows({
     const visibleIdx = getVisibleCommentIndex(lineKey, lineComments);
     const visibleComment = lineComments?.[visibleIdx];
 
+    const isEditingThisLine = editingLine?.lineNum === lineNum;
     rows.push(
       <DiffLine
         key={`line-${i}`}
@@ -1299,6 +1372,14 @@ function ChunkRows({
         commentCount={commentCount}
         commentsExpanded={commentsExpanded}
         onToggleComments={() => onToggleCommentLine(lineKey)}
+        isEditing={isEditingThisLine}
+        onStartEdit={onStartEditLine}
+        onConfirmEdit={
+          isEditingThisLine
+            ? (newContent) => onConfirmEditLine(lineNum, newContent)
+            : null
+        }
+        onCancelEdit={onCancelEditLine}
       />,
     );
 
