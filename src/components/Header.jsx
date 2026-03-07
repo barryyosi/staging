@@ -229,8 +229,8 @@ function Header({
   onToggleTheme,
   files,
   reviewedFiles,
-  hasComments,
-  commentCount,
+  hasReviewItems,
+  reviewItemCount,
   commentsByFile,
   onDeleteComment,
   onDismissAllComments,
@@ -248,6 +248,11 @@ function Header({
   updateStatus,
   onUpdate,
   onRestart,
+  generalNote,
+  isEditingGeneralNote,
+  onToggleEditGeneralNote,
+  onSaveGeneralNote,
+  onClearGeneralNote,
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [gitPickerOpen, setGitPickerOpen] = useState(false);
@@ -259,7 +264,7 @@ function Header({
   const gitPickerToggleRef = useRef(null);
   const canSend =
     !committed && Array.isArray(selectedMediums) && selectedMediums.length > 0;
-  const isCommentsOpen = hasComments && commentsOpen;
+  const isCommentsOpen = commentsOpen;
 
   const handleToggleMedium = useCallback(
     (id) => {
@@ -272,7 +277,7 @@ function Header({
   );
 
   const handleMainClick = useCallback(() => {
-    if (!hasComments) {
+    if (!hasReviewItems) {
       // Close other dropdowns
       setPickerOpen(false);
       setGitPickerOpen(false);
@@ -281,7 +286,7 @@ function Header({
       return;
     }
     onSendComments(selectedMediums);
-  }, [hasComments, onSendComments, selectedMediums]);
+  }, [hasReviewItems, onSendComments, selectedMediums]);
 
   const closePicker = useCallback((restoreFocus = true) => {
     setPickerOpen(false);
@@ -336,12 +341,11 @@ function Header({
   }, []);
 
   const handleToggleComments = useCallback(() => {
-    if (!hasComments) return;
     setPickerOpen(false);
     setGitPickerOpen(false);
     setNoCommentsDialogOpen(false);
     setCommentsOpen((prev) => !prev);
-  }, [hasComments]);
+  }, []);
 
   useEffect(() => {
     if (!isCommentsOpen) return;
@@ -452,38 +456,43 @@ function Header({
             <Sun size={20} strokeWidth={1.5} className="theme-toggle-icon" />
           )}
         </button>
-        {hasComments && (
-          <div className="comments-dropdown-wrap" ref={commentsWrapRef}>
-            <button
-              ref={commentsButtonRef}
-              className={`btn-comments${isCommentsOpen ? ' is-open' : ''}`}
-              onClick={handleToggleComments}
-              aria-label={
-                isCommentsOpen
-                  ? 'Close comments dropdown'
-                  : 'Open comments dropdown'
-              }
-              aria-haspopup="dialog"
-              aria-expanded={isCommentsOpen}
-              aria-controls={isCommentsOpen ? COMMENTS_PANEL_ID : undefined}
-              title="Comments"
-              type="button"
-            >
-              <MessageSquare size={16} strokeWidth={1.5} />
-              <span className="btn-badge">{commentCount}</span>
-            </button>
-            {isCommentsOpen && (
-              <CommentPanel
-                id={COMMENTS_PANEL_ID}
-                commentsByFile={commentsByFile}
-                commentCount={commentCount}
-                onDeleteComment={onDeleteComment}
-                onDismissAll={onDismissAllComments}
-                onSelectComment={() => closeComments(true)}
-              />
+        <div className="comments-dropdown-wrap" ref={commentsWrapRef}>
+          <button
+            ref={commentsButtonRef}
+            className={`btn-comments${isCommentsOpen ? ' is-open' : ''}`}
+            onClick={handleToggleComments}
+            aria-label={
+              isCommentsOpen
+                ? 'Close comments dropdown'
+                : 'Open comments dropdown'
+            }
+            aria-haspopup="dialog"
+            aria-expanded={isCommentsOpen}
+            aria-controls={isCommentsOpen ? COMMENTS_PANEL_ID : undefined}
+            title="Comments"
+            type="button"
+          >
+            <MessageSquare size={16} strokeWidth={1.5} />
+            {reviewItemCount > 0 && (
+              <span className="btn-badge">{reviewItemCount}</span>
             )}
-          </div>
-        )}
+          </button>
+          {isCommentsOpen && (
+            <CommentPanel
+              id={COMMENTS_PANEL_ID}
+              commentsByFile={commentsByFile}
+              reviewItemCount={reviewItemCount}
+              onDeleteComment={onDeleteComment}
+              onDismissAll={onDismissAllComments}
+              onSelectComment={() => closeComments(true)}
+              generalNote={generalNote}
+              isEditingGeneralNote={isEditingGeneralNote}
+              onToggleEditGeneralNote={onToggleEditGeneralNote}
+              onSaveGeneralNote={onSaveGeneralNote}
+              onClearGeneralNote={onClearGeneralNote}
+            />
+          )}
+        </div>
         <div className="header-actions">
           <div
             className={`split-btn-wrap header-action-split${pickerOpen ? ' is-open' : ''}`}
@@ -495,7 +504,9 @@ function Header({
               type="button"
             >
               Send to Agent
-              {hasComments && <span className="btn-badge">{commentCount}</span>}
+              {hasReviewItems && (
+                <span className="btn-badge">{reviewItemCount}</span>
+              )}
             </button>
             <button
               ref={sendPickerToggleRef}

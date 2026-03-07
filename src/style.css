@@ -1745,6 +1745,7 @@ body {
   0% {
     transform: translateX(0);
   }
+
   100% {
     transform: translateX(var(--marquee-offset, 0));
   }
@@ -3125,6 +3126,118 @@ body {
   overflow-wrap: anywhere;
 }
 
+/* === GENERAL NOTE SECTION === */
+.general-note-section {
+  padding: 4px 2px 10px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--border-1);
+}
+
+.general-note-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--text-3);
+  padding: 0 8px;
+  margin-bottom: 6px;
+}
+
+.general-note-empty {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px dashed var(--border-1);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    color 0.15s var(--ease),
+    border-color 0.15s var(--ease),
+    background 0.15s var(--ease);
+}
+
+.general-note-empty:hover {
+  color: var(--text-2);
+  border-color: var(--text-3);
+  background: var(--bg-surface-2);
+}
+
+.general-note-empty:focus-visible {
+  box-shadow:
+    0 0 0 2px var(--bg-surface),
+    0 0 0 4px var(--focus-ring-outer);
+  border-radius: 12px;
+}
+
+.general-note-card {
+  cursor: pointer;
+}
+
+.general-note-input-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border-1);
+  border-radius: 10px;
+  background: var(--bg-surface-2);
+  transition:
+    box-shadow 0.15s var(--ease),
+    border-color 0.15s var(--ease);
+}
+
+.general-note-input-wrap:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.general-note-textarea {
+  width: 100%;
+  min-height: 44px;
+  max-height: 220px;
+  padding: 0;
+  border: none;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  background: transparent;
+  color: var(--text-1);
+  resize: none;
+  outline: none;
+  line-height: 1.45;
+}
+
+.general-note-textarea::placeholder {
+  color: var(--text-3);
+}
+
+.general-note-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+  padding-top: 8px;
+}
+
+.general-note-submit-wrap {
+  position: relative;
+}
+
+.general-note-actions .btn-sm {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: none;
+}
+
 /* === TOAST === */
 #toast {
   position: fixed;
@@ -4018,6 +4131,7 @@ body.is-resizing-sidebar * {
     opacity: 0.6;
     transform: scale(1);
   }
+
   50% {
     opacity: 1;
     transform: scale(1.15);

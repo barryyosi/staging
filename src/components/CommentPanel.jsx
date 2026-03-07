@@ -1,13 +1,148 @@
-import { useCallback, memo } from 'react';
-import { X, Quote } from 'lucide-react';
+import { useState, useRef, useEffect, useCallback, memo } from 'react';
+import { X, Quote, StickyNote } from 'lucide-react';
+
+const isMac =
+  typeof navigator !== 'undefined' &&
+  navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+const modKey = isMac ? '\u2318' : 'Ctrl';
+
+function GeneralNoteSection({
+  generalNote,
+  isEditing,
+  onToggleEdit,
+  onSave,
+  onClear,
+}) {
+  const [draft, setDraft] = useState(generalNote || '');
+  const textareaRef = useRef(null);
+
+  useEffect(() => {
+    if (isEditing && textareaRef.current) {
+      textareaRef.current.focus();
+      if (generalNote) {
+        textareaRef.current.selectionStart = textareaRef.current.value.length;
+      }
+    }
+  }, [isEditing, generalNote]);
+
+  function handleKeyDown(e) {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && draft.trim()) {
+      e.preventDefault();
+      onSave(draft);
+    }
+    if (e.key === 'Escape') {
+      e.stopPropagation();
+      onToggleEdit(false);
+    }
+  }
+
+  if (isEditing) {
+    return (
+      <div className="general-note-section">
+        <div className="general-note-label">
+          <StickyNote size={12} strokeWidth={1.5} />
+          General note
+        </div>
+        <div className="general-note-input-wrap">
+          <textarea
+            ref={textareaRef}
+            className="general-note-textarea"
+            placeholder="Write a general review note..."
+            rows="3"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={handleKeyDown}
+            aria-label="General review note"
+          />
+          <div className="general-note-actions">
+            <button
+              className="btn btn-sm"
+              onClick={() => onToggleEdit(false)}
+              type="button"
+            >
+              Cancel
+            </button>
+            <div className="general-note-submit-wrap">
+              <span className="comment-form-hint">
+                <kbd>{modKey}</kbd> + <kbd>Enter</kbd>
+              </span>
+              <button
+                className="btn btn-sm btn-primary"
+                onClick={() => onSave(draft)}
+                disabled={!draft.trim()}
+                type="button"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (generalNote) {
+    return (
+      <div className="general-note-section">
+        <div className="general-note-label">
+          <StickyNote size={12} strokeWidth={1.5} />
+          General note
+        </div>
+        <div
+          className="general-note-card panel-comment-item"
+          role="button"
+          tabIndex={0}
+          onClick={() => onToggleEdit(true)}
+          onKeyDown={(e) => {
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            e.preventDefault();
+            onToggleEdit(true);
+          }}
+        >
+          <button
+            className="panel-dismiss-btn"
+            type="button"
+            aria-label="Dismiss general note"
+            title="Dismiss general note"
+            onClick={(e) => {
+              e.stopPropagation();
+              onClear();
+            }}
+          >
+            <X size={14} strokeWidth={1.5} />
+          </button>
+          <div className="panel-comment-text">{generalNote}</div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="general-note-section">
+      <button
+        className="general-note-empty"
+        onClick={() => onToggleEdit(true)}
+        type="button"
+      >
+        <StickyNote size={14} strokeWidth={1.5} />
+        Add review note
+      </button>
+    </div>
+  );
+}
 
 function CommentPanel({
   id,
   commentsByFile,
-  commentCount,
+  reviewItemCount,
   onDeleteComment,
   onDismissAll,
   onSelectComment,
+  generalNote,
+  isEditingGeneralNote,
+  onToggleEditGeneralNote,
+  onSaveGeneralNote,
+  onClearGeneralNote,
 }) {
   const scrollToComment = useCallback((comment) => {
     if (comment.lineType === 'file') {
@@ -65,7 +200,7 @@ function CommentPanel({
     >
       <div className="panel-header">
         <h2>
-          Comments (<span className="comment-count">{commentCount}</span>)
+          Comments (<span className="comment-count">{reviewItemCount}</span>)
         </h2>
         <button
           className="panel-dismiss-all-btn"
@@ -76,6 +211,14 @@ function CommentPanel({
         </button>
       </div>
       <div className="comment-list">
+        <GeneralNoteSection
+          key={`gn-${isEditingGeneralNote ? 'edit' : 'view'}`}
+          generalNote={generalNote}
+          isEditing={isEditingGeneralNote}
+          onToggleEdit={onToggleEditGeneralNote}
+          onSave={onSaveGeneralNote}
+          onClear={onClearGeneralNote}
+        />
         {Object.entries(commentsByFile).map(([file, fileComments]) => (
           <div key={file} className="panel-comment-group">
             <h3>{file}</h3>

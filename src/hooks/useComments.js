@@ -12,7 +12,9 @@ function generateId() {
 
 export function useComments(projectKey) {
   const [commentsByFile, setCommentsByFile] = useState({});
+  const [generalNote, setGeneralNoteRaw] = useState(null);
   const storeRef = useRef(new Map());
+  const noteStoreRef = useRef(new Map());
   const prevKeyRef = useRef(projectKey);
 
   useEffect(() => {
@@ -24,12 +26,24 @@ export function useComments(projectKey) {
       if (prevKey) storeRef.current.set(prevKey, current);
       return storeRef.current.get(projectKey) || {};
     });
+    setGeneralNoteRaw((current) => {
+      if (prevKey) noteStoreRef.current.set(prevKey, current);
+      return noteStoreRef.current.get(projectKey) ?? null;
+    });
   }, [projectKey]);
 
   const allComments = useMemo(
     () => Object.values(commentsByFile).flat(),
     [commentsByFile],
   );
+
+  const setGeneralNote = useCallback((text) => {
+    setGeneralNoteRaw(text && text.trim() ? text.trim() : null);
+  }, []);
+
+  const clearGeneralNote = useCallback(() => {
+    setGeneralNoteRaw(null);
+  }, []);
 
   const addComment = useCallback(
     (file, line, lineType, content, extra = {}) => {
@@ -78,11 +92,15 @@ export function useComments(projectKey) {
 
   const deleteAllComments = useCallback(() => {
     setCommentsByFile({});
+    setGeneralNoteRaw(null);
   }, []);
 
   return {
     commentsByFile,
     allComments,
+    generalNote,
+    setGeneralNote,
+    clearGeneralNote,
     addComment,
     updateComment,
     deleteComment,

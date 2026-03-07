@@ -1,6 +1,10 @@
-export function formatComments(comments, gitRoot) {
+export function formatComments(comments, gitRoot, generalNote) {
   let output = `## Code Review Comments\n\n`;
   output += `Repository: ${gitRoot}\n\n`;
+
+  if (generalNote) {
+    output += `### General comments\n\n${generalNote}\n\n`;
+  }
 
   const grouped = {};
   for (const c of comments) {
@@ -27,8 +31,12 @@ export function formatComments(comments, gitRoot) {
   return output;
 }
 
-export function formatCommitMessageRequest(comments, gitRoot) {
+export function formatCommitMessageRequest(comments, gitRoot, generalNote) {
   let out = `## Generate Commit Message\n\nRepository: ${gitRoot}\n\n`;
+
+  if (generalNote) {
+    out += `### General comments\n\n${generalNote}\n\n`;
+  }
 
   if (comments?.length) {
     out += `### Inline Review Notes\n\n`;

@@ -94,6 +94,9 @@ export default function App() {
   const {
     commentsByFile,
     allComments,
+    generalNote,
+    setGeneralNote,
+    clearGeneralNote,
     addComment,
     updateComment,
     deleteComment,
@@ -136,6 +139,7 @@ export default function App() {
 
   // Active comment form state
   const [activeForm, setActiveForm] = useState(null); // { file, line, lineType }
+  const [isEditingGeneralNote, setIsEditingGeneralNote] = useState(false);
   const [editingComment, setEditingComment] = useState(null); // comment object
 
   // Refs for sidebar resize optimization
@@ -624,12 +628,14 @@ export default function App() {
 
   const handleAddComment = useCallback((file, line, lineType) => {
     setEditingComment(null);
+    setIsEditingGeneralNote(false);
     setActiveForm({ file, line, lineType });
   }, []);
 
   const handleAddPreviewComment = useCallback(
     (file, selectedText, textOffset, textLength) => {
       setEditingComment(null);
+      setIsEditingGeneralNote(false);
       setActiveForm({
         file,
         line: 0,
@@ -676,6 +682,7 @@ export default function App() {
   }, []);
 
   const handleEditComment = useCallback((comment) => {
+    setIsEditingGeneralNote(false);
     setActiveForm({
       file: comment.file,
       line: comment.line,
@@ -692,8 +699,9 @@ export default function App() {
   );
 
   const handleDismissAllComments = useCallback(() => {
-    if (!confirm('Dismiss all comments?')) return;
+    if (!confirm('Dismiss all review items?')) return;
     deleteAllComments();
+    setIsEditingGeneralNote(false);
   }, [deleteAllComments]);
 
   const handleSendComments = useCallback(
@@ -713,8 +721,8 @@ export default function App() {
       } else if (options.rawFormatted) {
         formatted = options.rawFormatted;
       } else {
-        if (allComments.length === 0) return;
-        formatted = formatComments(allComments, gitRoot);
+        if (allComments.length === 0 && !generalNote) return;
+        formatted = formatComments(allComments, gitRoot, generalNote);
       }
 
       if (mediums.includes('clipboard')) {
@@ -767,11 +775,15 @@ export default function App() {
         setTimeout(() => window.close(), 300);
       }
     },
-    [allComments, gitRoot, config, showToast],
+    [allComments, generalNote, gitRoot, config, showToast],
   );
 
   const handleGenerateCommitViaAgent = useCallback(async () => {
-    const formatted = formatCommitMessageRequest(allComments, gitRoot);
+    const formatted = formatCommitMessageRequest(
+      allComments,
+      gitRoot,
+      generalNote,
+    );
     setShowCommitModal(false);
     await handleSendComments(selectedMediums || ['clipboard', 'file'], {
       rawFormatted: formatted,
@@ -781,15 +793,23 @@ export default function App() {
       'Commit message prompt sent — paste the generated message when ready',
       'success',
     );
-  }, [allComments, gitRoot, selectedMediums, handleSendComments, showToast]);
+  }, [
+    allComments,
+    generalNote,
+    gitRoot,
+    selectedMediums,
+    handleSendComments,
+    showToast,
+  ]);
 
   const handleGitAction = useCallback(
     async (action) => {
       if (action === 'commit' || action === 'commit-and-push') {
-        if (allComments.length > 0) {
+        const itemCount = allComments.length + (generalNote ? 1 : 0);
+        if (itemCount > 0) {
           if (
             !confirm(
-              `You have ${allComments.length} unresolved comment${allComments.length === 1 ? '' : 's'}. Commit anyway?`,
+              `You have ${itemCount} unresolved review item${itemCount === 1 ? '' : 's'}. Commit anyway?`,
             )
           ) {
             return;
@@ -829,7 +849,7 @@ export default function App() {
         return;
       }
     },
-    [allComments.length, projectInfo, showToast],
+    [allComments.length, generalNote, projectInfo, showToast],
   );
 
   const handleDoCommit = useCallback(
@@ -1464,7 +1484,29 @@ export default function App() {
     };
   }, [canAutoLoadMore, loadNextPage]);
 
-  const hasComments = allComments.length > 0;
+  const reviewItemCount = allComments.length + (generalNote ? 1 : 0);
+  const hasReviewItems = reviewItemCount > 0;
+
+  const handleToggleEditGeneralNote = useCallback((open) => {
+    if (open) {
+      setActiveForm(null);
+      setEditingComment(null);
+    }
+    setIsEditingGeneralNote(open);
+  }, []);
+
+  const handleSaveGeneralNote = useCallback(
+    (text) => {
+      setGeneralNote(text);
+      setIsEditingGeneralNote(false);
+    },
+    [setGeneralNote],
+  );
+
+  const handleClearGeneralNote = useCallback(() => {
+    clearGeneralNote();
+    setIsEditingGeneralNote(false);
+  }, [clearGeneralNote]);
 
   return (
     <>
@@ -1473,8 +1515,8 @@ export default function App() {
         onToggleTheme={toggleTheme}
         files={fileSummaries}
         reviewedFiles={reviewedFiles}
-        hasComments={hasComments}
-        commentCount={allComments.length}
+        hasReviewItems={hasReviewItems}
+        reviewItemCount={reviewItemCount}
         commentsByFile={commentsByFile}
         onDeleteComment={handleDeleteComment}
         onDismissAllComments={handleDismissAllComments}
@@ -1492,6 +1534,11 @@ export default function App() {
         updateStatus={updateStatus}
         onUpdate={handleUpdate}
         onRestart={handleRestart}
+        generalNote={generalNote}
+        isEditingGeneralNote={isEditingGeneralNote}
+        onToggleEditGeneralNote={handleToggleEditGeneralNote}
+        onSaveGeneralNote={handleSaveGeneralNote}
+        onClearGeneralNote={handleClearGeneralNote}
       />
 
       <div
