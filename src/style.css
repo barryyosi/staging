@@ -1731,6 +1731,43 @@ body {
   position: relative;
 }
 
+.file-stage-state {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  border: 1px solid var(--border-1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1;
+  font-family: var(--font-mono);
+  background: transparent;
+  color: var(--text-3);
+  opacity: 0.9;
+}
+
+.file-stage-state.staged {
+  background: transparent;
+  border-color: var(--add-text);
+  color: var(--add-text);
+}
+
+.file-stage-state.mixed {
+  background: transparent;
+  border-color: var(--status-modified-dot);
+  color: var(--status-modified-text);
+}
+
+.file-stage-state.unstaged {
+  background: transparent;
+  border-color: var(--border-1);
+  color: var(--text-2);
+}
+
 /* === FILE NAME MARQUEE === */
 .file-name-inner {
   display: inline-block;

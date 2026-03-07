@@ -56,6 +56,48 @@ function isActivationKey(event) {
   return event.key === 'Enter' || event.key === ' ';
 }
 
+function getFileStageState({ isStaged, isUnstaged, hasUnstagedChanges }) {
+  if (isStaged && hasUnstagedChanges) return 'mixed';
+  if (isStaged) return 'staged';
+  if (isUnstaged) return 'unstaged';
+  return null;
+}
+
+function FileStageStateBadge({ stageState }) {
+  if (!stageState) return null;
+
+  const stageConfig = {
+    staged: {
+      label: 'S',
+      title: 'Fully staged',
+      ariaLabel: 'Fully staged',
+    },
+    mixed: {
+      label: 'M',
+      title: 'Staged with additional unstaged changes',
+      ariaLabel: 'Staged with additional unstaged changes',
+    },
+    unstaged: {
+      label: 'U',
+      title: 'Unstaged only',
+      ariaLabel: 'Unstaged only',
+    },
+  };
+
+  const config = stageConfig[stageState];
+  if (!config) return null;
+
+  return (
+    <span
+      className={`file-stage-state ${stageState}`}
+      title={config.title}
+      aria-label={config.ariaLabel}
+    >
+      {config.label}
+    </span>
+  );
+}
+
 function FileStageButton({
   mode,
   filePath,
@@ -91,6 +133,7 @@ function FlatFileList({
   loadedFilesByPath,
   onSelectFile,
   searchQuery,
+  unstagedChunksByPath,
   onStageFile,
   onUnstageFile,
   reviewedFiles = new Set(),
@@ -117,6 +160,12 @@ function FlatFileList({
       {filteredResults.map(({ file, result }) => {
         const filePath = getFilePath(file);
         const isUnstaged = Boolean(file.isUnstaged);
+        const stageState = getFileStageState({
+          isStaged: !isUnstaged,
+          isUnstaged,
+          hasUnstagedChanges:
+            !isUnstaged && Boolean(unstagedChunksByPath[filePath]?.length),
+        });
         const isLoaded = !isUnstaged && Boolean(loadedFilesByPath[filePath]);
         const isPending = !isUnstaged && !isLoaded;
         const highlighted = highlightMatch(result);
@@ -153,6 +202,7 @@ function FlatFileList({
                   ))
                 : filePath}
             </MarqueeFileName>
+            <FileStageStateBadge stageState={stageState} />
             {fileCommentCount > 0 && (
               <span
                 className="file-comment-count"
@@ -197,6 +247,7 @@ function FileTreeNode({
   depth,
   loadedFilesByPath,
   onSelectFile,
+  unstagedChunksByPath,
   onStageFile,
   onUnstageFile,
   forceExpanded,
@@ -228,6 +279,12 @@ function FileTreeNode({
     const fileMeta = isStaged ? node.file : node.unstagedFile;
     const isTrackedOnly = !isStaged && !isUnstaged;
     const filePath = node.path;
+    const stageState = getFileStageState({
+      isStaged,
+      isUnstaged,
+      hasUnstagedChanges:
+        isStaged && Boolean(unstagedChunksByPath[filePath]?.length),
+    });
     const isLoaded = isStaged && Boolean(loadedFilesByPath[filePath]);
     const isPending = isStaged && !isLoaded;
     const highlighted = highlightMatch(node.fuzzyResult);
@@ -264,6 +321,7 @@ function FileTreeNode({
               ))
             : node.name}
         </MarqueeFileName>
+        <FileStageStateBadge stageState={stageState} />
         {fileCommentCount > 0 && (
           <span
             className="file-comment-count"
@@ -335,6 +393,7 @@ function FileTreeNode({
               depth={depth + 1}
               loadedFilesByPath={loadedFilesByPath}
               onSelectFile={onSelectFile}
+              unstagedChunksByPath={unstagedChunksByPath}
               onStageFile={onStageFile}
               onUnstageFile={onUnstageFile}
               forceExpanded={forceExpanded}
@@ -359,6 +418,7 @@ function FileTreeView({
   trackedFiles,
   unstagedFiles,
   showUnstaged,
+  unstagedChunksByPath,
   onStageFile,
   onUnstageFile,
   expandedMap,
@@ -393,6 +453,7 @@ function FileTreeView({
           depth={0}
           loadedFilesByPath={loadedFilesByPath}
           onSelectFile={onSelectFile}
+          unstagedChunksByPath={unstagedChunksByPath}
           onStageFile={onStageFile}
           onUnstageFile={onUnstageFile}
           forceExpanded={isSearching}
@@ -597,6 +658,7 @@ function FileSidebar({
           loadedFilesByPath={loadedFilesByPath}
           onSelectFile={onSelectFile}
           searchQuery={searchQuery}
+          unstagedChunksByPath={unstagedChunksByPath}
           onStageFile={onStageFile}
           onUnstageFile={onUnstageFile}
           reviewedFiles={reviewedFiles}
@@ -613,6 +675,7 @@ function FileSidebar({
           trackedFiles={trackedFiles}
           unstagedFiles={unstagedFiles}
           showUnstaged={showUnstaged}
+          unstagedChunksByPath={unstagedChunksByPath}
           onStageFile={onStageFile}
           onUnstageFile={onUnstageFile}
           expandedMap={expandedMap}
