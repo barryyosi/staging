@@ -22,8 +22,11 @@ const ShortcutsModal = lazy(() => import('./components/ShortcutsModal'));
 
 const SIDEBAR_MIN_WIDTH = 180;
 const SIDEBAR_MAX_WIDTH = 420;
-const SIDEBAR_DEFAULT_WIDTH = 240;
+const LEGACY_SIDEBAR_DEFAULT_WIDTH = 240;
+const SIDEBAR_DEFAULT_WIDTH = 300;
 const SIDEBAR_STORAGE_KEY = 'staging-sidebar-width';
+const SIDEBAR_WIDTH_VERSION_KEY = 'staging-sidebar-width-version';
+const SIDEBAR_WIDTH_VERSION = '2';
 const DIFF_PAGE_SIZE = 40;
 const FILE_JUMP_LIMIT = 1;
 
@@ -33,6 +36,23 @@ function clampWidth(width, min, max) {
 
 function clampSidebarWidth(width) {
   return clampWidth(width, SIDEBAR_MIN_WIDTH, SIDEBAR_MAX_WIDTH);
+}
+
+function getInitialSidebarWidth() {
+  if (typeof window === 'undefined') return SIDEBAR_DEFAULT_WIDTH;
+
+  const raw = Number.parseInt(
+    localStorage.getItem(SIDEBAR_STORAGE_KEY) || '',
+    10,
+  );
+  const version = localStorage.getItem(SIDEBAR_WIDTH_VERSION_KEY);
+
+  if (!Number.isFinite(raw)) return SIDEBAR_DEFAULT_WIDTH;
+  if (!version && raw === LEGACY_SIDEBAR_DEFAULT_WIDTH) {
+    return SIDEBAR_DEFAULT_WIDTH;
+  }
+
+  return clampSidebarWidth(raw);
 }
 
 function getFilePath(file) {
@@ -119,16 +139,7 @@ export default function App() {
   const [hasMoreFiles, setHasMoreFiles] = useState(false);
   const [nextOffset, setNextOffset] = useState(0);
   const [isSwitchingProject, setIsSwitchingProject] = useState(false);
-  const [sidebarWidth, setSidebarWidth] = useState(() => {
-    if (typeof window === 'undefined') return SIDEBAR_DEFAULT_WIDTH;
-    const raw = Number.parseInt(
-      localStorage.getItem(SIDEBAR_STORAGE_KEY) || '',
-      10,
-    );
-    return Number.isFinite(raw)
-      ? clampSidebarWidth(raw)
-      : SIDEBAR_DEFAULT_WIDTH;
-  });
+  const [sidebarWidth, setSidebarWidth] = useState(getInitialSidebarWidth);
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
   const [globalCollapsed, setGlobalCollapsed] = useState(false);
   const [collapseVersion, setCollapseVersion] = useState(0);
@@ -419,6 +430,7 @@ export default function App() {
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_STORAGE_KEY, String(sidebarWidth));
+    localStorage.setItem(SIDEBAR_WIDTH_VERSION_KEY, SIDEBAR_WIDTH_VERSION);
   }, [sidebarWidth]);
 
   useEffect(

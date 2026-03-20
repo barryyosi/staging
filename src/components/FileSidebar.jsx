@@ -52,6 +52,62 @@ function getFilePath(file) {
   return file.to || file.from;
 }
 
+function getFilePathParts(filePath) {
+  const lastSlash = filePath.lastIndexOf('/');
+
+  if (lastSlash === -1) {
+    return {
+      directory: '',
+      baseName: filePath,
+    };
+  }
+
+  return {
+    directory: filePath.slice(0, lastSlash + 1),
+    baseName: filePath.slice(lastSlash + 1),
+  };
+}
+
+function splitHighlightedSegments(segments, splitIndex) {
+  const before = [];
+  const after = [];
+  let offset = 0;
+
+  for (const segment of segments) {
+    let remaining = segment.text;
+
+    while (remaining.length > 0) {
+      const limit =
+        offset < splitIndex ? splitIndex - offset : remaining.length;
+      const nextText = remaining.slice(0, limit);
+      const target = offset < splitIndex ? before : after;
+
+      if (nextText) {
+        target.push({
+          text: nextText,
+          highlight: segment.highlight,
+        });
+        offset += nextText.length;
+      }
+
+      remaining = remaining.slice(nextText.length);
+    }
+  }
+
+  return { before, after };
+}
+
+function renderHighlightedSegments(segments) {
+  return segments.map((segment, index) => (
+    <mark
+      key={`${segment.highlight ? 'hit' : 'text'}-${index}`}
+      className={segment.highlight ? 'match' : ''}
+    >
+      {segment.text}
+    </mark>
+  ));
+}
+
 function isActivationKey(event) {
   return event.key === 'Enter' || event.key === ' ';
 }
@@ -61,41 +117,6 @@ function getFileStageState({ isStaged, isUnstaged, hasUnstagedChanges }) {
   if (isStaged) return 'staged';
   if (isUnstaged) return 'unstaged';
   return null;
-}
-
-function FileStageStateBadge({ stageState }) {
-  if (!stageState) return null;
-
-  const stageConfig = {
-    staged: {
-      label: 'S',
-      title: 'Fully staged',
-      ariaLabel: 'Fully staged',
-    },
-    mixed: {
-      label: 'M',
-      title: 'Staged with additional unstaged changes',
-      ariaLabel: 'Staged with additional unstaged changes',
-    },
-    unstaged: {
-      label: 'U',
-      title: 'Unstaged only',
-      ariaLabel: 'Unstaged only',
-    },
-  };
-
-  const config = stageConfig[stageState];
-  if (!config) return null;
-
-  return (
-    <span
-      className={`file-stage-state ${stageState}`}
-      title={config.title}
-      aria-label={config.ariaLabel}
-    >
-      {config.label}
-    </span>
-  );
 }
 
 function FileStageButton({
@@ -125,6 +146,42 @@ function FileStageButton({
         <Minus size={14} strokeWidth={1.5} />
       )}
     </button>
+  );
+}
+
+function FilePathLabel({ filePath, highlighted, showMetaLine }) {
+  if (!showMetaLine) {
+    return (
+      <MarqueeFileName title={filePath}>
+        {highlighted ? renderHighlightedSegments(highlighted) : filePath}
+      </MarqueeFileName>
+    );
+  }
+
+  const { directory, baseName } = getFilePathParts(filePath);
+  const splitSegments = highlighted
+    ? splitHighlightedSegments(highlighted, directory.length)
+    : null;
+  const baseContent =
+    splitSegments?.after?.length > 0
+      ? renderHighlightedSegments(splitSegments.after)
+      : baseName || filePath;
+  const directoryContent =
+    splitSegments?.before?.length > 0
+      ? renderHighlightedSegments(splitSegments.before)
+      : directory;
+
+  return (
+    <span className="file-label-stack">
+      <MarqueeFileName title={filePath} className="file-name-primary">
+        {baseContent}
+      </MarqueeFileName>
+      <span className="file-subline" title={filePath}>
+        {directory && (
+          <span className="file-parent-path">{directoryContent}</span>
+        )}
+      </span>
+    </span>
   );
 }
 
@@ -192,17 +249,14 @@ function FlatFileList({
                   }
             }
           >
-            <span className={`status-dot ${file.status}`} />
-            <MarqueeFileName title={filePath}>
-              {highlighted
-                ? highlighted.map((seg, i) => (
-                    <mark key={i} className={seg.highlight ? 'match' : ''}>
-                      {seg.text}
-                    </mark>
-                  ))
-                : filePath}
-            </MarqueeFileName>
-            <FileStageStateBadge stageState={stageState} />
+            <span
+              className={`status-dot ${file.status}${stageState ? ` stage-${stageState}` : ''}`}
+            />
+            <FilePathLabel
+              filePath={filePath}
+              highlighted={highlighted}
+              showMetaLine={true}
+            />
             {fileCommentCount > 0 && (
               <span
                 className="file-comment-count"
@@ -311,7 +365,11 @@ function FileTreeNode({
             : undefined
         }
       >
-        {fileMeta && <span className={`status-dot ${fileMeta.status}`} />}
+        {fileMeta && (
+          <span
+            className={`status-dot ${fileMeta.status}${stageState ? ` stage-${stageState}` : ''}`}
+          />
+        )}
         <MarqueeFileName title={filePath}>
           {highlighted
             ? highlighted.map((seg, i) => (
@@ -321,7 +379,6 @@ function FileTreeNode({
               ))
             : node.name}
         </MarqueeFileName>
-        <FileStageStateBadge stageState={stageState} />
         {fileCommentCount > 0 && (
           <span
             className="file-comment-count"

@@ -73,7 +73,8 @@
 
   --status-modified-bg: #fef3c7;
   --status-modified-text: #92400e;
-  --status-modified-dot: #b45309;
+  --status-modified-dot: #92400e;
+  --status-renamed-dot: var(--text-2);
 
   --hunk-bg: #f8f9fa;
   --hunk-text: #5e6873;
@@ -179,6 +180,7 @@
   --status-modified-bg: rgba(251, 191, 36, 0.18);
   --status-modified-text: #ffd766;
   --status-modified-dot: #fbbf24;
+  --status-renamed-dot: var(--text-3);
 
   --hunk-bg: #161b22;
   --hunk-text: #a5b1be;
@@ -1279,7 +1281,7 @@ body {
 /* === LAYOUT === */
 #layout {
   display: grid;
-  grid-template-columns: var(--sidebar-width, 240px) 10px minmax(0, 1fr);
+  grid-template-columns: var(--sidebar-width, 300px) 10px minmax(0, 1fr);
   min-height: calc(100vh - 64px);
 }
 
@@ -1713,11 +1715,15 @@ body {
   display: block;
 }
 
-.file-tree-file .status-dot {
-  width: 6px;
-  height: 6px;
+.file-tree-file .status-dot,
+.file-list-item .status-dot {
+  --status-dot-color: var(--text-3);
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   flex-shrink: 0;
+  position: relative;
+  background: var(--status-dot-color);
 }
 
 .file-tree-file .file-name,
@@ -1731,41 +1737,47 @@ body {
   position: relative;
 }
 
-.file-stage-state {
-  width: 14px;
-  height: 14px;
-  border-radius: 4px;
-  border: 1px solid var(--border-1);
-  display: inline-flex;
+.file-label-stack {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.file-label-stack .file-name {
+  flex: 0 1 auto;
+}
+
+.file-name-primary {
+  line-height: 1.15;
+}
+
+.file-subline {
+  display: flex;
   align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0;
+  gap: 6px;
+  min-width: 0;
+  font-size: 10px;
   line-height: 1;
-  font-family: var(--font-mono);
-  background: transparent;
   color: var(--text-3);
-  opacity: 0.9;
 }
 
-.file-stage-state.staged {
-  background: transparent;
-  border-color: var(--add-text);
-  color: var(--add-text);
+.file-parent-path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.file-stage-state.mixed {
+.file-parent-path mark {
   background: transparent;
-  border-color: var(--status-modified-dot);
-  color: var(--status-modified-text);
+  color: inherit;
 }
 
-.file-stage-state.unstaged {
-  background: transparent;
-  border-color: var(--border-1);
-  color: var(--text-2);
+.file-parent-path mark.match {
+  color: var(--accent);
+  font-weight: 600;
 }
 
 /* === FILE NAME MARQUEE === */
@@ -1803,7 +1815,7 @@ body {
   margin-left: auto;
   font-size: 11px;
   white-space: nowrap;
-  min-width: 72px;
+  min-width: max-content;
   flex-shrink: 0;
   font-family: var(--font-mono);
   font-weight: 500;
@@ -1895,38 +1907,53 @@ body {
   opacity: 0.7;
 }
 
-.file-list-item .status-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
 .file-list-item .status-dot.added,
 .file-tree-file .status-dot.added {
-  background: var(--add-text);
+  --status-dot-color: var(--add-text);
 }
 
 .file-list-item .status-dot.modified,
 .file-tree-file .status-dot.modified {
-  background: var(--status-modified-dot);
+  --status-dot-color: var(--status-modified-dot);
 }
 
 .file-list-item .status-dot.deleted,
 .file-tree-file .status-dot.deleted {
-  background: var(--del-text);
+  --status-dot-color: var(--del-text);
 }
 
 .file-list-item .status-dot.renamed,
 .file-tree-file .status-dot.renamed {
-  background: var(--text-3);
+  --status-dot-color: var(--status-renamed-dot);
+}
+
+.file-list-item .status-dot.stage-unstaged,
+.file-tree-file .status-dot.stage-unstaged {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--status-dot-color);
+}
+
+.file-list-item .status-dot.stage-mixed,
+.file-tree-file .status-dot.stage-mixed {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px
+    color-mix(in srgb, var(--status-dot-color) 82%, transparent);
+}
+
+.file-list-item .status-dot.stage-mixed::after,
+.file-tree-file .status-dot.stage-mixed::after {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  border-radius: 50%;
+  background: var(--status-dot-color);
 }
 
 .file-list-item .stats {
   margin-left: auto;
   font-size: 11px;
   white-space: nowrap;
-  min-width: 72px;
+  min-width: max-content;
   flex-shrink: 0;
   font-family: var(--font-mono);
   font-weight: 500;
