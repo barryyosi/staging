@@ -61,15 +61,15 @@
   --focus-ring: #1d4ed8;
   --focus-ring-outer: rgba(29, 78, 216, 0.3);
 
-  --add-bg: #ecfdf5;
-  --add-bg-strong: #d1fae5;
+  --add-bg: #ddfbed;
+  --add-bg-strong: #ddfbed;
   --add-text: #065f46;
-  --add-num: #ecfdf5;
+  --add-num: #ddfbed;
 
-  --del-bg: #fef2f2;
-  --del-bg-strong: #fecaca;
+  --del-bg: #fbe3e3;
+  --del-bg-strong: #fbe3e3;
   --del-text: #991b1b;
-  --del-num: #fef2f2;
+  --del-num: #fbe3e3;
 
   --status-modified-bg: #fef3c7;
   --status-modified-text: #92400e;
