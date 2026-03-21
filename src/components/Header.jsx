@@ -246,7 +246,7 @@ function Header({
   onGitAction,
   gitActionType,
   updateStatus,
-  onUpdate,
+  onOpenWhatsNew,
   onRestart,
   generalNote,
   isEditingGeneralNote,
@@ -592,8 +592,8 @@ function Header({
         {updateStatus?.status === 'update-available' && (
           <button
             className="update-indicator"
-            onClick={onUpdate}
-            aria-label="Update available"
+            onClick={onOpenWhatsNew}
+            aria-label="Update available. Show what's new"
             type="button"
           >
             <span className="update-indicator-dot" />

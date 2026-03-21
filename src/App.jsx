@@ -19,6 +19,7 @@ import { slugify } from './utils/escape';
 
 const CommitModal = lazy(() => import('./components/CommitModal'));
 const ShortcutsModal = lazy(() => import('./components/ShortcutsModal'));
+const WhatsNewModal = lazy(() => import('./components/WhatsNewModal'));
 
 const SIDEBAR_MIN_WIDTH = 180;
 const SIDEBAR_MAX_WIDTH = 420;
@@ -134,6 +135,7 @@ export default function App() {
   const [showCommitModal, setShowCommitModal] = useState(false);
   const [gitActionType, setGitActionType] = useState('commit');
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
+  const [showWhatsNewModal, setShowWhatsNewModal] = useState(false);
   const [committed, setCommitted] = useState(false);
   const [isLoadingPage, setIsLoadingPage] = useState(false);
   const [hasMoreFiles, setHasMoreFiles] = useState(false);
@@ -203,7 +205,8 @@ export default function App() {
         if (!res.ok) return;
         const data = await res.json();
         if (data.status === 'update-available') {
-          setUpdateStatus({ status: 'update-available' });
+          setUpdateStatus(data);
+          setShowWhatsNewModal(true);
         }
       } catch {
         // Silently ignore
@@ -213,22 +216,45 @@ export default function App() {
   }, []);
 
   const handleUpdate = useCallback(async () => {
-    setUpdateStatus({ status: 'updating' });
+    setUpdateStatus((current) =>
+      current ? { ...current, status: 'updating' } : { status: 'updating' },
+    );
     try {
       const res = await fetch('/api/update', { method: 'POST' });
       const data = await res.json();
       if (data.success) {
-        setUpdateStatus({ status: 'restart-needed' });
+        setShowWhatsNewModal(false);
+        setUpdateStatus((current) =>
+          current
+            ? { ...current, status: 'restart-needed' }
+            : { status: 'restart-needed' },
+        );
         showToast('Update complete — restart to apply', 'success');
       } else {
-        setUpdateStatus({ status: 'update-available' });
+        setUpdateStatus((current) =>
+          current
+            ? { ...current, status: 'update-available' }
+            : { status: 'update-available' },
+        );
         showToast(`Update failed: ${data.error}`, 'error');
       }
     } catch (err) {
-      setUpdateStatus({ status: 'update-available' });
+      setUpdateStatus((current) =>
+        current
+          ? { ...current, status: 'update-available' }
+          : { status: 'update-available' },
+      );
       showToast(`Update failed: ${err.message}`, 'error');
     }
   }, [showToast]);
+
+  const handleOpenWhatsNew = useCallback(() => {
+    setShowWhatsNewModal(true);
+  }, []);
+
+  const handleCloseWhatsNew = useCallback(() => {
+    setShowWhatsNewModal(false);
+  }, []);
 
   const handleRestart = useCallback(async () => {
     try {
@@ -1544,7 +1570,7 @@ export default function App() {
         selectedMediums={selectedMediums || ['clipboard', 'file']}
         onChangeMediums={handleChangeMediums}
         updateStatus={updateStatus}
-        onUpdate={handleUpdate}
+        onOpenWhatsNew={handleOpenWhatsNew}
         onRestart={handleRestart}
         generalNote={generalNote}
         isEditingGeneralNote={isEditingGeneralNote}
@@ -1694,6 +1720,18 @@ export default function App() {
           />
         </Suspense>
       )}
+
+      {showWhatsNewModal &&
+        (updateStatus?.status === 'update-available' ||
+          updateStatus?.status === 'updating') && (
+          <Suspense fallback={null}>
+            <WhatsNewModal
+              updateStatus={updateStatus}
+              onClose={handleCloseWhatsNew}
+              onUpdate={handleUpdate}
+            />
+          </Suspense>
+        )}
 
       {showShortcutsModal && (
         <Suspense fallback={null}>

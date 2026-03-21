@@ -1,6 +1,6 @@
 {
   "name": "staging",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Stop committing blindly. Review staged changes in a rich browser UI and send inline feedback directly to your coding agent.",
   "bin": {
     "staging": "./bin/staging.js"

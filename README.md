@@ -21,6 +21,7 @@ Staging gives you a dedicated, browser-based review interface with GitHub-style 
 - **Multi-Project Support**: Navigate between sibling repositories and git worktrees
 - **Inline Comments**: Add threaded comments directly on changed lines to guide agent refinements
 - **Markdown/HTML Preview**: Toggle per-file between diff and rendered preview for `.md` and `.html` files, with selection-based commenting on the rendered output
+- **Update Release Notes**: When a newer Staging version is available, the app opens a built-in "What's New" summary of the latest features and fixes before updating
 
 ## Tech Stack
 
