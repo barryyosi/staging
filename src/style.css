@@ -734,6 +734,45 @@ body {
   display: block;
 }
 
+/* Diff layout (unified / split) toggle — shares the round icon-button look */
+.btn-diff-layout {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: var(--text-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition:
+    color 0.2s var(--ease),
+    background 0.2s var(--ease),
+    box-shadow 0.2s var(--ease);
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn-diff-layout:hover {
+  color: var(--text-1);
+  background: var(--bg-hover);
+}
+
+.btn-diff-layout[aria-pressed='true'] {
+  color: var(--accent);
+}
+
+.btn-diff-layout:focus-visible {
+  box-shadow:
+    0 0 0 2px var(--bg-surface),
+    0 0 0 4px var(--focus-ring-outer);
+}
+
+.btn-diff-layout svg {
+  display: block;
+}
+
 /* Fuzzy Search Highlights */
 .file-name mark {
   background: transparent;
@@ -2485,6 +2524,47 @@ body {
   padding: 4px 12px;
   font-size: 11px;
   font-weight: 500;
+}
+
+/* === Side-by-side (split) diff layout === */
+/* Columns: [action, num, content] × 2. Equal-width content columns with a
+   center divider; old/deletions on the left, new/additions on the right. */
+.diff-table-split .line-content {
+  width: 50%;
+}
+
+/* No sticky line gutters in split — two gutters mid-table would overlap. */
+.diff-table-split .line-action,
+.diff-table-split .line-num {
+  position: static;
+}
+
+/* Center divider before the right (new) side's gutter. */
+.diff-table-split tr > td:nth-child(4) {
+  border-left: 1px solid var(--border-2);
+}
+
+/* Left side: deletions */
+.diff-table-split tr.split-left-del td:nth-child(-n + 3) {
+  background: var(--del-bg);
+}
+.diff-table-split tr.split-left-del td:nth-child(2) {
+  background: var(--del-num);
+  color: var(--del-text);
+}
+
+/* Right side: additions */
+.diff-table-split tr.split-right-add td:nth-child(n + 4) {
+  background: var(--add-bg);
+}
+.diff-table-split tr.split-right-add td:nth-child(5) {
+  background: var(--add-num);
+  color: var(--add-text);
+}
+
+/* Empty filler half (a change with no counterpart on the other side). */
+.diff-table-split .line-filler {
+  background: var(--hunk-bg);
 }
 
 /* === Expand context row === */

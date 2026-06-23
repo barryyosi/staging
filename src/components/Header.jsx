@@ -10,6 +10,8 @@ import {
   ChevronDown,
   ToggleRight,
   ToggleLeft,
+  Columns2,
+  AlignJustify,
 } from 'lucide-react';
 import ProjectNavigator from './ProjectNavigator';
 import ProgressRingWithStats from './ProgressRing';
@@ -227,6 +229,8 @@ function SendMediumPicker({
 function Header({
   theme,
   onToggleTheme,
+  diffLayout,
+  onToggleDiffLayout,
   files,
   reviewedFiles,
   hasReviewItems,
@@ -441,6 +445,28 @@ function Header({
             <ChevronsUpDown size={20} strokeWidth={1.5} />
           ) : (
             <ChevronsDownUp size={20} strokeWidth={1.5} />
+          )}
+        </button>
+        <button
+          className="btn-diff-layout"
+          onClick={onToggleDiffLayout}
+          aria-label={
+            diffLayout === 'split'
+              ? 'Switch to unified diff'
+              : 'Switch to side-by-side diff'
+          }
+          aria-pressed={diffLayout === 'split'}
+          title={
+            diffLayout === 'split'
+              ? 'Switch to unified diff'
+              : 'Switch to side-by-side diff'
+          }
+          type="button"
+        >
+          {diffLayout === 'split' ? (
+            <Columns2 size={20} strokeWidth={1.5} />
+          ) : (
+            <AlignJustify size={20} strokeWidth={1.5} />
           )}
         </button>
         <button

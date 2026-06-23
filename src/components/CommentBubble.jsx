@@ -9,6 +9,7 @@ function CommentBubble({
   commentCount = 1,
   onPrevComment = null,
   onNextComment = null,
+  colSpan = 3,
 }) {
   const location = `${comment.file}:${comment.line}`;
   const showPager = commentCount > 1;
@@ -19,7 +20,7 @@ function CommentBubble({
       data-comment-id={comment.id}
       style={{ '--comment-stack-index': stackIndex }}
     >
-      <td className="comment-form-cell" colSpan="3">
+      <td className="comment-form-cell" colSpan={colSpan}>
         <div className="comment-bubble">
           <div className="comment-bubble-head">
             <span className="comment-loc" title={location}>

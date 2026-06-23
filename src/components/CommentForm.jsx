@@ -10,6 +10,7 @@ export default function CommentForm({
   onSubmit,
   onCancel,
   stackIndex = 0,
+  colSpan = 3,
 }) {
   const [value, setValue] = useState(initialContent || '');
   const textareaRef = useRef(null);
@@ -40,7 +41,7 @@ export default function CommentForm({
       className="comment-form-row"
       style={{ '--comment-stack-index': stackIndex }}
     >
-      <td className="comment-form-cell" colSpan="3">
+      <td className="comment-form-cell" colSpan={colSpan}>
         <div className="comment-form">
           <div className="comment-form-input-wrap">
             <textarea

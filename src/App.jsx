@@ -9,6 +9,7 @@ import {
 } from 'react';
 import { MinusCircle } from 'lucide-react';
 import { useTheme } from './hooks/useTheme';
+import { useDiffLayout } from './hooks/useDiffLayout';
 import { useComments } from './hooks/useComments';
 import Header from './components/Header';
 import FileSidebar from './components/FileSidebar';
@@ -111,6 +112,7 @@ function countContiguousLoadedFiles(summaries, detailsByPath) {
 
 export default function App() {
   const { theme, toggleTheme } = useTheme();
+  const { diffLayout, toggleDiffLayout } = useDiffLayout();
   const [gitRoot, setGitRoot] = useState('');
   const {
     commentsByFile,
@@ -1551,6 +1553,8 @@ export default function App() {
       <Header
         theme={theme}
         onToggleTheme={toggleTheme}
+        diffLayout={diffLayout}
+        onToggleDiffLayout={toggleDiffLayout}
         files={fileSummaries}
         reviewedFiles={reviewedFiles}
         hasReviewItems={hasReviewItems}
@@ -1659,6 +1663,7 @@ export default function App() {
                     isReviewed={reviewedFiles.has(filePath)}
                     globalCollapsed={globalCollapsed}
                     collapseVersion={collapseVersion}
+                    diffLayout={diffLayout}
                   />
                 );
               })}
