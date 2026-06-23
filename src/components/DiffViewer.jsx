@@ -34,12 +34,14 @@ import CommentForm from './CommentForm';
 import CommentBubble from './CommentBubble';
 import { MarqueeFileName } from './FileSidebar';
 
-function HunkHeader({ chunk }) {
+function HunkHeader({ chunk, colSpan = 3 }) {
   return (
     <tr className="diff-hunk-header">
       <td className="line-action" />
       <td className="line-num" />
-      <td className="line-content">{chunk.header}</td>
+      <td className="line-content" colSpan={colSpan - 2}>
+        {chunk.header}
+      </td>
     </tr>
   );
 }
@@ -166,7 +168,10 @@ function LineEditInput({ content, onConfirm, onCancel }) {
   );
 }
 
-function DiffLine({
+// Renders the three diff cells (action / line-num / content) for a single
+// change. Shared by the unified DiffLine and the side-by-side SplitDiffRow so
+// both layouts keep identical highlighting, comment, and inline-edit behavior.
+function DiffLineCells({
   change,
   filePath,
   onAddComment,
@@ -176,15 +181,15 @@ function DiffLine({
   commentsExpanded = false,
   onToggleComments = null,
   isEditing = false,
-  onStartEdit = null,
   onConfirmEdit = null,
   onCancelEdit = null,
+  displayLineNum = null,
 }) {
+  // Canonical line number used for comment keys / add-comment calls (context
+  // keys on the new-side number, ln2). `displayLineNum` overrides only the
+  // visible number, so the old (left) side of a split can show ln1.
   const lineNum = change.type === 'context' ? change.ln2 : change.ln;
-  const canEdit =
-    onStartEdit != null &&
-    !isEditing &&
-    (change.type === 'add' || change.type === 'context');
+  const shownLineNum = displayLineNum ?? lineNum;
 
   const html = useMemo(
     () => highlightLine(change.content, filePath),
@@ -192,14 +197,7 @@ function DiffLine({
   );
 
   return (
-    <tr
-      className={`diff-line diff-line-${change.type}${isEditing ? ' is-editing' : ''}`}
-      onDoubleClick={
-        canEdit
-          ? () => onStartEdit(lineNum, change.type, change.content)
-          : undefined
-      }
-    >
+    <>
       <td className="line-action">
         {!isEditing && (
           <button
@@ -229,11 +227,11 @@ function DiffLine({
             aria-label={`${commentsExpanded ? 'Collapse' : 'Expand'} ${commentCount} comment${commentCount > 1 ? 's' : ''} on line ${lineNum}`}
             title={`${commentCount} comment${commentCount > 1 ? 's' : ''}`}
           >
-            <span className="line-num-value">{lineNum}</span>
+            <span className="line-num-value">{shownLineNum}</span>
             <span className="line-comment-indicator">{commentCount}</span>
           </button>
         ) : (
-          lineNum
+          shownLineNum
         )}
       </td>
       <td
@@ -259,6 +257,134 @@ function DiffLine({
           </>
         )}
       </td>
+    </>
+  );
+}
+
+// Empty placeholder cells for the half of a split row that has no line (e.g.
+// an addition with no paired deletion).
+function EmptyCells({ isLastChange = false, hunkActionsSlot = null }) {
+  return (
+    <>
+      <td className="line-action line-filler" />
+      <td className="line-num line-filler" />
+      <td
+        className={`line-content line-filler${isLastChange ? ' hunk-actions-anchor' : ''}`}
+      >
+        {isLastChange && hunkActionsSlot}
+      </td>
+    </>
+  );
+}
+
+function DiffLine(props) {
+  const { change, isEditing = false, onStartEdit = null } = props;
+  const lineNum = change.type === 'context' ? change.ln2 : change.ln;
+  const canEdit =
+    onStartEdit != null &&
+    !isEditing &&
+    (change.type === 'add' || change.type === 'context');
+
+  return (
+    <tr
+      className={`diff-line diff-line-${change.type}${isEditing ? ' is-editing' : ''}`}
+      onDoubleClick={
+        canEdit
+          ? () => onStartEdit(lineNum, change.type, change.content)
+          : undefined
+      }
+    >
+      <DiffLineCells {...props} />
+    </tr>
+  );
+}
+
+// One row of a side-by-side split diff: an old-side change on the left and a
+// new-side change on the right. Either side may be null (rendered as filler).
+function SplitDiffRow({
+  left,
+  right,
+  filePath,
+  onAddComment,
+  leftCommentCount = 0,
+  rightCommentCount = 0,
+  leftCommentsExpanded = false,
+  rightCommentsExpanded = false,
+  onToggleLeftComments = null,
+  onToggleRightComments = null,
+  isLastChange = false,
+  hunkActionsSlot = null,
+  editingLineNum = null,
+  onStartEditLine = null,
+  onConfirmEditLine = null,
+  onCancelEditLine = null,
+}) {
+  // Inline editing applies to the new (right) side only, matching the unified
+  // view where only add/context lines are editable.
+  const rightLineNum = right
+    ? right.type === 'context'
+      ? right.ln2
+      : right.ln
+    : null;
+  const rightEditing =
+    right != null && editingLineNum != null && editingLineNum === rightLineNum;
+  const canEditRight =
+    right != null &&
+    onStartEditLine != null &&
+    !rightEditing &&
+    (right.type === 'add' || right.type === 'context');
+
+  const leftType = left ? left.type : 'empty';
+  const rightType = right ? right.type : 'empty';
+
+  return (
+    <tr
+      className={`diff-line diff-split-line split-left-${leftType} split-right-${rightType}`}
+      onDoubleClick={
+        canEditRight
+          ? () => onStartEditLine(rightLineNum, right.type, right.content)
+          : undefined
+      }
+    >
+      {left ? (
+        <DiffLineCells
+          change={left}
+          filePath={filePath}
+          onAddComment={onAddComment}
+          isLastChange={false}
+          hunkActionsSlot={null}
+          commentCount={leftCommentCount}
+          commentsExpanded={leftCommentsExpanded}
+          onToggleComments={onToggleLeftComments}
+          displayLineNum={left.type === 'context' ? left.ln1 : null}
+        />
+      ) : (
+        <EmptyCells />
+      )}
+      {right ? (
+        <DiffLineCells
+          change={right}
+          filePath={filePath}
+          onAddComment={onAddComment}
+          isLastChange={isLastChange}
+          hunkActionsSlot={hunkActionsSlot}
+          commentCount={rightCommentCount}
+          commentsExpanded={rightCommentsExpanded}
+          onToggleComments={onToggleRightComments}
+          isEditing={rightEditing}
+          onConfirmEdit={
+            rightEditing
+              ? (newContent) => onConfirmEditLine(rightLineNum, newContent)
+              : null
+          }
+          onCancelEdit={onCancelEditLine}
+        />
+      ) : (
+        <EmptyCells
+          isLastChange={isLastChange}
+          hunkActionsSlot={hunkActionsSlot}
+        />
+      )}
     </tr>
   );
 }
@@ -269,7 +395,7 @@ function getGapKey(gap) {
   return `gap-after-${gap.afterChunkIndex}`;
 }
 
-function ExpandRow({ gap, expandedData, onExpand }) {
+function ExpandRow({ gap, expandedData, onExpand, colSpan = 3 }) {
   const topCount = expandedData?.topLines?.length || 0;
   const bottomCount = expandedData?.bottomLines?.length || 0;
   if (expandedData?.allLines) return null;
@@ -285,7 +411,7 @@ function ExpandRow({ gap, expandedData, onExpand }) {
       <tr className="diff-expand-row">
         <td className="line-action" />
         <td className="line-num" />
-        <td className="line-content expand-content">
+        <td className="line-content expand-content" colSpan={colSpan - 2}>
           <div className="expand-controls">
             {showDirectional && (
               <button
@@ -744,7 +870,10 @@ function DiffViewer({
   isReviewed,
   globalCollapsed,
   collapseVersion,
+  diffLayout = 'unified',
 }) {
+  const isSplit = diffLayout === 'split';
+  const RowsComponent = isSplit ? SplitChunkRows : ChunkRows;
   const [collapsed, setCollapsed] = useState(false);
   const [viewMode, setViewMode] = useState('diff');
   const [previewHtml, setPreviewHtml] = useState(null);
@@ -1110,70 +1239,58 @@ function DiffViewer({
 
   function renderExpandedContext(lines, key) {
     if (!lines || lines.length === 0) return null;
+    const colSpan = isSplit ? 6 : 3;
     return (
       <tbody key={key} className="expanded-context-tbody">
         {lines.map((change) => {
           const lineNum = change.ln2;
           const lineKey = `${lineNum}-context`;
-          const lineComments = commentMap[lineKey];
-          const commentCount = lineComments?.length || 0;
+          const commentCount = commentMap[lineKey]?.length || 0;
           const commentsExpanded = isCommentLineExpanded(lineKey);
-          const visibleIdx = getVisibleCommentIndex(lineKey, lineComments);
-          const visibleComment = lineComments?.[visibleIdx];
+          const commentRows = lineCommentRows({
+            lineKey,
+            lineNum,
+            lineType: 'context',
+            colSpan,
+            keyPrefix: `exp${lineNum}-`,
+            commentMap,
+            activeForm,
+            editingComment,
+            filePath,
+            onSubmitComment,
+            onCancelForm,
+            onEditComment,
+            onDeleteComment,
+            isCommentLineExpanded,
+            getVisibleCommentIndex,
+            onShiftVisibleComment: shiftVisibleComment,
+          });
           return (
             <Fragment key={`exp-${lineNum}`}>
-              <DiffLine
-                change={change}
-                filePath={filePath}
-                onAddComment={onAddComment}
-                isLastChange={false}
-                hunkActionsSlot={null}
-                commentCount={commentCount}
-                commentsExpanded={commentsExpanded}
-                onToggleComments={() => toggleCommentLine(lineKey)}
-              />
-              {lineComments &&
-                commentsExpanded &&
-                visibleComment &&
-                (editingComment?.id === visibleComment.id ? (
-                  <CommentForm
-                    key={`edit-${visibleComment.id}`}
-                    initialContent={visibleComment.content}
-                    onSubmit={onSubmitComment}
-                    onCancel={onCancelForm}
-                    stackIndex={0}
-                  />
-                ) : (
-                  <CommentBubble
-                    key={`comment-${visibleComment.id}`}
-                    comment={visibleComment}
-                    onEdit={onEditComment}
-                    onDelete={onDeleteComment}
-                    stackIndex={0}
-                    commentIndex={visibleIdx}
-                    commentCount={commentCount}
-                    onPrevComment={() =>
-                      shiftVisibleComment(lineKey, lineComments, -1)
-                    }
-                    onNextComment={() =>
-                      shiftVisibleComment(lineKey, lineComments, 1)
-                    }
-                  />
-                ))}
-              {activeForm &&
-                !editingComment &&
-                activeForm.file === filePath &&
-                String(activeForm.line) === String(lineNum) &&
-                activeForm.lineType === 'context' &&
-                commentsExpanded && (
-                  <CommentForm
-                    key={`new-${lineNum}`}
-                    initialContent=""
-                    onSubmit={onSubmitComment}
-                    onCancel={onCancelForm}
-                    stackIndex={visibleComment ? 1 : 0}
-                  />
-                )}
+              {isSplit ? (
+                <SplitDiffRow
+                  left={change}
+                  right={change}
+                  filePath={filePath}
+                  onAddComment={onAddComment}
+                  leftCommentCount={0}
+                  rightCommentCount={commentCount}
+                  rightCommentsExpanded={commentsExpanded}
+                  onToggleRightComments={() => toggleCommentLine(lineKey)}
+                />
+              ) : (
+                <DiffLine
+                  change={change}
+                  filePath={filePath}
+                  onAddComment={onAddComment}
+                  isLastChange={false}
+                  hunkActionsSlot={null}
+                  commentCount={commentCount}
+                  commentsExpanded={commentsExpanded}
+                  onToggleComments={() => toggleCommentLine(lineKey)}
+                />
+              )}
+              {commentRows}
             </Fragment>
           );
         })}
@@ -1190,7 +1307,12 @@ function DiffViewer({
         {data?.allLines ? (
           renderExpandedContext(data.allLines, `${gapKey}-all`)
         ) : (
-          <ExpandRow gap={gap} expandedData={data} onExpand={handleExpand} />
+          <ExpandRow
+            gap={gap}
+            expandedData={data}
+            onExpand={handleExpand}
+            colSpan={isSplit ? 6 : 3}
+          />
         )}
         {renderExpandedContext(data?.bottomLines, `${gapKey}-bottom`)}
       </Fragment>
@@ -1358,12 +1480,14 @@ function DiffViewer({
           file.isBinary ? (
             <div className="binary-notice">Binary file not shown</div>
           ) : (
-            <table className="diff-table">
+            <table
+              className={`diff-table${isSplit ? ' diff-table-split' : ''}`}
+            >
               {gapsByAfterChunk[-1] && renderGap(gapsByAfterChunk[-1])}
               {file.chunks.map((chunk, ci) => (
                 <Fragment key={ci}>
                   <tbody className="hunk-tbody">
-                    <ChunkRows
+                    <RowsComponent
                       chunk={chunk}
                       chunkIndex={ci}
                       filePath={filePath}
@@ -1396,7 +1520,9 @@ function DiffViewer({
                     <tr>
                       <td className="line-action" />
                       <td className="line-num" />
-                      <td className="line-content">UNSTAGED CHANGES</td>
+                      <td className="line-content" colSpan={isSplit ? 4 : 1}>
+                        UNSTAGED CHANGES
+                      </td>
                     </tr>
                   </tbody>
                   {file.unstagedChunks.map((chunk, ci) => (
@@ -1404,7 +1530,7 @@ function DiffViewer({
                       key={`unstaged-${ci}`}
                       className="hunk-tbody unstaged-hunk-tbody"
                     >
-                      <ChunkRows
+                      <RowsComponent
                         chunk={chunk}
                         chunkIndex={ci}
                         filePath={filePath}
@@ -1450,6 +1576,88 @@ function DiffViewer({
       </div>
     </div>
   );
+}
+
+// Builds the full-width comment bubble / form rows shown beneath a diff line.
+// Shared by both the unified and split layouts; `colSpan` covers the table
+// width (3 unified, 6 split) and `keyPrefix` keeps React keys unique when a
+// split row renders comments for both its sides.
+function lineCommentRows({
+  lineKey,
+  lineNum,
+  lineType,
+  colSpan = 3,
+  keyPrefix = '',
+  commentMap,
+  activeForm,
+  editingComment,
+  filePath,
+  onSubmitComment,
+  onCancelForm,
+  onEditComment,
+  onDeleteComment,
+  isCommentLineExpanded,
+  getVisibleCommentIndex,
+  onShiftVisibleComment,
+}) {
+  const rows = [];
+  if (!isCommentLineExpanded(lineKey)) return rows;
+
+  const lineComments = commentMap[lineKey];
+  const commentCount = lineComments?.length || 0;
+  const visibleIdx = getVisibleCommentIndex(lineKey, lineComments);
+  const visibleComment = lineComments?.[visibleIdx];
+
+  if (lineComments && visibleComment) {
+    if (editingComment && editingComment.id === visibleComment.id) {
+      rows.push(
+        <CommentForm
+          key={`${keyPrefix}edit-${visibleComment.id}`}
+          colSpan={colSpan}
+          initialContent={visibleComment.content}
+          onSubmit={onSubmitComment}
+          onCancel={onCancelForm}
+          stackIndex={0}
+        />,
+      );
+    } else {
+      rows.push(
+        <CommentBubble
+          key={`${keyPrefix}comment-${visibleComment.id}`}
+          colSpan={colSpan}
+          comment={visibleComment}
+          onEdit={onEditComment}
+          onDelete={onDeleteComment}
+          stackIndex={0}
+          commentIndex={visibleIdx}
+          commentCount={commentCount}
+          onPrevComment={() => onShiftVisibleComment(lineKey, lineComments, -1)}
+          onNextComment={() => onShiftVisibleComment(lineKey, lineComments, 1)}
+        />,
+      );
+    }
+  }
+
+  if (
+    activeForm &&
+    !editingComment &&
+    activeForm.file === filePath &&
+    String(activeForm.line) === String(lineNum) &&
+    activeForm.lineType === lineType
+  ) {
+    rows.push(
+      <CommentForm
+        key={`${keyPrefix}new-${lineKey}`}
+        colSpan={colSpan}
+        initialContent=""
+        onSubmit={onSubmitComment}
+        onCancel={onCancelForm}
+        stackIndex={visibleComment ? 1 : 0}
+      />,
+    );
+  }
+
+  return rows;
 }
 
 function ChunkRows({
@@ -1515,8 +1723,6 @@ function ChunkRows({
     const lineComments = commentMap[lineKey];
     const commentCount = lineComments?.length || 0;
     const commentsExpanded = isCommentLineExpanded(lineKey);
-    const visibleIdx = getVisibleCommentIndex(lineKey, lineComments);
-    const visibleComment = lineComments?.[visibleIdx];
 
     const isEditingThisLine = editingLine?.lineNum === lineNum;
     rows.push(
@@ -1541,60 +1747,221 @@ function ChunkRows({
       />,
     );
 
-    // Show existing comments for this line
-    if (lineComments && commentsExpanded && visibleComment) {
-      // If editing this comment, show form instead
-      if (editingComment && editingComment.id === visibleComment.id) {
-        rows.push(
-          <CommentForm
-            key={`edit-${visibleComment.id}`}
-            initialContent={visibleComment.content}
-            onSubmit={onSubmitComment}
-            onCancel={onCancelForm}
-            stackIndex={0}
-          />,
-        );
-      } else {
-        rows.push(
-          <CommentBubble
-            key={`comment-${visibleComment.id}`}
-            comment={visibleComment}
-            onEdit={onEditComment}
-            onDelete={onDeleteComment}
-            stackIndex={0}
-            commentIndex={visibleIdx}
-            commentCount={commentCount}
-            onPrevComment={() =>
-              onShiftVisibleComment(lineKey, lineComments, -1)
-            }
-            onNextComment={() =>
-              onShiftVisibleComment(lineKey, lineComments, 1)
-            }
-          />,
-        );
-      }
-    }
+    rows.push(
+      ...lineCommentRows({
+        lineKey,
+        lineNum,
+        lineType: change.type,
+        commentMap,
+        activeForm,
+        editingComment,
+        filePath,
+        onSubmitComment,
+        onCancelForm,
+        onEditComment,
+        onDeleteComment,
+        isCommentLineExpanded,
+        getVisibleCommentIndex,
+        onShiftVisibleComment,
+      }),
+    );
+  }
 
-    // Show new comment form after this line
-    if (
-      activeForm &&
-      !editingComment &&
-      activeForm.file === filePath &&
-      String(activeForm.line) === String(lineNum) &&
-      activeForm.lineType === change.type &&
-      commentsExpanded
-    ) {
-      rows.push(
-        <CommentForm
-          key="new-form"
-          initialContent=""
-          onSubmit={onSubmitComment}
-          onCancel={onCancelForm}
-          stackIndex={visibleComment ? 1 : 0}
-        />,
-      );
+  return <>{rows}</>;
+}
+
+// Side-by-side equivalent of ChunkRows: pairs deletions (left) with additions
+// (right) and aligns context lines on both sides.
+function SplitChunkRows({
+  chunk,
+  chunkIndex,
+  filePath,
+  commentMap,
+  activeForm,
+  editingComment,
+  onAddComment,
+  onSubmitComment,
+  onCancelForm,
+  onEditComment,
+  onDeleteComment,
+  onUnstageHunk,
+  onRevertHunk,
+  onStageHunk,
+  isUnstaged = false,
+  editingLine = null,
+  onStartEditLine = null,
+  onConfirmEditLine = null,
+  onCancelEditLine = null,
+  isCommentLineExpanded,
+  onToggleCommentLine,
+  getVisibleCommentIndex,
+  onShiftVisibleComment,
+}) {
+  const rows = [];
+  const SPLIT_COLSPAN = 6;
+
+  rows.push(
+    <HunkHeader
+      key={`hunk-${chunk.header}`}
+      chunk={chunk}
+      colSpan={SPLIT_COLSPAN}
+    />,
+  );
+
+  const actionsSlot = isUnstaged ? (
+    <UnstagedHunkActions
+      filePath={filePath}
+      chunkIndex={chunkIndex}
+      chunk={chunk}
+      onStageHunk={onStageHunk}
+    />
+  ) : (
+    <HunkActions
+      filePath={filePath}
+      chunkIndex={chunkIndex}
+      chunk={chunk}
+      onUnstageHunk={onUnstageHunk}
+      onRevertHunk={onRevertHunk}
+    />
+  );
+
+  // Build aligned [left, right] pairs. Consecutive del/add runs are buffered
+  // and paired positionally; context lines flush the buffer and align on both
+  // sides. The last add/del change anchors the hunk action pill.
+  const pairs = [];
+  let dels = [];
+  let adds = [];
+  const flush = () => {
+    const n = Math.max(dels.length, adds.length);
+    for (let k = 0; k < n; k++) {
+      pairs.push({ left: dels[k] || null, right: adds[k] || null });
+    }
+    dels = [];
+    adds = [];
+  };
+  let lastChangeIndex = -1;
+  for (const change of chunk.changes) {
+    if (change.type === 'del') {
+      dels.push(change);
+    } else if (change.type === 'add') {
+      adds.push(change);
+    } else {
+      flush();
+      pairs.push({ left: change, right: change });
     }
   }
+  flush();
+  for (let i = pairs.length - 1; i >= 0; i--) {
+    const r = pairs[i].right;
+    const l = pairs[i].left;
+    if (
+      (r && (r.type === 'add' || r.type === 'del')) ||
+      (l && l.type === 'del')
+    ) {
+      lastChangeIndex = i;
+      break;
+    }
+  }
+
+  pairs.forEach((pair, i) => {
+    const { left, right } = pair;
+    const leftLineNum = left
+      ? left.type === 'context'
+        ? left.ln2
+        : left.ln
+      : null;
+    const leftKey = left ? `${leftLineNum}-${left.type}` : null;
+    const rightLineNum = right
+      ? right.type === 'context'
+        ? right.ln2
+        : right.ln
+      : null;
+    const rightKey = right ? `${rightLineNum}-${right.type}` : null;
+    const isLastChange = i === lastChangeIndex;
+
+    // Context lines share one comment key (the new-side ln2): show the comment
+    // affordance on the right cell only, avoiding a duplicate indicator.
+    const leftIsContext = left && left.type === 'context';
+
+    rows.push(
+      <SplitDiffRow
+        key={`split-${i}`}
+        left={left}
+        right={right}
+        filePath={filePath}
+        onAddComment={onAddComment}
+        leftCommentCount={
+          leftKey && !leftIsContext ? commentMap[leftKey]?.length || 0 : 0
+        }
+        rightCommentCount={rightKey ? commentMap[rightKey]?.length || 0 : 0}
+        leftCommentsExpanded={
+          leftKey && !leftIsContext ? isCommentLineExpanded(leftKey) : false
+        }
+        rightCommentsExpanded={
+          rightKey ? isCommentLineExpanded(rightKey) : false
+        }
+        onToggleLeftComments={
+          leftKey ? () => onToggleCommentLine(leftKey) : null
+        }
+        onToggleRightComments={
+          rightKey ? () => onToggleCommentLine(rightKey) : null
+        }
+        isLastChange={isLastChange}
+        hunkActionsSlot={isLastChange ? actionsSlot : null}
+        editingLineNum={editingLine?.lineNum ?? null}
+        onStartEditLine={onStartEditLine}
+        onConfirmEditLine={onConfirmEditLine}
+        onCancelEditLine={onCancelEditLine}
+      />,
+    );
+
+    // Comment rows for the left (deletion) side, then the right side. Context
+    // lines only key on the right side.
+    if (leftKey && !leftIsContext && left.type === 'del') {
+      rows.push(
+        ...lineCommentRows({
+          lineKey: leftKey,
+          lineNum: leftLineNum,
+          lineType: left.type,
+          colSpan: SPLIT_COLSPAN,
+          keyPrefix: `l${i}-`,
+          commentMap,
+          activeForm,
+          editingComment,
+          filePath,
+          onSubmitComment,
+          onCancelForm,
+          onEditComment,
+          onDeleteComment,
+          isCommentLineExpanded,
+          getVisibleCommentIndex,
+          onShiftVisibleComment,
+        }),
+      );
+    }
+    if (rightKey) {
+      rows.push(
+        ...lineCommentRows({
+          lineKey: rightKey,
+          lineNum: rightLineNum,
+          lineType: right.type,
+          colSpan: SPLIT_COLSPAN,
+          keyPrefix: `r${i}-`,
+          commentMap,
+          activeForm,
+          editingComment,
+          filePath,
+          onSubmitComment,
+          onCancelForm,
+          onEditComment,
+          onDeleteComment,
+          isCommentLineExpanded,
+          getVisibleCommentIndex,
+          onShiftVisibleComment,
+        }),
+      );
+    }
+  });
 
   return <>{rows}</>;
 }
