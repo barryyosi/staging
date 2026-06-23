@@ -263,12 +263,16 @@ function DiffLineCells({
 
 // Empty placeholder cells for the half of a split row that has no line (e.g.
 // an addition with no paired deletion).
-function EmptyCells() {
+function EmptyCells({ isLastChange = false, hunkActionsSlot = null }) {
   return (
     <>
       <td className="line-action line-filler" />
       <td className="line-num line-filler" />
-      <td className="line-content line-filler" />
+      <td
+        className={`line-content line-filler${isLastChange ? ' hunk-actions-anchor' : ''}`}
+      >
+        {isLastChange && hunkActionsSlot}
+      </td>
     </>
   );
 }
@@ -376,7 +380,10 @@ function SplitDiffRow({
           onCancelEdit={onCancelEditLine}
         />
       ) : (
-        <EmptyCells />
+        <EmptyCells
+          isLastChange={isLastChange}
+          hunkActionsSlot={hunkActionsSlot}
+        />
       )}
     </tr>
   );
@@ -1473,7 +1480,9 @@ function DiffViewer({
           file.isBinary ? (
             <div className="binary-notice">Binary file not shown</div>
           ) : (
-            <table className={`diff-table${isSplit ? ' diff-table-split' : ''}`}>
+            <table
+              className={`diff-table${isSplit ? ' diff-table-split' : ''}`}
+            >
               {gapsByAfterChunk[-1] && renderGap(gapsByAfterChunk[-1])}
               {file.chunks.map((chunk, ci) => (
                 <Fragment key={ci}>
