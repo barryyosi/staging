@@ -8,7 +8,18 @@ import { startServer } from '../lib/server.js';
 import { openBrowser } from '../lib/open-browser.js';
 
 // CLI args
+const KNOWN_FLAGS = new Set(['--no-open', '-r', '--render']);
 const args = process.argv.slice(2);
+const unknownFlag = args.find((a) => a.startsWith('-') && !KNOWN_FLAGS.has(a));
+if (unknownFlag) {
+  console.error(
+    `Error: unknown option "${unknownFlag}". Supported: -r, --render, --no-open.` +
+      (unknownFlag.startsWith('--')
+        ? ''
+        : ` For a file named "${unknownFlag}", pass a path like ./${unknownFlag}.`),
+  );
+  process.exit(1);
+}
 const noOpen = args.includes('--no-open');
 const renderFlag = args.includes('-r') || args.includes('--render');
 const positional = args.find((a) => !a.startsWith('-'));
@@ -21,6 +32,7 @@ const isFile = fs.existsSync(targetPath) && fs.statSync(targetPath).isFile();
 const previewMode = renderFlag || isFile;
 
 let gitRoot;
+let configRoot;
 let previewFile = null;
 
 if (previewMode) {
@@ -41,6 +53,18 @@ if (previewMode) {
   previewFile = targetPath;
   gitRoot = path.dirname(targetPath);
   console.log(`Preview mode: ${path.basename(targetPath)}`);
+
+  // If the file lives inside a git repo, honor that project's .stagingrc.json
+  // (the serving root stays the file's directory).
+  try {
+    configRoot = execSync('git rev-parse --show-toplevel', {
+      cwd: gitRoot,
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+  } catch {
+    configRoot = gitRoot;
+  }
 } else {
   // Validate target directory
   if (!fs.existsSync(targetPath) || !fs.statSync(targetPath).isDirectory()) {
@@ -75,10 +99,12 @@ if (previewMode) {
   } else {
     console.log('No staged files found. Opening staging for unstaged review.');
   }
+
+  configRoot = gitRoot;
 }
 
 // Load config
-const config = loadConfig(gitRoot);
+const config = loadConfig(configRoot);
 
 // CLI send callback — prints comments to terminal stdout, then exits
 const onCliSend = (text) => {

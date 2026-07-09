@@ -4468,3 +4468,14 @@ body.is-resizing-sidebar * {
 .preview-standalone-error {
   color: var(--danger-soft-text);
 }
+
+.boot-error {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: var(--text-2);
+  font-size: 14px;
+}

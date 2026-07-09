@@ -43,7 +43,8 @@ export default function PreviewApp({ preview, config }) {
       config?.preferences?.sendMediums ||
       config?.sendMediums || ['clipboard', 'file'],
   );
-  const mtimeRef = useRef(null);
+  const stampRef = useRef(null);
+  const hasRenderedRef = useRef(false);
   const toastTimerRef = useRef(null);
 
   const showToast = useCallback((message, type = 'info') => {
@@ -70,31 +71,47 @@ export default function PreviewApp({ preview, config }) {
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     setHtml(renderPreview(data.content, filePath));
+    hasRenderedRef.current = true;
     setError(null);
   }, [filePath]);
 
-  // Initial load
+  // Load + live reload in one poll loop. The first tick performs the initial
+  // load (stampRef starts null, matching no stamp), and the stamp is only
+  // recorded after a successful render — transient failures retry next tick
+  // instead of pinning a stale render or error screen.
   useEffect(() => {
-    loadContent().catch((err) => setError(err.message));
-  }, [loadContent]);
+    let cancelled = false;
 
-  // Live reload: poll file mtime and re-render on change
-  useEffect(() => {
-    const timer = setInterval(async () => {
-      if (document.hidden) return;
+    const tick = async () => {
       try {
         const res = await fetch('/api/preview-status');
         const data = await res.json();
-        if (data.error) return; // file temporarily unreadable — keep last render
-        if (mtimeRef.current !== null && data.mtimeMs !== mtimeRef.current) {
-          await loadContent();
+        if (cancelled) return;
+        if (data.error) {
+          // File unreadable: keep the last good render, but surface the
+          // error if nothing has rendered yet
+          if (!hasRenderedRef.current) setError(data.error);
+          return;
         }
-        mtimeRef.current = data.mtimeMs;
-      } catch {
-        // Server gone — ignore; the tab is stale anyway
+        // mtime + size: size catches writes landing within one mtime tick
+        // on coarse-timestamp filesystems
+        const stamp = `${data.mtimeMs}:${data.size}`;
+        if (stamp === stampRef.current) return;
+        await loadContent();
+        if (!cancelled) stampRef.current = stamp;
+      } catch (err) {
+        if (!cancelled && !hasRenderedRef.current) setError(err.message);
       }
+    };
+
+    tick();
+    const timer = setInterval(() => {
+      if (!document.hidden) tick();
     }, POLL_INTERVAL_MS);
-    return () => clearInterval(timer);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
   }, [loadContent]);
 
   const handleAddPreviewComment = useCallback(
@@ -155,11 +172,23 @@ export default function PreviewApp({ preview, config }) {
     deleteAllComments();
   }, [deleteAllComments]);
 
-  const handleToggleMedium = useCallback((id) => {
-    setSelectedMediums((prev) =>
-      prev.includes(id) ? prev.filter((m) => m !== id) : [...prev, id],
-    );
-  }, []);
+  const handleToggleMedium = useCallback(
+    (id) => {
+      const next = selectedMediums.includes(id)
+        ? selectedMediums.filter((m) => m !== id)
+        : [...selectedMediums, id];
+      setSelectedMediums(next);
+      // Persist like App does, so the choice survives the next launch
+      fetch('/api/preferences', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sendMediums: next }),
+      }).catch(() => {
+        // Non-critical — selection still applies for this session
+      });
+    },
+    [selectedMediums],
+  );
 
   const handleSendComments = useCallback(async () => {
     if (allComments.length === 0 && !generalNote) return;
