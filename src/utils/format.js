@@ -1,6 +1,11 @@
-export function formatComments(comments, gitRoot, generalNote) {
-  let output = `## Code Review Comments\n\n`;
-  output += `Repository: ${gitRoot}\n\n`;
+export function formatComments(comments, gitRoot, generalNote, options = {}) {
+  const isPreview = options.context === 'preview';
+  let output = isPreview
+    ? `## Document Review Comments\n\n`
+    : `## Code Review Comments\n\n`;
+  output += isPreview
+    ? `Document: ${gitRoot}\n\n`
+    : `Repository: ${gitRoot}\n\n`;
 
   if (generalNote) {
     output += `### General comments\n\n${generalNote}\n\n`;
@@ -27,7 +32,9 @@ export function formatComments(comments, gitRoot, generalNote) {
     output += '\n';
   }
 
-  output += `---\nPlease address these review comments and update the staged changes.\n`;
+  output += isPreview
+    ? `---\nPlease address these review comments in the document.\n`
+    : `---\nPlease address these review comments and update the staged changes.\n`;
   return output;
 }
 

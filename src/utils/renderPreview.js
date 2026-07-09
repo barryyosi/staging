@@ -1,6 +1,7 @@
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 
+// Keep in sync with PREVIEW_EXTS in bin/staging.js
 const PREVIEW_EXTS = new Set(['md', 'markdown', 'html', 'htm']);
 
 export function isPreviewable(filePath) {
