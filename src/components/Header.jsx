@@ -147,7 +147,7 @@ function NoCommentsDialog({ onSendApproval, onSendCustom, onClose }) {
   );
 }
 
-function SendMediumPicker({
+export function SendMediumPicker({
   id,
   labelledBy,
   selectedMediums,

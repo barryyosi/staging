@@ -21,6 +21,7 @@ Staging gives you a dedicated, browser-based review interface with GitHub-style 
 - **Multi-Project Support**: Navigate between sibling repositories and git worktrees
 - **Inline Comments**: Add threaded comments directly on changed lines to guide agent refinements
 - **Markdown/HTML Preview**: Toggle per-file between diff and rendered preview for `.md` and `.html` files, with selection-based commenting on the rendered output
+- **Standalone File Preview**: Point staging at a single markdown/HTML file — no git repo needed — for a live-reloading rendered preview with the same selection-based commenting
 - **Update Release Notes**: When a newer Staging version is available, the app opens a built-in "What's New" summary of the latest features and fixes before updating
 
 ## Tech Stack
@@ -45,6 +46,21 @@ Usage:
 1. Stage changes: `git add [CHANGED_FILES]`
 2. Run `staging`
 3. Review at `http://localhost:3456`
+
+### Standalone File Preview
+
+Render a markdown (or HTML) file in the browser — the file does not need to be
+inside a git repository:
+
+```bash
+staging path/to/file.md        # auto-detected: a file argument opens preview mode
+staging -r path/to/file.md     # explicit --render/-r alias
+```
+
+The preview live-reloads when the file changes on disk. Select any text in the
+rendered output to attach a comment, then send the feedback to your agent via
+the usual mediums (`clipboard`, `file`, `cli`). The review file is written next
+to the previewed file. Supported extensions: `.md`, `.markdown`, `.html`, `.htm`.
 
 ## Agent Integration
 

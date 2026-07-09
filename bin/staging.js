@@ -7,45 +7,75 @@ import { loadConfig } from '../lib/config.js';
 import { startServer } from '../lib/server.js';
 import { openBrowser } from '../lib/open-browser.js';
 
-const targetPath = path.resolve(process.argv[2] || '.');
+// CLI args
+const args = process.argv.slice(2);
+const noOpen = args.includes('--no-open');
+const renderFlag = args.includes('-r') || args.includes('--render');
+const positional = args.find((a) => !a.startsWith('-'));
+const targetPath = path.resolve(positional || '.');
 
-// Validate target directory
-if (!fs.existsSync(targetPath) || !fs.statSync(targetPath).isDirectory()) {
-  console.error(`Error: "${targetPath}" is not a valid directory.`);
-  process.exit(1);
-}
+// Keep in sync with PREVIEW_EXTS in src/utils/renderPreview.js
+const PREVIEW_EXTS = new Set(['md', 'markdown', 'html', 'htm']);
 
-// Find git root
+const isFile = fs.existsSync(targetPath) && fs.statSync(targetPath).isFile();
+const previewMode = renderFlag || isFile;
+
 let gitRoot;
-try {
-  gitRoot = execSync('git rev-parse --show-toplevel', {
-    cwd: targetPath,
-    encoding: 'utf-8',
-  }).trim();
-} catch {
-  console.error(`Error: "${targetPath}" is not inside a git repository.`);
-  process.exit(1);
-}
+let previewFile = null;
 
-// Check staged files (but do not block startup when empty)
-const stagedFilesRaw = execSync('git diff --cached --name-only', {
-  cwd: gitRoot,
-  encoding: 'utf-8',
-});
-const stagedFiles = stagedFilesRaw
-  .split('\n')
-  .map((file) => file.trim())
-  .filter(Boolean);
-const fileCount = stagedFiles.length;
-
-if (fileCount > 0) {
-  console.log(`Found ${fileCount} staged file${fileCount === 1 ? '' : 's'}.`);
+if (previewMode) {
+  // Standalone file preview mode — no git repo required
+  if (!isFile) {
+    console.error(
+      `Error: "${targetPath}" is not a file. Preview mode (-r/--render) requires a file path.`,
+    );
+    process.exit(1);
+  }
+  const ext = targetPath.split('.').pop()?.toLowerCase();
+  if (!PREVIEW_EXTS.has(ext)) {
+    console.error(
+      `Error: cannot preview "${targetPath}" — supported extensions: .md, .markdown, .html, .htm`,
+    );
+    process.exit(1);
+  }
+  previewFile = targetPath;
+  gitRoot = path.dirname(targetPath);
+  console.log(`Preview mode: ${path.basename(targetPath)}`);
 } else {
-  console.log('No staged files found. Opening staging for unstaged review.');
-}
+  // Validate target directory
+  if (!fs.existsSync(targetPath) || !fs.statSync(targetPath).isDirectory()) {
+    console.error(`Error: "${targetPath}" is not a valid directory.`);
+    process.exit(1);
+  }
 
-// CLI flags
-const noOpen = process.argv.includes('--no-open');
+  // Find git root
+  try {
+    gitRoot = execSync('git rev-parse --show-toplevel', {
+      cwd: targetPath,
+      encoding: 'utf-8',
+    }).trim();
+  } catch {
+    console.error(`Error: "${targetPath}" is not inside a git repository.`);
+    process.exit(1);
+  }
+
+  // Check staged files (but do not block startup when empty)
+  const stagedFilesRaw = execSync('git diff --cached --name-only', {
+    cwd: gitRoot,
+    encoding: 'utf-8',
+  });
+  const stagedFiles = stagedFilesRaw
+    .split('\n')
+    .map((file) => file.trim())
+    .filter(Boolean);
+  const fileCount = stagedFiles.length;
+
+  if (fileCount > 0) {
+    console.log(`Found ${fileCount} staged file${fileCount === 1 ? '' : 's'}.`);
+  } else {
+    console.log('No staged files found. Opening staging for unstaged review.');
+  }
+}
 
 // Load config
 const config = loadConfig(gitRoot);
@@ -57,11 +87,15 @@ const onCliSend = (text) => {
 };
 
 // Start server
-const server = startServer({ gitRoot, config, onCliSend });
+const server = startServer({ gitRoot, config, onCliSend, previewFile });
 
 server.listen(config.port, '127.0.0.1', (info) => {
   const url = `http://127.0.0.1:${info.port}`;
-  console.log(`Staging review at ${url}`);
+  if (previewFile) {
+    console.log(`Rendering ${path.basename(previewFile)} at ${url}`);
+  } else {
+    console.log(`Staging review at ${url}`);
+  }
 
   if (config.autoOpen && !noOpen) {
     openBrowser(url);

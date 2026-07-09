@@ -1,6 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import App from './App';
+import Root from './Root';
 import './style.css';
 
 // Auto-hide scrollbars — show only while scrolling
@@ -24,6 +24,6 @@ import './style.css';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <App />
+    <Root />
   </StrictMode>,
 );

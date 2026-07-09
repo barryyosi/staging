@@ -4423,3 +4423,48 @@ body.is-resizing-sidebar * {
     border-color: #e5a000;
   }
 }
+
+/* === STANDALONE FILE PREVIEW MODE (`staging file.md`) === */
+.preview-standalone {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.preview-standalone-filename {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.preview-standalone-main {
+  flex: 1;
+  width: 100%;
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 16px 24px 64px;
+}
+
+.preview-standalone-main .preview-container {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-1);
+  border-radius: 8px;
+}
+
+.preview-standalone-loading,
+.preview-standalone-error {
+  padding: 48px;
+  text-align: center;
+  color: var(--text-3);
+  font-size: 13px;
+}
+
+.preview-standalone-error {
+  color: var(--danger-soft-text);
+}
