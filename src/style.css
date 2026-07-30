@@ -3899,6 +3899,13 @@ body.is-resizing-sidebar * {
   margin-bottom: 0;
 }
 
+/* Comment bubbles and forms are siblings of the blocks, so when the last
+   block carries a comment the rule above no longer matches — this keeps the
+   container's trailing space exact in that case too. */
+.preview-content > *:last-child {
+  margin-bottom: 0;
+}
+
 /* Hover-revealed per-block add button — mirrors the diff gutter's
    .btn-comment. Hangs into .preview-container's 32px left padding, so it
    adds zero layout width. */
@@ -4510,7 +4517,7 @@ body.is-resizing-sidebar * {
   font-size: 10px;
   font-weight: 600;
   background: var(--accent);
-  color: var(--bg);
+  color: var(--bg-surface);
   border-radius: 50%;
   min-width: 16px;
   height: 16px;
@@ -4565,6 +4572,17 @@ body.is-resizing-sidebar * {
   background: var(--bg-surface);
   border: 1px solid var(--border-1);
   border-radius: 8px;
+}
+
+/* In git-review mode this section is a divider inside a file card; standalone
+   has no card around it, so give it its own surface instead of leaving a
+   stray rule floating above the preview. */
+.preview-standalone-main .file-comments-section {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-1);
+  border-radius: 8px;
+  margin-bottom: var(--space-3);
+  padding: var(--space-3) 14px;
 }
 
 .preview-standalone-loading,

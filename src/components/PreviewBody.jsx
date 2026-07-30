@@ -8,10 +8,15 @@ import {
 } from 'react';
 import { Quote, MessageSquarePlus, Plus } from 'lucide-react';
 import { modKey } from '../utils/platform';
-import { anchorComments, resolveTextOffset } from '../utils/anchorComments';
+import {
+  anchorComments,
+  resolveAnchor,
+  resolveTextOffset,
+} from '../utils/anchorComments';
 
-function PreviewCommentForm({ initialContent, onSubmit, onCancel }) {
-  const [value, setValue] = useState(initialContent || '');
+// `value` is owned by PreviewBody so that a live reload re-anchoring the form
+// to a different block (which remounts it) cannot destroy an in-progress draft.
+function PreviewCommentForm({ value, isEdit, onChange, onSubmit, onCancel }) {
   const textareaRef = useRef(null);
   const canSubmit = value.trim().length > 0;
 
@@ -19,11 +24,11 @@ function PreviewCommentForm({ initialContent, onSubmit, onCancel }) {
     const ta = textareaRef.current;
     if (ta) {
       ta.focus();
-      if (initialContent) {
-        ta.selectionStart = ta.value.length;
-      }
+      ta.selectionStart = ta.value.length;
     }
-  }, [initialContent]);
+    // Focus on mount only — refocusing on every keystroke would fight the caret
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function handleKeyDown(e) {
     if (canSubmit && e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
@@ -43,7 +48,7 @@ function PreviewCommentForm({ initialContent, onSubmit, onCancel }) {
           placeholder="Leave a comment..."
           rows="2"
           value={value}
-          onChange={(e) => setValue(e.target.value)}
+          onChange={(e) => onChange(e.target.value)}
           onKeyDown={handleKeyDown}
           aria-label="Comment"
         />
@@ -61,7 +66,7 @@ function PreviewCommentForm({ initialContent, onSubmit, onCancel }) {
               disabled={!canSubmit}
               type="button"
             >
-              {initialContent ? 'Save' : 'Comment'}
+              {isEdit ? 'Save' : 'Comment'}
             </button>
           </div>
         </div>
@@ -168,7 +173,9 @@ export default function PreviewBody({
 }) {
   const containerRef = useRef(null);
   const contentRef = useRef(null);
+  const selectionTimerRef = useRef(null);
   const [selectionAnchor, setSelectionAnchor] = useState(null);
+  const [draft, setDraft] = useState('');
 
   const previewComments = useMemo(() => {
     if (!fileComments) return [];
@@ -180,9 +187,38 @@ export default function PreviewBody({
     [previewComments, blocks],
   );
 
+  const isPreviewFormActive =
+    activeForm?.file === filePath && activeForm?.lineType === 'preview';
+  const isEditingPreview =
+    !!editingComment && editingComment.lineType === 'preview';
+
+  // Reset the draft whenever a different form opens. Doing it in render (the
+  // same pattern DiffViewer uses for collapseVersion) keeps the textarea from
+  // flashing the previous body for a frame.
+  const formKey = isEditingPreview
+    ? editingComment.id
+    : isPreviewFormActive
+      ? 'new'
+      : null;
+  const [prevFormKey, setPrevFormKey] = useState(formKey);
+  if (formKey !== prevFormKey) {
+    setPrevFormKey(formKey);
+    setDraft(isEditingPreview ? editingComment.content : '');
+  }
+
+  // The pending form re-anchors exactly like a stored comment, so a live
+  // reload can move it with its block instead of unmounting it and losing
+  // the draft.
+  const pendingBlockIndex = useMemo(() => {
+    if (!isPreviewFormActive || editingComment) return null;
+    const resolved = resolveAnchor(activeForm, blocks || []);
+    return resolved ? resolved.blockIndex : -1;
+  }, [isPreviewFormActive, editingComment, activeForm, blocks]);
+
   const handleMouseUp = useCallback(() => {
     // Small delay to let selection finalize
-    setTimeout(() => {
+    if (selectionTimerRef.current) clearTimeout(selectionTimerRef.current);
+    selectionTimerRef.current = setTimeout(() => {
       const sel = window.getSelection();
       if (!sel || sel.isCollapsed || !contentRef.current) {
         setSelectionAnchor(null);
@@ -214,9 +250,12 @@ export default function PreviewBody({
       preRange.setEnd(range.startContainer, range.startOffset);
       const offset = preRange.toString().length;
 
-      // Clamp to the block: a cross-block drag truncates to the first block
+      // Clamp to the block: a cross-block drag truncates to the first block.
+      // Length comes from the Range, not the Selection — Selection.toString()
+      // returns layout-rendered text (tabs between table cells, collapsed
+      // whitespace) which would not line up with textContent offsets.
       const blockText = bodyEl.textContent;
-      const text = blockText.slice(offset, offset + sel.toString().length);
+      const text = blockText.slice(offset, offset + range.toString().length);
       if (!text.trim()) {
         setSelectionAnchor(null);
         return;
@@ -237,6 +276,13 @@ export default function PreviewBody({
       });
     }, 10);
   }, [blocks]);
+
+  useEffect(
+    () => () => {
+      if (selectionTimerRef.current) clearTimeout(selectionTimerRef.current);
+    },
+    [],
+  );
 
   const handleCommentClick = useCallback(() => {
     if (!selectionAnchor) return;
@@ -263,17 +309,23 @@ export default function PreviewBody({
     [filePath, onAddPreviewComment],
   );
 
-  // Apply text highlights for existing comments
+  // Apply text highlights for existing comments.
+  // Every DOM mutation here is confined to .preview-block-body, which React
+  // owns via dangerouslySetInnerHTML and never reconciles into — unwrapping or
+  // normalizing text nodes in the React-rendered bubbles alongside them would
+  // corrupt reconciliation.
   useEffect(() => {
     const content = contentRef.current;
     if (!content) return;
 
-    // Remove old highlights everywhere, then re-apply per block
-    content.querySelectorAll('.preview-highlight').forEach((el) => {
-      el.replaceWith(...el.childNodes);
-    });
-    // Normalize text nodes after unwrapping
-    content.normalize();
+    const bodies = content.querySelectorAll('.preview-block-body');
+    for (const bodyEl of bodies) {
+      // Remove old highlights, then normalize the text nodes left behind
+      bodyEl.querySelectorAll('.preview-highlight').forEach((el) => {
+        el.replaceWith(...el.childNodes);
+      });
+      bodyEl.normalize();
+    }
 
     for (const [blockIndex, items] of byBlock) {
       const bodyEl = content.querySelector(
@@ -290,16 +342,15 @@ export default function PreviewBody({
         highlightRange(bodyEl, off, c.textLength, c.id);
       }
     }
-  }, [byBlock, blocks]);
-
-  const isPreviewFormActive =
-    activeForm?.file === filePath && activeForm?.lineType === 'preview';
+  }, [byBlock]);
 
   const renderBubbleOrForm = (comment) =>
     editingComment?.id === comment.id ? (
       <div key={comment.id} className="preview-comment-form-wrap">
         <PreviewCommentForm
-          initialContent={comment.content}
+          value={draft}
+          isEdit
+          onChange={setDraft}
           onSubmit={onSubmitComment}
           onCancel={onCancelForm}
         />
@@ -313,36 +364,42 @@ export default function PreviewBody({
       />
     );
 
+  const newCommentForm = (
+    <div className="preview-comment-form-wrap">
+      {activeForm?.selectedText && (
+        <div className="preview-selected-quote">{activeForm.selectedText}</div>
+      )}
+      <PreviewCommentForm
+        value={draft}
+        onChange={setDraft}
+        onSubmit={onSubmitComment}
+        onCancel={onCancelForm}
+      />
+    </div>
+  );
+
   const renderItemsFor = (blockIndex) => {
     const items = byBlock.get(blockIndex) || [];
-    const showForm =
-      isPreviewFormActive &&
-      !editingComment &&
-      activeForm.blockIndex === blockIndex;
+    const showForm = pendingBlockIndex === blockIndex;
     if (items.length === 0 && !showForm) return null;
     return (
       <>
         {items.map(renderBubbleOrForm)}
-        {showForm && (
-          <div className="preview-comment-form-wrap">
-            {activeForm.selectedText && (
-              <div className="preview-selected-quote">
-                {activeForm.selectedText}
-              </div>
-            )}
-            <PreviewCommentForm
-              initialContent=""
-              onSubmit={onSubmitComment}
-              onCancel={onCancelForm}
-            />
-          </div>
-        )}
+        {showForm && newCommentForm}
       </>
     );
   };
 
+  // A pending form whose block vanished mid-draft (-1) still has to go
+  // somewhere, or the user's typing is silently discarded
+  const showOrphanedForm = pendingBlockIndex === -1;
+
   return (
-    <div className="preview-container" ref={containerRef}>
+    <div
+      className="preview-container"
+      data-file-path={filePath}
+      ref={containerRef}
+    >
       <div
         className="preview-content"
         ref={contentRef}
@@ -358,7 +415,9 @@ export default function PreviewBody({
                 aria-label={
                   block.srcLine != null
                     ? `Comment on line ${block.srcLine}`
-                    : 'Comment on this block'
+                    : `Comment on block ${block.index + 1}${
+                        block.anchorText ? `: ${block.anchorText}` : ''
+                      }`
                 }
                 onClick={() => handleBlockComment(block)}
               >
@@ -387,12 +446,13 @@ export default function PreviewBody({
         </button>
       )}
 
-      {unanchored.length > 0 && (
+      {(unanchored.length > 0 || showOrphanedForm) && (
         <div className="preview-unanchored">
           <div className="preview-unanchored-label">
             Comments on content that changed
           </div>
           {unanchored.map(renderBubbleOrForm)}
+          {showOrphanedForm && newCommentForm}
         </div>
       )}
     </div>

@@ -65,6 +65,12 @@ export function formatCommitMessageRequest(comments, gitRoot, generalNote) {
       for (const c of fc.sort((a, b) => a.line - b.line)) {
         if (c.lineType === 'file') {
           out += `- File comment: ${c.content}\n`;
+        } else if (c.lineType === 'preview') {
+          // A rendered-document line, not a staged-diff line — label it so the
+          // two can't be confused
+          const quote = c.selectedText || c.anchorText;
+          const where = c.srcLine ? `Document line ${c.srcLine}` : 'Document';
+          out += `- ${where}${quote ? ` ("${clip(oneLine(quote), 60)}")` : ''}: ${c.content}\n`;
         } else {
           out += `- Line ${c.line}: ${c.content}\n`;
         }

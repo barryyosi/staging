@@ -1,10 +1,6 @@
 import { useRef, memo } from 'react';
 import { useModalAccessibility } from '../hooks/useModalAccessibility';
-
-const isMac =
-  typeof navigator !== 'undefined' &&
-  navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-const modKey = isMac ? '⌘' : 'Ctrl';
+import { modKey } from '../utils/platform';
 
 function ShortcutsModal({ onClose }) {
   const titleId = 'shortcuts-modal-title';

@@ -7,7 +7,7 @@ const PREVIEW_EXTS = new Set(['md', 'markdown', 'html', 'htm']);
 const MARKED_OPTIONS = { gfm: true, breaks: false };
 const ANCHOR_TEXT_MAX = 120;
 
-// Shared parser for plain-text extraction — cheaper than one per block
+// Shared parser for the image-rewrite pass
 const domParser = new DOMParser();
 
 export function isPreviewable(filePath) {
@@ -20,30 +20,34 @@ function countNewlines(str) {
   return (str.match(/\n/g) || []).length;
 }
 
-// Whitespace-normalized plain text of a block, used as a re-anchoring key
-function toAnchorText(html) {
-  const doc = domParser.parseFromString(html, 'text/html');
-  return (doc.body.textContent || '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, ANCHOR_TEXT_MAX);
-}
-
+// Sanitizes once and derives the block's plain text from the same DOM, so a
+// block costs one parse rather than a separate pass for the anchor text.
 function sanitizeBlock(html, filePath) {
-  return DOMPurify.sanitize(rewriteImageUrls(html, filePath));
+  const fragment = DOMPurify.sanitize(rewriteImageUrls(html, filePath), {
+    RETURN_DOM_FRAGMENT: true,
+  });
+  const holder = document.createElement('div');
+  holder.appendChild(fragment);
+  return {
+    html: holder.innerHTML,
+    anchorText: (holder.textContent || '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, ANCHOR_TEXT_MAX),
+  };
 }
 
 // Renders a previewable file into an ordered list of blocks:
 //   { index, type, html, srcLine, anchorText }
-// srcLine is the 1-based line in the markdown source (null for HTML files),
-// so comments can point the agent at the exact place to edit.
+// srcLine is the 1-based line in the markdown source (null for HTML files,
+// and null past any point where the source scan loses sync), so comments can
+// point the agent at the exact place to edit.
 export function renderPreviewBlocks(content, filePath) {
   const ext = filePath.split('.').pop()?.toLowerCase();
   const isMarkdown = ext === 'md' || ext === 'markdown';
-  const blocks = isMarkdown
+  return isMarkdown
     ? markdownBlocks(content, filePath)
     : htmlBlocks(content, filePath);
-  return { blocks, isMarkdown };
 }
 
 function markdownBlocks(content, filePath) {
@@ -58,13 +62,23 @@ function markdownBlocks(content, filePath) {
   // omits a token (e.g. link-reference definitions) from the stream.
   let cursor = 0;
   let cursorLine = 1;
+  // Once a token's raw text can't be located, the cursor no longer
+  // corresponds to the source and every later number would be confidently
+  // wrong. Report no line at all from that point rather than mislead the agent.
+  let desynced = false;
 
   for (const token of tokens) {
-    const found = token.raw ? source.indexOf(token.raw, cursor) : -1;
-    const start = found === -1 ? cursor : found;
-    const srcLine = cursorLine + countNewlines(source.slice(cursor, start));
-    cursor = start + (token.raw?.length || 0);
-    cursorLine = srcLine + countNewlines(token.raw || '');
+    let srcLine = null;
+    if (!desynced) {
+      const found = token.raw ? source.indexOf(token.raw, cursor) : -1;
+      if (found === -1) {
+        desynced = true;
+      } else {
+        srcLine = cursorLine + countNewlines(source.slice(cursor, found));
+        cursor = found + token.raw.length;
+        cursorLine = srcLine + countNewlines(token.raw);
+      }
+    }
 
     // Never hand zero-output tokens to the parser
     if (token.type === 'space' || token.type === 'def') continue;
@@ -76,7 +90,7 @@ function markdownBlocks(content, filePath) {
     const rendered = marked.parser(single, MARKED_OPTIONS);
     if (!rendered.trim()) continue;
 
-    const html = sanitizeBlock(rendered, filePath);
+    const { html, anchorText } = sanitizeBlock(rendered, filePath);
     if (!html.trim()) continue;
 
     blocks.push({
@@ -84,7 +98,7 @@ function markdownBlocks(content, filePath) {
       type: token.type,
       html,
       srcLine,
-      anchorText: toAnchorText(html),
+      anchorText,
     });
   }
 
@@ -100,12 +114,17 @@ function htmlBlocks(content, filePath) {
     if (node.nodeType === Node.ELEMENT_NODE) {
       raw = node.outerHTML;
     } else if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
-      raw = `<p>${node.textContent}</p>`;
+      // Build the wrapper as DOM so already-decoded text is re-escaped on
+      // serialization — interpolating it into a string would parse it as
+      // markup a second time and swallow anything after a literal "<".
+      const p = document.createElement('p');
+      p.textContent = node.textContent;
+      raw = p.outerHTML;
     } else {
       continue;
     }
 
-    const html = sanitizeBlock(raw, filePath);
+    const { html, anchorText } = sanitizeBlock(raw, filePath);
     if (!html.trim()) continue;
 
     blocks.push({
@@ -113,7 +132,7 @@ function htmlBlocks(content, filePath) {
       type: 'html',
       html,
       srcLine: null,
-      anchorText: toAnchorText(html),
+      anchorText,
     });
   }
 

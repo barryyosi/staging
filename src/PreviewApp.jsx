@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useTheme } from './hooks/useTheme';
 import { useComments } from './hooks/useComments';
+import { useDismissablePopover } from './hooks/useDismissablePopover';
 import PreviewBody from './components/PreviewBody';
 import CommentPanel from './components/CommentPanel';
 import Toast from './components/Toast';
@@ -45,7 +46,6 @@ export default function PreviewApp({ preview, config }) {
   const [editingComment, setEditingComment] = useState(null);
   const [isEditingGeneralNote, setIsEditingGeneralNote] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [commentsOpen, setCommentsOpen] = useState(false);
   const [selectedMediums, setSelectedMediums] = useState(
     () =>
       config?.preferences?.sendMediums ||
@@ -56,6 +56,14 @@ export default function PreviewApp({ preview, config }) {
   const toastTimerRef = useRef(null);
   const commentsWrapRef = useRef(null);
   const commentsButtonRef = useRef(null);
+  const {
+    isOpen: commentsOpen,
+    close: closeComments,
+    toggle: toggleComments,
+  } = useDismissablePopover({
+    wrapRef: commentsWrapRef,
+    triggerRef: commentsButtonRef,
+  });
 
   const showToast = useCallback((message, type = 'info') => {
     setToast({ message, type });
@@ -80,7 +88,7 @@ export default function PreviewApp({ preview, config }) {
     );
     const data = await res.json();
     if (data.error) throw new Error(data.error);
-    setBlocks(renderPreviewBlocks(data.content, filePath).blocks);
+    setBlocks(renderPreviewBlocks(data.content, filePath));
     hasRenderedRef.current = true;
     setError(null);
   }, [filePath]);
@@ -214,43 +222,10 @@ export default function PreviewApp({ preview, config }) {
     setIsEditingGeneralNote(false);
   }, [clearGeneralNote]);
 
-  const closeComments = useCallback((restoreFocus = true) => {
-    setCommentsOpen(false);
-    if (restoreFocus) {
-      requestAnimationFrame(() => commentsButtonRef.current?.focus());
-    }
-  }, []);
-
   const handleToggleComments = useCallback(() => {
     setPickerOpen(false);
-    setCommentsOpen((prev) => !prev);
-  }, []);
-
-  useEffect(() => {
-    if (!commentsOpen) return;
-
-    function handlePointerDown(event) {
-      if (
-        commentsWrapRef.current &&
-        !commentsWrapRef.current.contains(event.target)
-      ) {
-        closeComments(true);
-      }
-    }
-
-    function handleKeyDown(event) {
-      if (event.key === 'Escape') {
-        closeComments(true);
-      }
-    }
-
-    document.addEventListener('pointerdown', handlePointerDown);
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('pointerdown', handlePointerDown);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [closeComments, commentsOpen]);
+    toggleComments();
+  }, [toggleComments]);
 
   const handleToggleMedium = useCallback(
     (id) => {
@@ -427,7 +402,7 @@ export default function PreviewApp({ preview, config }) {
                 className={`btn btn-secondary header-action-btn split-btn-caret${canSend ? ' is-ready' : ''}`}
                 disabled={!canSend}
                 onClick={() => {
-                  setCommentsOpen(false);
+                  closeComments(false);
                   setPickerOpen((prev) => !prev);
                 }}
                 aria-label="Choose send mediums"

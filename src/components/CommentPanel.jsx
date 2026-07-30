@@ -1,10 +1,6 @@
 import { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { X, Quote, StickyNote } from 'lucide-react';
-
-const isMac =
-  typeof navigator !== 'undefined' &&
-  navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-const modKey = isMac ? '\u2318' : 'Ctrl';
+import { modKey } from '../utils/platform';
 
 function GeneralNoteSection({
   generalNote,
@@ -168,9 +164,15 @@ function CommentPanel({
         return;
       }
       // Block comments without a highlight: scroll to the block itself.
-      // Pre-existing limitation: in git-review mode none of these resolve
-      // when the file is collapsed or showing the diff instead of the preview.
-      const block = document.querySelector(
+      // data-block-index is only unique within one preview, so scope the query
+      // to this comment's file — otherwise a file still showing its diff would
+      // resolve to a different file's block at the same index.
+      // Pre-existing limitation: this resolves nothing when the file is
+      // collapsed or showing the diff instead of the preview.
+      const container = document.querySelector(
+        `.preview-container[data-file-path="${comment.file}"]`,
+      );
+      const block = container?.querySelector(
         `.preview-block[data-block-index="${comment.blockIndex}"]`,
       );
       if (block) block.scrollIntoView({ behavior: 'smooth', block: 'center' });

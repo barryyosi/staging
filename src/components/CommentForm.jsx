@@ -1,9 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-
-const isMac =
-  typeof navigator !== 'undefined' &&
-  navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-const modKey = isMac ? '\u2318' : 'Ctrl';
+import { modKey } from '../utils/platform';
 
 export default function CommentForm({
   initialContent,

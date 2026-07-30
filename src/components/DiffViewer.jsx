@@ -560,8 +560,7 @@ function DiffViewer({
       .then((data) => {
         if (cancelled) return;
         if (data.error) throw new Error(data.error);
-        const { blocks } = renderPreviewBlocks(data.content, filePath);
-        setPreviewBlocks(blocks);
+        setPreviewBlocks(renderPreviewBlocks(data.content, filePath));
       })
       .catch(() => {
         if (!cancelled)
