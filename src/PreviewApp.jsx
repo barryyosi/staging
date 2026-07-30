@@ -5,17 +5,22 @@ import {
   ChevronUp,
   ChevronDown,
   FileText,
-  Trash2,
+  MessageSquare,
+  MessageSquarePlus,
 } from 'lucide-react';
 import { useTheme } from './hooks/useTheme';
 import { useComments } from './hooks/useComments';
+import { useDismissablePopover } from './hooks/useDismissablePopover';
 import PreviewBody from './components/PreviewBody';
+import CommentPanel from './components/CommentPanel';
 import Toast from './components/Toast';
+import { FileCommentBubble, FileCommentForm } from './components/FileComments';
 import { SendMediumPicker } from './components/Header';
-import { renderPreview } from './utils/renderPreview';
+import { renderPreviewBlocks } from './utils/renderPreview';
 import { formatComments } from './utils/format';
 
 const SEND_MEDIUM_PICKER_ID = 'send-medium-picker';
+const COMMENTS_PANEL_ID = 'comments-dropdown-panel';
 const POLL_INTERVAL_MS = 1000;
 
 export default function PreviewApp({ preview, config }) {
@@ -26,17 +31,20 @@ export default function PreviewApp({ preview, config }) {
     commentsByFile,
     allComments,
     generalNote,
+    setGeneralNote,
+    clearGeneralNote,
     addComment,
     updateComment,
     deleteComment,
     deleteAllComments,
   } = useComments(documentPath);
 
-  const [html, setHtml] = useState(null);
+  const [blocks, setBlocks] = useState(null);
   const [error, setError] = useState(null);
   const [toast, setToast] = useState(null);
   const [activeForm, setActiveForm] = useState(null);
   const [editingComment, setEditingComment] = useState(null);
+  const [isEditingGeneralNote, setIsEditingGeneralNote] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [selectedMediums, setSelectedMediums] = useState(
     () =>
@@ -46,6 +54,16 @@ export default function PreviewApp({ preview, config }) {
   const stampRef = useRef(null);
   const hasRenderedRef = useRef(false);
   const toastTimerRef = useRef(null);
+  const commentsWrapRef = useRef(null);
+  const commentsButtonRef = useRef(null);
+  const {
+    isOpen: commentsOpen,
+    close: closeComments,
+    toggle: toggleComments,
+  } = useDismissablePopover({
+    wrapRef: commentsWrapRef,
+    triggerRef: commentsButtonRef,
+  });
 
   const showToast = useCallback((message, type = 'info') => {
     setToast({ message, type });
@@ -70,7 +88,7 @@ export default function PreviewApp({ preview, config }) {
     );
     const data = await res.json();
     if (data.error) throw new Error(data.error);
-    setHtml(renderPreview(data.content, filePath));
+    setBlocks(renderPreviewBlocks(data.content, filePath));
     hasRenderedRef.current = true;
     setError(null);
   }, [filePath]);
@@ -114,20 +132,22 @@ export default function PreviewApp({ preview, config }) {
     };
   }, [loadContent]);
 
-  const handleAddPreviewComment = useCallback(
-    (file, selectedText, textOffset, textLength) => {
-      setEditingComment(null);
-      setActiveForm({
-        file,
-        line: 0,
-        lineType: 'preview',
-        selectedText,
-        textOffset,
-        textLength,
-      });
-    },
-    [],
-  );
+  const handleAddPreviewComment = useCallback((file, anchor) => {
+    setEditingComment(null);
+    setIsEditingGeneralNote(false);
+    setActiveForm({
+      file,
+      line: anchor.srcLine ?? 0,
+      lineType: 'preview',
+      ...anchor,
+    });
+  }, []);
+
+  const handleAddFileComment = useCallback(() => {
+    setEditingComment(null);
+    setIsEditingGeneralNote(false);
+    setActiveForm({ file: filePath, line: 0, lineType: 'file' });
+  }, [filePath]);
 
   const handleSubmitComment = useCallback(
     (content) => {
@@ -136,16 +156,23 @@ export default function PreviewApp({ preview, config }) {
         updateComment(editingComment.id, content);
         setEditingComment(null);
       } else if (activeForm) {
+        const extra =
+          activeForm.lineType === 'preview'
+            ? {
+                blockIndex: activeForm.blockIndex,
+                srcLine: activeForm.srcLine,
+                anchorText: activeForm.anchorText,
+                selectedText: activeForm.selectedText,
+                textOffset: activeForm.textOffset,
+                textLength: activeForm.textLength,
+              }
+            : {};
         addComment(
           activeForm.file,
           activeForm.line,
           activeForm.lineType,
           content,
-          {
-            selectedText: activeForm.selectedText,
-            textOffset: activeForm.textOffset,
-            textLength: activeForm.textLength,
-          },
+          extra,
         );
       }
       setActiveForm(null);
@@ -159,6 +186,7 @@ export default function PreviewApp({ preview, config }) {
   }, []);
 
   const handleEditComment = useCallback((comment) => {
+    setIsEditingGeneralNote(false);
     setActiveForm({
       file: comment.file,
       line: comment.line,
@@ -170,7 +198,34 @@ export default function PreviewApp({ preview, config }) {
   const handleDismissAllComments = useCallback(() => {
     if (!confirm('Dismiss all review items?')) return;
     deleteAllComments();
+    setIsEditingGeneralNote(false);
   }, [deleteAllComments]);
+
+  const handleToggleEditGeneralNote = useCallback((open) => {
+    if (open) {
+      setActiveForm(null);
+      setEditingComment(null);
+    }
+    setIsEditingGeneralNote(open);
+  }, []);
+
+  const handleSaveGeneralNote = useCallback(
+    (text) => {
+      setGeneralNote(text);
+      setIsEditingGeneralNote(false);
+    },
+    [setGeneralNote],
+  );
+
+  const handleClearGeneralNote = useCallback(() => {
+    clearGeneralNote();
+    setIsEditingGeneralNote(false);
+  }, [clearGeneralNote]);
+
+  const handleToggleComments = useCallback(() => {
+    setPickerOpen(false);
+    toggleComments();
+  }, [toggleComments]);
 
   const handleToggleMedium = useCallback(
     (id) => {
@@ -244,6 +299,10 @@ export default function PreviewApp({ preview, config }) {
     showToast,
   ]);
 
+  const fileComments = commentsByFile[filePath];
+  const fileLevelComments = (fileComments || []).filter(
+    (c) => c.lineType === 'file',
+  );
   const reviewItemCount = allComments.length + (generalNote ? 1 : 0);
   const canSend = reviewItemCount > 0 && selectedMediums.length > 0;
 
@@ -259,17 +318,20 @@ export default function PreviewApp({ preview, config }) {
           </span>
         </div>
         <div className="header-right">
-          {reviewItemCount > 0 && (
-            <button
-              className="btn-collapse-all"
-              onClick={handleDismissAllComments}
-              aria-label="Dismiss all review items"
-              title="Dismiss all review items"
-              type="button"
-            >
-              <Trash2 size={18} strokeWidth={1.5} />
-            </button>
-          )}
+          <button
+            className={`file-action-btn${fileLevelComments.length > 0 ? ' has-file-comments' : ''}`}
+            type="button"
+            title="Add file comment"
+            aria-label="Add file comment"
+            onClick={handleAddFileComment}
+          >
+            <MessageSquarePlus size={18} strokeWidth={1.5} />
+            {fileLevelComments.length > 0 && (
+              <span className="file-comment-badge">
+                {fileLevelComments.length}
+              </span>
+            )}
+          </button>
           <button
             className="theme-toggle"
             onClick={toggleTheme}
@@ -283,6 +345,43 @@ export default function PreviewApp({ preview, config }) {
               <Sun size={20} strokeWidth={1.5} className="theme-toggle-icon" />
             )}
           </button>
+          <div className="comments-dropdown-wrap" ref={commentsWrapRef}>
+            <button
+              ref={commentsButtonRef}
+              className={`btn-comments${commentsOpen ? ' is-open' : ''}`}
+              onClick={handleToggleComments}
+              aria-label={
+                commentsOpen
+                  ? 'Close comments dropdown'
+                  : 'Open comments dropdown'
+              }
+              aria-haspopup="dialog"
+              aria-expanded={commentsOpen}
+              aria-controls={commentsOpen ? COMMENTS_PANEL_ID : undefined}
+              title="Comments"
+              type="button"
+            >
+              <MessageSquare size={16} strokeWidth={1.5} />
+              {reviewItemCount > 0 && (
+                <span className="btn-badge">{reviewItemCount}</span>
+              )}
+            </button>
+            {commentsOpen && (
+              <CommentPanel
+                id={COMMENTS_PANEL_ID}
+                commentsByFile={commentsByFile}
+                reviewItemCount={reviewItemCount}
+                onDeleteComment={deleteComment}
+                onDismissAll={handleDismissAllComments}
+                onSelectComment={() => closeComments(true)}
+                generalNote={generalNote}
+                isEditingGeneralNote={isEditingGeneralNote}
+                onToggleEditGeneralNote={handleToggleEditGeneralNote}
+                onSaveGeneralNote={handleSaveGeneralNote}
+                onClearGeneralNote={handleClearGeneralNote}
+              />
+            )}
+          </div>
           <div className="header-actions">
             <div
               className={`split-btn-wrap header-action-split${pickerOpen ? ' is-open' : ''}`}
@@ -302,7 +401,10 @@ export default function PreviewApp({ preview, config }) {
                 id="send-medium-picker-trigger"
                 className={`btn btn-secondary header-action-btn split-btn-caret${canSend ? ' is-ready' : ''}`}
                 disabled={!canSend}
-                onClick={() => setPickerOpen((prev) => !prev)}
+                onClick={() => {
+                  closeComments(false);
+                  setPickerOpen((prev) => !prev);
+                }}
                 aria-label="Choose send mediums"
                 aria-haspopup="menu"
                 aria-expanded={pickerOpen}
@@ -331,17 +433,58 @@ export default function PreviewApp({ preview, config }) {
       </header>
 
       <main className="preview-standalone-main">
+        {(fileLevelComments.length > 0 ||
+          (activeForm &&
+            activeForm.file === filePath &&
+            activeForm.lineType === 'file') ||
+          (editingComment &&
+            editingComment.file === filePath &&
+            editingComment.lineType === 'file')) && (
+          <div className="file-comments-section">
+            {fileLevelComments.map((c) => {
+              const isEditing = editingComment && editingComment.id === c.id;
+              if (isEditing) {
+                return (
+                  <FileCommentForm
+                    key={`edit-${c.id}`}
+                    initialContent={c.content}
+                    onSubmit={handleSubmitComment}
+                    onCancel={handleCancelForm}
+                  />
+                );
+              }
+              return (
+                <FileCommentBubble
+                  key={c.id}
+                  comment={c}
+                  onEdit={handleEditComment}
+                  onDelete={deleteComment}
+                />
+              );
+            })}
+            {activeForm &&
+              activeForm.file === filePath &&
+              activeForm.lineType === 'file' &&
+              !editingComment && (
+                <FileCommentForm
+                  onSubmit={handleSubmitComment}
+                  onCancel={handleCancelForm}
+                />
+              )}
+          </div>
+        )}
+
         {error ? (
           <div className="preview-standalone-error">
             Failed to load file: {error}
           </div>
-        ) : html === null ? (
+        ) : blocks === null ? (
           <div className="preview-standalone-loading">Loading…</div>
         ) : (
           <PreviewBody
-            html={html}
+            blocks={blocks}
             filePath={filePath}
-            fileComments={commentsByFile[filePath]}
+            fileComments={fileComments}
             activeForm={activeForm}
             editingComment={editingComment}
             onAddPreviewComment={handleAddPreviewComment}

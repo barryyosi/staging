@@ -20,8 +20,8 @@ Staging gives you a dedicated, browser-based review interface with GitHub-style 
 - **Private & Lightweight**: Runs 100% locally. No internet connection required. Zero telemetry.
 - **Multi-Project Support**: Navigate between sibling repositories and git worktrees
 - **Inline Comments**: Add threaded comments directly on changed lines to guide agent refinements
-- **Markdown/HTML Preview**: Toggle per-file between diff and rendered preview for `.md` and `.html` files, with selection-based commenting on the rendered output
-- **Standalone File Preview**: Point staging at a single markdown/HTML file — no git repo needed — for a live-reloading rendered preview with the same selection-based commenting
+- **Markdown/HTML Preview**: Toggle per-file between diff and rendered preview for `.md` and `.html` files, with inline commenting on the rendered output — hover any block for a `+` gutter button, or select text to quote it; comments carry the markdown source line so the agent knows exactly where to edit
+- **Standalone File Preview**: Point staging at a single markdown/HTML file — no git repo needed — for a live-reloading rendered preview with the same inline commenting, plus file-level comments, a general review note, and the comments panel
 - **Update Release Notes**: When a newer Staging version is available, the app opens a built-in "What's New" summary of the latest features and fixes before updating
 
 ## Tech Stack
@@ -57,10 +57,16 @@ staging path/to/file.md        # auto-detected: a file argument opens preview mo
 staging -r path/to/file.md     # explicit --render/-r alias
 ```
 
-The preview live-reloads when the file changes on disk. Select any text in the
-rendered output to attach a comment, then send the feedback to your agent via
-the usual mediums (`clipboard`, `file`, `cli`). The review file is written next
-to the previewed file. Supported extensions: `.md`, `.markdown`, `.html`, `.htm`.
+The preview live-reloads when the file changes on disk. Hover any rendered
+block for a `+` button to comment on it, or select text to quote a specific
+phrase — comments appear inline beneath the block they refer to and carry the
+markdown source line. File-level comments and a general review note are
+available from the header, alongside the comments panel. Send the feedback to
+your agent via the usual mediums (`clipboard`, `file`, `cli`). The review file
+is written next to the previewed file. If the file changes so much that a
+comment's block disappears, the comment is kept in a "content that changed"
+section instead of being dropped. Supported extensions: `.md`, `.markdown`,
+`.html`, `.htm`.
 
 ## Agent Integration
 

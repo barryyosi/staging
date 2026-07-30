@@ -17,6 +17,7 @@ import ProjectNavigator from './ProjectNavigator';
 import ProgressRingWithStats from './ProgressRing';
 import GitActionPicker from './GitActionPicker';
 import CommentPanel from './CommentPanel';
+import { useDismissablePopover } from '../hooks/useDismissablePopover';
 import {
   CommitIcon,
   CommitAndPushIcon,
@@ -260,7 +261,6 @@ function Header({
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [gitPickerOpen, setGitPickerOpen] = useState(false);
-  const [commentsOpen, setCommentsOpen] = useState(false);
   const [noCommentsDialogOpen, setNoCommentsDialogOpen] = useState(false);
   const commentsWrapRef = useRef(null);
   const commentsButtonRef = useRef(null);
@@ -268,7 +268,15 @@ function Header({
   const gitPickerToggleRef = useRef(null);
   const canSend =
     !committed && Array.isArray(selectedMediums) && selectedMediums.length > 0;
-  const isCommentsOpen = commentsOpen;
+
+  const {
+    isOpen: commentsOpen,
+    close: closeComments,
+    toggle: toggleComments,
+  } = useDismissablePopover({
+    wrapRef: commentsWrapRef,
+    triggerRef: commentsButtonRef,
+  });
 
   const handleToggleMedium = useCallback(
     (id) => {
@@ -285,12 +293,12 @@ function Header({
       // Close other dropdowns
       setPickerOpen(false);
       setGitPickerOpen(false);
-      setCommentsOpen(false);
+      closeComments(false);
       setNoCommentsDialogOpen(true);
       return;
     }
     onSendComments(selectedMediums);
-  }, [hasReviewItems, onSendComments, selectedMediums]);
+  }, [closeComments, hasReviewItems, onSendComments, selectedMediums]);
 
   const closePicker = useCallback((restoreFocus = true) => {
     setPickerOpen(false);
@@ -303,13 +311,6 @@ function Header({
     setGitPickerOpen(false);
     if (restoreFocus) {
       requestAnimationFrame(() => gitPickerToggleRef.current?.focus());
-    }
-  }, []);
-
-  const closeComments = useCallback((restoreFocus = true) => {
-    setCommentsOpen(false);
-    if (restoreFocus) {
-      requestAnimationFrame(() => commentsButtonRef.current?.focus());
     }
   }, []);
 
@@ -331,51 +332,25 @@ function Header({
   }, []);
 
   const handleTogglePicker = useCallback(() => {
-    setCommentsOpen(false);
+    closeComments(false);
     setGitPickerOpen(false);
     setNoCommentsDialogOpen(false);
     setPickerOpen((prev) => !prev);
-  }, []);
+  }, [closeComments]);
 
   const handleToggleGitPicker = useCallback(() => {
-    setCommentsOpen(false);
+    closeComments(false);
     setPickerOpen(false);
     setNoCommentsDialogOpen(false);
     setGitPickerOpen((prev) => !prev);
-  }, []);
+  }, [closeComments]);
 
   const handleToggleComments = useCallback(() => {
     setPickerOpen(false);
     setGitPickerOpen(false);
     setNoCommentsDialogOpen(false);
-    setCommentsOpen((prev) => !prev);
-  }, []);
-
-  useEffect(() => {
-    if (!isCommentsOpen) return;
-
-    function handlePointerDown(event) {
-      if (
-        commentsWrapRef.current &&
-        !commentsWrapRef.current.contains(event.target)
-      ) {
-        closeComments(true);
-      }
-    }
-
-    function handleKeyDown(event) {
-      if (event.key === 'Escape') {
-        closeComments(true);
-      }
-    }
-
-    document.addEventListener('pointerdown', handlePointerDown);
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('pointerdown', handlePointerDown);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [closeComments, isCommentsOpen]);
+    toggleComments();
+  }, [toggleComments]);
 
   const isGitLab = projectInfo?.remoteUrl?.toLowerCase().includes('gitlab');
   const isGitHub = projectInfo?.remoteUrl?.toLowerCase().includes('github');
@@ -485,16 +460,16 @@ function Header({
         <div className="comments-dropdown-wrap" ref={commentsWrapRef}>
           <button
             ref={commentsButtonRef}
-            className={`btn-comments${isCommentsOpen ? ' is-open' : ''}`}
+            className={`btn-comments${commentsOpen ? ' is-open' : ''}`}
             onClick={handleToggleComments}
             aria-label={
-              isCommentsOpen
+              commentsOpen
                 ? 'Close comments dropdown'
                 : 'Open comments dropdown'
             }
             aria-haspopup="dialog"
-            aria-expanded={isCommentsOpen}
-            aria-controls={isCommentsOpen ? COMMENTS_PANEL_ID : undefined}
+            aria-expanded={commentsOpen}
+            aria-controls={commentsOpen ? COMMENTS_PANEL_ID : undefined}
             title="Comments"
             type="button"
           >
@@ -503,7 +478,7 @@ function Header({
               <span className="btn-badge">{reviewItemCount}</span>
             )}
           </button>
-          {isCommentsOpen && (
+          {commentsOpen && (
             <CommentPanel
               id={COMMENTS_PANEL_ID}
               commentsByFile={commentsByFile}

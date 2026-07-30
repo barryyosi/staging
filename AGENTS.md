@@ -56,7 +56,8 @@ npm run format   # prettier format
 - Project/worktree navigation: `src/components/ProjectNavigator.jsx`, `src/App.jsx`, `lib/server.js`, `lib/git.js`
 - Sidebar tree/search: `src/components/FileSidebar.jsx`, `src/utils/fileTree.js`, `lib/server.js`
 - Diff actions (file/hunk stage/revert): `src/components/DiffViewer.jsx`, `lib/server.js`, `lib/git.js`
-- Markdown/HTML preview: `src/utils/renderPreview.js`, `src/components/DiffViewer.jsx`, `lib/server.js`
+- Markdown/HTML preview: `src/utils/renderPreview.js`, `src/components/PreviewBody.jsx`, `src/components/DiffViewer.jsx`, `src/PreviewApp.jsx`, `lib/server.js`
+- Preview comment anchoring: `src/utils/anchorComments.js`, `src/components/PreviewBody.jsx`
 - Collapsed-context expansion: `src/utils/gapCalc.js`, `src/components/DiffViewer.jsx`
 - Comments + panel behavior: `src/hooks/useComments.js`, `src/components/CommentPanel.jsx`, `src/App.jsx`
 - Send-to-agent mediums: `src/components/Header.jsx`, `src/App.jsx`, `lib/server.js`, `lib/config.js`

@@ -1,10 +1,6 @@
 import { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { X, Quote, StickyNote } from 'lucide-react';
-
-const isMac =
-  typeof navigator !== 'undefined' &&
-  navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-const modKey = isMac ? '\u2318' : 'Ctrl';
+import { modKey } from '../utils/platform';
 
 function GeneralNoteSection({
   generalNote,
@@ -163,8 +159,25 @@ function CommentPanel({
       const bubble = document.querySelector(
         `.preview-comment-bubble[data-comment-id="${comment.id}"]`,
       );
-      if (bubble)
+      if (bubble) {
         bubble.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+      // Block comments without a highlight: scroll to the block itself.
+      // data-block-index is only unique within one preview, so scope the query
+      // to this comment's file — otherwise a file still showing its diff would
+      // resolve to a different file's block at the same index.
+      // Pre-existing limitation: this resolves nothing when the file is
+      // collapsed or showing the diff instead of the preview.
+      // Matched by property rather than an attribute selector so a path
+      // containing a quote or backslash can't throw a selector SyntaxError
+      const container = [
+        ...document.querySelectorAll('.preview-container[data-file-path]'),
+      ].find((el) => el.dataset.filePath === comment.file);
+      const block = container?.querySelector(
+        `.preview-block[data-block-index="${comment.blockIndex}"]`,
+      );
+      if (block) block.scrollIntoView({ behavior: 'smooth', block: 'center' });
     } else {
       const row = document.querySelector(
         `.comment-row[data-comment-id="${comment.id}"]`,
@@ -253,9 +266,13 @@ function CommentPanel({
                   ) : c.lineType === 'preview' ? (
                     <span className="panel-quote-ref">
                       <Quote size={12} strokeWidth={1.5} />
-                      {c.selectedText?.length > 50
-                        ? c.selectedText.slice(0, 50) + '...'
-                        : c.selectedText}
+                      {c.srcLine ? `Line ${c.srcLine} — ` : ''}
+                      {(() => {
+                        const label = c.selectedText || c.anchorText || '';
+                        return label.length > 50
+                          ? label.slice(0, 50) + '...'
+                          : label;
+                      })()}
                     </span>
                   ) : (
                     `Line ${c.line}`
