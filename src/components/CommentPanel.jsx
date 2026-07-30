@@ -169,9 +169,11 @@ function CommentPanel({
       // resolve to a different file's block at the same index.
       // Pre-existing limitation: this resolves nothing when the file is
       // collapsed or showing the diff instead of the preview.
-      const container = document.querySelector(
-        `.preview-container[data-file-path="${comment.file}"]`,
-      );
+      // Matched by property rather than an attribute selector so a path
+      // containing a quote or backslash can't throw a selector SyntaxError
+      const container = [
+        ...document.querySelectorAll('.preview-container[data-file-path]'),
+      ].find((el) => el.dataset.filePath === comment.file);
       const block = container?.querySelector(
         `.preview-block[data-block-index="${comment.blockIndex}"]`,
       );

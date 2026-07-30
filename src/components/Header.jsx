@@ -269,6 +269,15 @@ function Header({
   const canSend =
     !committed && Array.isArray(selectedMediums) && selectedMediums.length > 0;
 
+  const {
+    isOpen: commentsOpen,
+    close: closeComments,
+    toggle: toggleComments,
+  } = useDismissablePopover({
+    wrapRef: commentsWrapRef,
+    triggerRef: commentsButtonRef,
+  });
+
   const handleToggleMedium = useCallback(
     (id) => {
       const next = selectedMediums.includes(id)
@@ -289,7 +298,7 @@ function Header({
       return;
     }
     onSendComments(selectedMediums);
-  }, [hasReviewItems, onSendComments, selectedMediums]);
+  }, [closeComments, hasReviewItems, onSendComments, selectedMediums]);
 
   const closePicker = useCallback((restoreFocus = true) => {
     setPickerOpen(false);
@@ -304,15 +313,6 @@ function Header({
       requestAnimationFrame(() => gitPickerToggleRef.current?.focus());
     }
   }, []);
-
-  const {
-    isOpen: commentsOpen,
-    close: closeComments,
-    toggle: toggleComments,
-  } = useDismissablePopover({
-    wrapRef: commentsWrapRef,
-    triggerRef: commentsButtonRef,
-  });
 
   const handleSendApproval = useCallback(() => {
     setNoCommentsDialogOpen(false);

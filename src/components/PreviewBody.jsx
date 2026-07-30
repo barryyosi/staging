@@ -189,21 +189,27 @@ export default function PreviewBody({
 
   const isPreviewFormActive =
     activeForm?.file === filePath && activeForm?.lineType === 'preview';
-  const isEditingPreview =
-    !!editingComment && editingComment.lineType === 'preview';
+  const editingPreviewComment =
+    editingComment?.lineType === 'preview' && editingComment.file === filePath
+      ? editingComment
+      : null;
 
   // Reset the draft whenever a different form opens. Doing it in render (the
   // same pattern DiffViewer uses for collapseVersion) keeps the textarea from
   // flashing the previous body for a frame.
-  const formKey = isEditingPreview
-    ? editingComment.id
-    : isPreviewFormActive
-      ? 'new'
-      : null;
-  const [prevFormKey, setPrevFormKey] = useState(formKey);
+  //
+  // The key is the form's *object identity*, not its position: re-anchoring
+  // after a live reload keeps the same activeForm object (so the draft
+  // survives), while aiming at another block creates a new one (so it resets).
+  // It is seeded to null rather than to formKey so that mounting with a form
+  // already open — toggling diff→preview mid-edit — still runs the reset and
+  // prefills the textarea instead of coming up blank.
+  const formKey =
+    editingPreviewComment || (isPreviewFormActive ? activeForm : null);
+  const [prevFormKey, setPrevFormKey] = useState(null);
   if (formKey !== prevFormKey) {
     setPrevFormKey(formKey);
-    setDraft(isEditingPreview ? editingComment.content : '');
+    setDraft(editingPreviewComment ? editingPreviewComment.content : '');
   }
 
   // The pending form re-anchors exactly like a stored comment, so a live
