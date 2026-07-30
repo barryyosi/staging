@@ -4,24 +4,125 @@ import DOMPurify from 'dompurify';
 // Keep in sync with PREVIEW_EXTS in bin/staging.js
 const PREVIEW_EXTS = new Set(['md', 'markdown', 'html', 'htm']);
 
+const MARKED_OPTIONS = { gfm: true, breaks: false };
+const ANCHOR_TEXT_MAX = 120;
+
+// Shared parser for plain-text extraction — cheaper than one per block
+const domParser = new DOMParser();
+
 export function isPreviewable(filePath) {
   if (!filePath) return false;
   const ext = filePath.split('.').pop()?.toLowerCase();
   return PREVIEW_EXTS.has(ext);
 }
 
-export function renderPreview(content, filePath) {
-  const ext = filePath.split('.').pop()?.toLowerCase();
-  let html =
-    ext === 'md' || ext === 'markdown'
-      ? marked.parse(content, { gfm: true, breaks: false })
-      : content;
+function countNewlines(str) {
+  return (str.match(/\n/g) || []).length;
+}
 
-  html = rewriteImageUrls(html, filePath);
-  return DOMPurify.sanitize(html);
+// Whitespace-normalized plain text of a block, used as a re-anchoring key
+function toAnchorText(html) {
+  const doc = domParser.parseFromString(html, 'text/html');
+  return (doc.body.textContent || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, ANCHOR_TEXT_MAX);
+}
+
+function sanitizeBlock(html, filePath) {
+  return DOMPurify.sanitize(rewriteImageUrls(html, filePath));
+}
+
+// Renders a previewable file into an ordered list of blocks:
+//   { index, type, html, srcLine, anchorText }
+// srcLine is the 1-based line in the markdown source (null for HTML files),
+// so comments can point the agent at the exact place to edit.
+export function renderPreviewBlocks(content, filePath) {
+  const ext = filePath.split('.').pop()?.toLowerCase();
+  const isMarkdown = ext === 'md' || ext === 'markdown';
+  const blocks = isMarkdown
+    ? markdownBlocks(content, filePath)
+    : htmlBlocks(content, filePath);
+  return { blocks, isMarkdown };
+}
+
+function markdownBlocks(content, filePath) {
+  // Match marked's own line-ending normalization so token.raw can be
+  // located in `source` verbatim
+  const source = content.replace(/\r\n|\r/g, '\n');
+  const tokens = marked.lexer(source, MARKED_OPTIONS);
+  const blocks = [];
+
+  // Track each token's position by scanning for its raw text from a moving
+  // cursor instead of summing raw lengths — stays correct even if the lexer
+  // omits a token (e.g. link-reference definitions) from the stream.
+  let cursor = 0;
+  let cursorLine = 1;
+
+  for (const token of tokens) {
+    const found = token.raw ? source.indexOf(token.raw, cursor) : -1;
+    const start = found === -1 ? cursor : found;
+    const srcLine = cursorLine + countNewlines(source.slice(cursor, start));
+    cursor = start + (token.raw?.length || 0);
+    cursorLine = srcLine + countNewlines(token.raw || '');
+
+    // Never hand zero-output tokens to the parser
+    if (token.type === 'space' || token.type === 'def') continue;
+
+    const single = [token];
+    // Reference links are resolved during lexing, but keep the links map
+    // available in case the parser consults it
+    single.links = tokens.links;
+    const rendered = marked.parser(single, MARKED_OPTIONS);
+    if (!rendered.trim()) continue;
+
+    const html = sanitizeBlock(rendered, filePath);
+    if (!html.trim()) continue;
+
+    blocks.push({
+      index: blocks.length,
+      type: token.type,
+      html,
+      srcLine,
+      anchorText: toAnchorText(html),
+    });
+  }
+
+  return blocks;
+}
+
+function htmlBlocks(content, filePath) {
+  const doc = domParser.parseFromString(content, 'text/html');
+  const blocks = [];
+
+  for (const node of doc.body.childNodes) {
+    let raw;
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      raw = node.outerHTML;
+    } else if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
+      raw = `<p>${node.textContent}</p>`;
+    } else {
+      continue;
+    }
+
+    const html = sanitizeBlock(raw, filePath);
+    if (!html.trim()) continue;
+
+    blocks.push({
+      index: blocks.length,
+      type: 'html',
+      html,
+      srcLine: null,
+      anchorText: toAnchorText(html),
+    });
+  }
+
+  return blocks;
 }
 
 function rewriteImageUrls(html, baseFilePath) {
+  if (!/<img/i.test(html)) return html;
+
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, 'text/html');
   const imgs = doc.querySelectorAll('img');

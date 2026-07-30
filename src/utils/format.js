@@ -1,3 +1,6 @@
+const oneLine = (s) => (s || '').replace(/\s+/g, ' ').trim();
+const clip = (s, n) => (s.length > n ? s.slice(0, n) + '…' : s);
+
 export function formatComments(comments, gitRoot, generalNote, options = {}) {
   const isPreview = options.context === 'preview';
   let output = isPreview
@@ -23,8 +26,14 @@ export function formatComments(comments, gitRoot, generalNote, options = {}) {
       if (c.lineType === 'file') {
         output += `- **File comment**: ${c.content}\n`;
       } else if (c.lineType === 'preview') {
-        const quote = c.selectedText?.slice(0, 60) || '';
-        output += `- **Preview** "${quote}": ${c.content}\n`;
+        const loc = c.srcLine ? `**Line ${c.srcLine}**` : `**Preview**`;
+        const anchor = c.anchorText
+          ? ` ("${clip(oneLine(c.anchorText), 60)}")`
+          : '';
+        const quote = c.selectedText
+          ? ` > "${clip(oneLine(c.selectedText), 60)}"`
+          : '';
+        output += `- ${loc}${anchor}${quote}: ${c.content}\n`;
       } else {
         output += `- **Line ${c.line}** (${c.lineType}): ${c.content}\n`;
       }

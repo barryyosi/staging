@@ -163,8 +163,17 @@ function CommentPanel({
       const bubble = document.querySelector(
         `.preview-comment-bubble[data-comment-id="${comment.id}"]`,
       );
-      if (bubble)
+      if (bubble) {
         bubble.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+      // Block comments without a highlight: scroll to the block itself.
+      // Pre-existing limitation: in git-review mode none of these resolve
+      // when the file is collapsed or showing the diff instead of the preview.
+      const block = document.querySelector(
+        `.preview-block[data-block-index="${comment.blockIndex}"]`,
+      );
+      if (block) block.scrollIntoView({ behavior: 'smooth', block: 'center' });
     } else {
       const row = document.querySelector(
         `.comment-row[data-comment-id="${comment.id}"]`,
@@ -253,9 +262,13 @@ function CommentPanel({
                   ) : c.lineType === 'preview' ? (
                     <span className="panel-quote-ref">
                       <Quote size={12} strokeWidth={1.5} />
-                      {c.selectedText?.length > 50
-                        ? c.selectedText.slice(0, 50) + '...'
-                        : c.selectedText}
+                      {c.srcLine ? `Line ${c.srcLine} — ` : ''}
+                      {(() => {
+                        const label = c.selectedText || c.anchorText || '';
+                        return label.length > 50
+                          ? label.slice(0, 50) + '...'
+                          : label;
+                      })()}
                     </span>
                   ) : (
                     `Line ${c.line}`

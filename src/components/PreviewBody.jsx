@@ -1,10 +1,14 @@
-import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { Quote, MessageSquarePlus } from 'lucide-react';
-
-const isMac =
-  typeof navigator !== 'undefined' &&
-  navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-const modKey = isMac ? '⌘' : 'Ctrl';
+import {
+  Fragment,
+  useState,
+  useCallback,
+  useMemo,
+  useEffect,
+  useRef,
+} from 'react';
+import { Quote, MessageSquarePlus, Plus } from 'lucide-react';
+import { modKey } from '../utils/platform';
+import { anchorComments, resolveTextOffset } from '../utils/anchorComments';
 
 function PreviewCommentForm({ initialContent, onSubmit, onCancel }) {
   const [value, setValue] = useState(initialContent || '');
@@ -67,15 +71,25 @@ function PreviewCommentForm({ initialContent, onSubmit, onCancel }) {
 }
 
 function PreviewCommentBubble({ comment, onEdit, onDelete }) {
+  const quote = comment.selectedText || comment.anchorText || '';
   return (
     <div className="preview-comment-bubble" data-comment-id={comment.id}>
       <div className="comment-bubble">
         <div className="comment-bubble-head">
-          <span className="comment-loc" title={comment.selectedText}>
+          <span className="comment-loc" title={quote}>
             <Quote size={12} strokeWidth={1.5} />
-            {comment.selectedText?.length > 40
-              ? comment.selectedText.slice(0, 40) + '...'
-              : comment.selectedText}
+            {quote.length > 40 ? quote.slice(0, 40) + '...' : quote}
+            {comment.srcLine != null && (
+              <span className="preview-comment-line">L{comment.srcLine}</span>
+            )}
+            {comment.isStale && (
+              <span
+                className="preview-comment-stale"
+                title="The content this comment was anchored to has changed"
+              >
+                edited
+              </span>
+            )}
           </span>
           <div className="comment-actions">
             <button type="button" onClick={() => onEdit(comment)}>
@@ -141,7 +155,7 @@ function highlightRange(container, offset, length, commentId) {
 }
 
 export default function PreviewBody({
-  html,
+  blocks,
   filePath,
   fileComments,
   activeForm,
@@ -161,6 +175,11 @@ export default function PreviewBody({
     return fileComments.filter((c) => c.lineType === 'preview');
   }, [fileComments]);
 
+  const { byBlock, unanchored } = useMemo(
+    () => anchorComments(previewComments, blocks || []),
+    [previewComments, blocks],
+  );
+
   const handleMouseUp = useCallback(() => {
     // Small delay to let selection finalize
     setTimeout(() => {
@@ -170,25 +189,38 @@ export default function PreviewBody({
         return;
       }
 
-      if (
-        !contentRef.current.contains(sel.anchorNode) ||
-        !contentRef.current.contains(sel.focusNode)
-      ) {
-        setSelectionAnchor(null);
-        return;
-      }
-
-      const text = sel.toString().trim();
-      if (!text) {
-        setSelectionAnchor(null);
-        return;
-      }
-
       const range = sel.getRangeAt(0);
+      const startEl =
+        range.startContainer.nodeType === Node.TEXT_NODE
+          ? range.startContainer.parentElement
+          : range.startContainer;
+      const bodyEl = startEl?.closest?.('.preview-block-body');
+      if (!bodyEl || !contentRef.current.contains(bodyEl)) {
+        setSelectionAnchor(null);
+        return;
+      }
+
+      const blockEl = bodyEl.parentElement;
+      const blockIndex = Number(blockEl.dataset.blockIndex);
+      const block = blocks?.[blockIndex];
+      if (!block) {
+        setSelectionAnchor(null);
+        return;
+      }
+
+      // Offset within this block's plain text — not the whole document
       const preRange = document.createRange();
-      preRange.selectNodeContents(contentRef.current);
+      preRange.selectNodeContents(bodyEl);
       preRange.setEnd(range.startContainer, range.startOffset);
       const offset = preRange.toString().length;
+
+      // Clamp to the block: a cross-block drag truncates to the first block
+      const blockText = bodyEl.textContent;
+      const text = blockText.slice(offset, offset + sel.toString().length);
+      if (!text.trim()) {
+        setSelectionAnchor(null);
+        return;
+      }
 
       const rect = range.getBoundingClientRect();
       const containerRect = containerRef.current.getBoundingClientRect();
@@ -197,53 +229,117 @@ export default function PreviewBody({
         text,
         offset,
         length: text.length,
+        blockIndex,
+        srcLine: block.srcLine,
+        anchorText: block.anchorText,
         top: rect.bottom - containerRect.top,
         left: rect.left - containerRect.left + rect.width / 2,
       });
     }, 10);
-  }, []);
+  }, [blocks]);
 
   const handleCommentClick = useCallback(() => {
     if (!selectionAnchor) return;
-    onAddPreviewComment(
-      filePath,
-      selectionAnchor.text,
-      selectionAnchor.offset,
-      selectionAnchor.length,
-    );
+    onAddPreviewComment(filePath, {
+      blockIndex: selectionAnchor.blockIndex,
+      srcLine: selectionAnchor.srcLine,
+      anchorText: selectionAnchor.anchorText,
+      selectedText: selectionAnchor.text,
+      textOffset: selectionAnchor.offset,
+      textLength: selectionAnchor.length,
+    });
     setSelectionAnchor(null);
     window.getSelection()?.removeAllRanges();
   }, [selectionAnchor, filePath, onAddPreviewComment]);
+
+  const handleBlockComment = useCallback(
+    (block) => {
+      onAddPreviewComment(filePath, {
+        blockIndex: block.index,
+        srcLine: block.srcLine,
+        anchorText: block.anchorText,
+      });
+    },
+    [filePath, onAddPreviewComment],
+  );
 
   // Apply text highlights for existing comments
   useEffect(() => {
     const content = contentRef.current;
     if (!content) return;
 
-    // Remove old highlights
+    // Remove old highlights everywhere, then re-apply per block
     content.querySelectorAll('.preview-highlight').forEach((el) => {
       el.replaceWith(...el.childNodes);
     });
     // Normalize text nodes after unwrapping
     content.normalize();
 
-    // Apply highlights in reverse offset order to avoid shifting
-    const sorted = [...previewComments]
-      .filter((c) => c.textOffset != null && c.textLength != null)
-      .sort((a, b) => b.textOffset - a.textOffset);
-
-    for (const comment of sorted) {
-      highlightRange(
-        content,
-        comment.textOffset,
-        comment.textLength,
-        comment.id,
+    for (const [blockIndex, items] of byBlock) {
+      const bodyEl = content.querySelector(
+        `.preview-block[data-block-index="${blockIndex}"] > .preview-block-body`,
       );
+      if (!bodyEl) continue;
+      const blockText = bodyEl.textContent;
+      // Apply in reverse offset order to avoid shifting
+      const withOffsets = items
+        .map((c) => ({ c, off: resolveTextOffset(blockText, c) }))
+        .filter((x) => x.off >= 0)
+        .sort((a, b) => b.off - a.off);
+      for (const { c, off } of withOffsets) {
+        highlightRange(bodyEl, off, c.textLength, c.id);
+      }
     }
-  }, [previewComments, html]);
+  }, [byBlock, blocks]);
 
   const isPreviewFormActive =
     activeForm?.file === filePath && activeForm?.lineType === 'preview';
+
+  const renderBubbleOrForm = (comment) =>
+    editingComment?.id === comment.id ? (
+      <div key={comment.id} className="preview-comment-form-wrap">
+        <PreviewCommentForm
+          initialContent={comment.content}
+          onSubmit={onSubmitComment}
+          onCancel={onCancelForm}
+        />
+      </div>
+    ) : (
+      <PreviewCommentBubble
+        key={comment.id}
+        comment={comment}
+        onEdit={onEditComment}
+        onDelete={onDeleteComment}
+      />
+    );
+
+  const renderItemsFor = (blockIndex) => {
+    const items = byBlock.get(blockIndex) || [];
+    const showForm =
+      isPreviewFormActive &&
+      !editingComment &&
+      activeForm.blockIndex === blockIndex;
+    if (items.length === 0 && !showForm) return null;
+    return (
+      <>
+        {items.map(renderBubbleOrForm)}
+        {showForm && (
+          <div className="preview-comment-form-wrap">
+            {activeForm.selectedText && (
+              <div className="preview-selected-quote">
+                {activeForm.selectedText}
+              </div>
+            )}
+            <PreviewCommentForm
+              initialContent=""
+              onSubmit={onSubmitComment}
+              onCancel={onCancelForm}
+            />
+          </div>
+        )}
+      </>
+    );
+  };
 
   return (
     <div className="preview-container" ref={containerRef}>
@@ -251,8 +347,32 @@ export default function PreviewBody({
         className="preview-content"
         ref={contentRef}
         onMouseUp={handleMouseUp}
-        dangerouslySetInnerHTML={{ __html: html }}
-      />
+      >
+        {(blocks || []).map((block) => (
+          <Fragment key={block.index}>
+            <div className="preview-block" data-block-index={block.index}>
+              <button
+                className="preview-block-add"
+                type="button"
+                title="Add comment"
+                aria-label={
+                  block.srcLine != null
+                    ? `Comment on line ${block.srcLine}`
+                    : 'Comment on this block'
+                }
+                onClick={() => handleBlockComment(block)}
+              >
+                <Plus size={14} strokeWidth={1.5} />
+              </button>
+              <div
+                className="preview-block-body"
+                dangerouslySetInnerHTML={{ __html: block.html }}
+              />
+            </div>
+            {renderItemsFor(block.index)}
+          </Fragment>
+        ))}
+      </div>
 
       {selectionAnchor && !isPreviewFormActive && (
         <button
@@ -267,36 +387,13 @@ export default function PreviewBody({
         </button>
       )}
 
-      {isPreviewFormActive && !editingComment && (
-        <div className="preview-comment-form-wrap">
-          <div className="preview-selected-quote">
-            {activeForm.selectedText}
+      {unanchored.length > 0 && (
+        <div className="preview-unanchored">
+          <div className="preview-unanchored-label">
+            Comments on content that changed
           </div>
-          <PreviewCommentForm
-            initialContent=""
-            onSubmit={onSubmitComment}
-            onCancel={onCancelForm}
-          />
+          {unanchored.map(renderBubbleOrForm)}
         </div>
-      )}
-
-      {previewComments.map((comment) =>
-        editingComment?.id === comment.id ? (
-          <div key={comment.id} className="preview-comment-form-wrap">
-            <PreviewCommentForm
-              initialContent={comment.content}
-              onSubmit={onSubmitComment}
-              onCancel={onCancelForm}
-            />
-          </div>
-        ) : (
-          <PreviewCommentBubble
-            key={comment.id}
-            comment={comment}
-            onEdit={onEditComment}
-            onDelete={onDeleteComment}
-          />
-        ),
       )}
     </div>
   );

@@ -672,21 +672,16 @@ export default function App() {
     setActiveForm({ file, line, lineType });
   }, []);
 
-  const handleAddPreviewComment = useCallback(
-    (file, selectedText, textOffset, textLength) => {
-      setEditingComment(null);
-      setIsEditingGeneralNote(false);
-      setActiveForm({
-        file,
-        line: 0,
-        lineType: 'preview',
-        selectedText,
-        textOffset,
-        textLength,
-      });
-    },
-    [],
-  );
+  const handleAddPreviewComment = useCallback((file, anchor) => {
+    setEditingComment(null);
+    setIsEditingGeneralNote(false);
+    setActiveForm({
+      file,
+      line: anchor.srcLine ?? 0,
+      lineType: 'preview',
+      ...anchor,
+    });
+  }, []);
 
   const handleSubmitComment = useCallback(
     (content) => {
@@ -698,6 +693,9 @@ export default function App() {
         const extra =
           activeForm.lineType === 'preview'
             ? {
+                blockIndex: activeForm.blockIndex,
+                srcLine: activeForm.srcLine,
+                anchorText: activeForm.anchorText,
                 selectedText: activeForm.selectedText,
                 textOffset: activeForm.textOffset,
                 textLength: activeForm.textLength,

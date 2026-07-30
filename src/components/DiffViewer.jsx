@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { slugify } from '../utils/escape';
 import { highlightLine } from '../utils/highlight';
-import { isPreviewable, renderPreview } from '../utils/renderPreview';
+import { isPreviewable, renderPreviewBlocks } from '../utils/renderPreview';
 import {
   computeGaps,
   buildContextChanges,
@@ -31,6 +31,7 @@ import {
 } from '../utils/gapCalc';
 import CommentForm from './CommentForm';
 import CommentBubble from './CommentBubble';
+import { FileCommentBubble, FileCommentForm } from './FileComments';
 import PreviewBody from './PreviewBody';
 import { MarqueeFileName } from './FileSidebar';
 
@@ -454,103 +455,6 @@ function ExpandRow({ gap, expandedData, onExpand, colSpan = 3 }) {
   );
 }
 
-// --- Preview sub-components (div-based, not table rows) ---
-
-const isMac =
-  typeof navigator !== 'undefined' &&
-  navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-const modKey = isMac ? '\u2318' : 'Ctrl';
-
-function FileCommentBubble({ comment, onEdit, onDelete }) {
-  const location = `${comment.file}`;
-  return (
-    <div className="file-comment-row" data-comment-id={comment.id}>
-      <div className="comment-bubble">
-        <div className="comment-bubble-head">
-          <span className="comment-loc" title={location}>
-            {location}
-          </span>
-          <div className="comment-actions">
-            <button type="button" onClick={() => onEdit(comment)}>
-              Edit
-            </button>
-            <button
-              type="button"
-              className="comment-action-delete"
-              onClick={() => onDelete(comment.id)}
-            >
-              Delete
-            </button>
-          </div>
-        </div>
-        <div className="comment-text">{comment.content}</div>
-      </div>
-    </div>
-  );
-}
-
-function FileCommentForm({ initialContent, onSubmit, onCancel }) {
-  const [value, setValue] = useState(initialContent || '');
-  const textareaRef = useRef(null);
-  const canSubmit = value.trim().length > 0;
-
-  useEffect(() => {
-    const ta = textareaRef.current;
-    if (ta) {
-      ta.focus();
-      if (initialContent) {
-        ta.selectionStart = ta.value.length;
-      }
-    }
-  }, [initialContent]);
-
-  function handleKeyDown(e) {
-    if (canSubmit && e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-      e.preventDefault();
-      onSubmit(value);
-    }
-    if (e.key === 'Escape') {
-      onCancel();
-    }
-  }
-
-  return (
-    <div className="file-comment-row">
-      <div className="comment-form">
-        <div className="comment-form-input-wrap">
-          <textarea
-            ref={textareaRef}
-            placeholder="Leave a file comment..."
-            rows="2"
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            onKeyDown={handleKeyDown}
-            aria-label="File comment"
-          />
-          <div className="comment-form-actions">
-            <button className="btn btn-sm" onClick={onCancel} type="button">
-              Cancel
-            </button>
-            <div className="comment-form-submit-wrap">
-              <span className="comment-form-hint">
-                <kbd>{modKey}</kbd> + <kbd>Enter</kbd>
-              </span>
-              <button
-                className="btn btn-sm btn-primary"
-                onClick={() => onSubmit(value)}
-                disabled={!canSubmit}
-                type="button"
-              >
-                {initialContent ? 'Save' : 'Comment'}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function DiffViewer({
   file,
   className,
@@ -580,7 +484,7 @@ function DiffViewer({
   const RowsComponent = isSplit ? SplitChunkRows : ChunkRows;
   const [collapsed, setCollapsed] = useState(false);
   const [viewMode, setViewMode] = useState('diff');
-  const [previewHtml, setPreviewHtml] = useState(null);
+  const [previewBlocks, setPreviewBlocks] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [editingLine, setEditingLine] = useState(null); // { lineNum, lineType, content }
   const [expandedGaps, setExpandedGaps] = useState({});
@@ -648,7 +552,7 @@ function DiffViewer({
 
   // Fetch preview content on demand
   useEffect(() => {
-    if (viewMode !== 'preview' || previewHtml !== null) return;
+    if (viewMode !== 'preview' || previewBlocks !== null) return;
     let cancelled = false;
 
     fetch(`/api/file-content?filePath=${encodeURIComponent(filePath)}`)
@@ -656,11 +560,20 @@ function DiffViewer({
       .then((data) => {
         if (cancelled) return;
         if (data.error) throw new Error(data.error);
-        const html = renderPreview(data.content, filePath);
-        setPreviewHtml(html);
+        const { blocks } = renderPreviewBlocks(data.content, filePath);
+        setPreviewBlocks(blocks);
       })
       .catch(() => {
-        if (!cancelled) setPreviewHtml('<p>Failed to load preview.</p>');
+        if (!cancelled)
+          setPreviewBlocks([
+            {
+              index: 0,
+              type: 'html',
+              html: '<p>Failed to load preview.</p>',
+              srcLine: null,
+              anchorText: '',
+            },
+          ]);
       })
       .finally(() => {
         if (!cancelled) setPreviewLoading(false);
@@ -669,7 +582,7 @@ function DiffViewer({
     return () => {
       cancelled = true;
     };
-  }, [viewMode, filePath, previewHtml]);
+  }, [viewMode, filePath, previewBlocks]);
 
   // Comments for this file, indexed by line+lineType
   const commentMap = useMemo(() => {
@@ -779,13 +692,13 @@ function DiffViewer({
       e.stopPropagation();
       setViewMode((v) => {
         const next = v === 'diff' ? 'preview' : 'diff';
-        if (next === 'preview' && previewHtml === null) {
+        if (next === 'preview' && previewBlocks === null) {
           setPreviewLoading(true);
         }
         return next;
       });
     },
-    [previewHtml],
+    [previewBlocks],
   );
 
   const handleStartEditLine = useCallback((lineNum, lineType, content) => {
@@ -1265,7 +1178,7 @@ function DiffViewer({
           <div className="preview-loading">Loading preview...</div>
         ) : (
           <PreviewBody
-            html={previewHtml}
+            blocks={previewBlocks}
             filePath={filePath}
             fileComments={fileComments}
             activeForm={activeForm}
