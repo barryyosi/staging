@@ -11,14 +11,15 @@ export function copyToClipboard(textPromise) {
 
   try {
     if (typeof ClipboardItem !== 'undefined' && navigator.clipboard?.write) {
+      const blob = text.then(
+        (value) => new Blob([value], { type: 'text/plain' }),
+      );
+      // Marked as handled up front: if the ClipboardItem constructor throws,
+      // this derived promise is orphaned and a later rejection of `text` would
+      // surface as an unhandled rejection
+      blob.catch(() => {});
       return navigator.clipboard
-        .write([
-          new ClipboardItem({
-            'text/plain': text.then(
-              (value) => new Blob([value], { type: 'text/plain' }),
-            ),
-          }),
-        ])
+        .write([new ClipboardItem({ 'text/plain': blob })])
         .then(
           () => true,
           () => fallbackWrite(text),

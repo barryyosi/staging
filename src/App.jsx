@@ -792,7 +792,7 @@ export default function App() {
     async (mediums = ['clipboard', 'file'], options = {}) => {
       if (!config) {
         showToast('Config is still loading', 'error');
-        return;
+        return { ok: false, copied: null };
       }
 
       let formattedPromise;
@@ -808,7 +808,9 @@ export default function App() {
       } else if (options.rawFormatted) {
         formattedPromise = Promise.resolve(options.rawFormatted);
       } else {
-        if (allComments.length === 0 && !generalNote) return;
+        if (allComments.length === 0 && !generalNote) {
+          return { ok: false, copied: null };
+        }
         formattedPromise = resolvePreviewLines(allComments).then((comments) =>
           formatComments(comments, gitRoot, generalNote),
         );
@@ -835,11 +837,11 @@ export default function App() {
           const data = await res.json();
           if (!data.success) {
             showToast(`Failed to send: ${data.error}`, 'error');
-            return;
+            return { ok: false, copied };
           }
         } catch (err) {
           showToast(`Failed to send: ${err.message}`, 'error');
-          return;
+          return { ok: false, copied };
         }
       }
 
@@ -875,6 +877,9 @@ export default function App() {
       if (mediums.includes('cli')) {
         setTimeout(() => window.close(), 300);
       }
+
+      // So a caller that suppressed the toast can still report honestly
+      return { ok: true, copied };
     },
     [
       allComments,
@@ -887,21 +892,26 @@ export default function App() {
   );
 
   const handleGenerateCommitViaAgent = useCallback(async () => {
-    const formatted = formatCommitMessageRequest(
-      // Same staleness as the review payload: a preview comment's stored line
-      // drifts once the file changes under it
-      await resolvePreviewLines(allComments),
-      gitRoot,
-      generalNote,
-    );
     setShowCommitModal(false);
-    await handleSendComments(selectedMediums || ['clipboard', 'file'], {
-      rawFormatted: formatted,
-      suppressToast: true,
-    });
+    // Passed as a promise, not awaited here: awaiting first would push the
+    // clipboard write outside the click's user activation, which is the whole
+    // reason copyToClipboard takes a promise. Preview comment lines still get
+    // re-resolved, they just do it inside the send.
+    const result = await handleSendComments(
+      selectedMediums || ['clipboard', 'file'],
+      {
+        rawFormatted: resolvePreviewLines(allComments).then((comments) =>
+          formatCommitMessageRequest(comments, gitRoot, generalNote),
+        ),
+        suppressToast: true,
+      },
+    );
+    if (!result?.ok) return; // handleSendComments already reported the failure
     showToast(
-      'Commit message prompt sent — paste the generated message when ready',
-      'success',
+      result.copied === false
+        ? 'Commit message prompt sent — clipboard was blocked, open the review file instead'
+        : 'Commit message prompt sent — paste the generated message when ready',
+      result.copied === false ? 'info' : 'success',
     );
   }, [
     allComments,
