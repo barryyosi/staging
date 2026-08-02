@@ -16,8 +16,14 @@ import {
 
 // `value` is owned by PreviewBody so that a live reload re-anchoring the form
 // to a different block (which remounts it) cannot destroy an in-progress draft.
-function PreviewCommentForm({ value, isEdit, onChange, onSubmit, onCancel }) {
-  const textareaRef = useRef(null);
+function PreviewCommentForm({
+  value,
+  isEdit,
+  textareaRef,
+  onChange,
+  onSubmit,
+  onCancel,
+}) {
   const canSubmit = value.trim().length > 0;
 
   useEffect(() => {
@@ -174,6 +180,7 @@ export default function PreviewBody({
   const containerRef = useRef(null);
   const contentRef = useRef(null);
   const selectionTimerRef = useRef(null);
+  const formTextareaRef = useRef(null);
   const [selectionAnchor, setSelectionAnchor] = useState(null);
   const [draft, setDraft] = useState('');
 
@@ -306,13 +313,20 @@ export default function PreviewBody({
 
   const handleBlockComment = useCallback(
     (block) => {
+      // The + button stays mounted under an open form, so a second click
+      // would hand back a fresh activeForm and reset the draft. Focus the
+      // form that is already there instead of discarding what was typed.
+      if (pendingBlockIndex === block.index) {
+        formTextareaRef.current?.focus();
+        return;
+      }
       onAddPreviewComment(filePath, {
         blockIndex: block.index,
         srcLine: block.srcLine,
         anchorText: block.anchorText,
       });
     },
-    [filePath, onAddPreviewComment],
+    [filePath, onAddPreviewComment, pendingBlockIndex],
   );
 
   // Apply text highlights for existing comments.
@@ -356,6 +370,7 @@ export default function PreviewBody({
         <PreviewCommentForm
           value={draft}
           isEdit
+          textareaRef={formTextareaRef}
           onChange={setDraft}
           onSubmit={onSubmitComment}
           onCancel={onCancelForm}
@@ -377,6 +392,7 @@ export default function PreviewBody({
       )}
       <PreviewCommentForm
         value={draft}
+        textareaRef={formTextareaRef}
         onChange={setDraft}
         onSubmit={onSubmitComment}
         onCancel={onCancelForm}
