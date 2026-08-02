@@ -180,6 +180,10 @@ export default function PreviewBody({
   const containerRef = useRef(null);
   const contentRef = useRef(null);
   const selectionTimerRef = useRef(null);
+  // Shared by the edit form and the new-comment form, which is safe only
+  // because at most one of them is ever mounted — see the `|| editingComment`
+  // guard in pendingBlockIndex below, which is what keeps an edit (which sets
+  // activeForm *and* editingComment) from also rendering a new-comment form.
   const formTextareaRef = useRef(null);
   const [selectionAnchor, setSelectionAnchor] = useState(null);
   const [draft, setDraft] = useState('');
