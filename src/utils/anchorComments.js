@@ -83,7 +83,10 @@ export function withResolvedLines(comments, blocks, filePath) {
     }
     const resolved = resolveAnchor(comment, blocks);
     if (!resolved) return comment;
-    return { ...comment, srcLine: blocks[resolved.blockIndex].srcLine };
+    const srcLine = blocks[resolved.blockIndex].srcLine;
+    // `line` too: formatComments sorts on it, so refreshing only srcLine
+    // would print comments out of document order
+    return { ...comment, srcLine, line: srcLine ?? comment.line };
   });
 }
 

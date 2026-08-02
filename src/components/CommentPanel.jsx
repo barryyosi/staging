@@ -264,9 +264,13 @@ function CommentPanel({
                   {c.lineType === 'file' ? (
                     'File comment'
                   ) : c.lineType === 'preview' ? (
+                    // Quote only, no line number: the panel reads the store,
+                    // whose srcLine goes stale as soon as the document is
+                    // edited above the comment. The bubble and the agent
+                    // payload resolve it against the current render; showing
+                    // the stored one here would contradict both.
                     <span className="panel-quote-ref">
                       <Quote size={12} strokeWidth={1.5} />
-                      {c.srcLine ? `Line ${c.srcLine} — ` : ''}
                       {(() => {
                         const label = c.selectedText || c.anchorText || '';
                         return label.length > 50

@@ -16,6 +16,8 @@ import FileSidebar from './components/FileSidebar';
 import DiffViewer from './components/DiffViewer';
 import Toast from './components/Toast';
 import { formatComments, formatCommitMessageRequest } from './utils/format';
+import { renderPreviewBlocks } from './utils/renderPreview';
+import { withResolvedLines } from './utils/anchorComments';
 import { slugify } from './utils/escape';
 
 const CommitModal = lazy(() => import('./components/CommitModal'));
@@ -754,6 +756,37 @@ export default function App() {
     setIsEditingGeneralNote(false);
   }, [deleteAllComments]);
 
+  // A preview comment's stored srcLine is captured when it is written and can
+  // drift once the file changes underneath it — reverting a hunk above it, or
+  // any refresh that invalidates the cached preview. Re-read each commented
+  // file and re-resolve, so the agent gets the line as it stands on disk right
+  // now. Falls back to the stored line if a file can't be read.
+  const resolvePreviewLines = useCallback(async (comments) => {
+    const files = [
+      ...new Set(
+        comments.filter((c) => c.lineType === 'preview').map((c) => c.file),
+      ),
+    ];
+    let resolved = comments;
+    for (const file of files) {
+      try {
+        const res = await fetch(
+          `/api/file-content?filePath=${encodeURIComponent(file)}`,
+        );
+        const data = await res.json();
+        if (data.error) continue;
+        resolved = withResolvedLines(
+          resolved,
+          renderPreviewBlocks(data.content, file),
+          file,
+        );
+      } catch {
+        // Keep the stored line for this file
+      }
+    }
+    return resolved;
+  }, []);
+
   const handleSendComments = useCallback(
     async (mediums = ['clipboard', 'file'], options = {}) => {
       if (!config) {
@@ -772,7 +805,11 @@ export default function App() {
         formatted = options.rawFormatted;
       } else {
         if (allComments.length === 0 && !generalNote) return;
-        formatted = formatComments(allComments, gitRoot, generalNote);
+        formatted = formatComments(
+          await resolvePreviewLines(allComments),
+          gitRoot,
+          generalNote,
+        );
       }
 
       if (mediums.includes('clipboard')) {
@@ -825,7 +862,14 @@ export default function App() {
         setTimeout(() => window.close(), 300);
       }
     },
-    [allComments, generalNote, gitRoot, config, showToast],
+    [
+      allComments,
+      generalNote,
+      gitRoot,
+      config,
+      showToast,
+      resolvePreviewLines,
+    ],
   );
 
   const handleGenerateCommitViaAgent = useCallback(async () => {
