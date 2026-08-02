@@ -232,6 +232,27 @@ export default function PreviewBody({
     return resolved ? resolved.blockIndex : -1;
   }, [isPreviewFormActive, editingComment, activeForm, blocks]);
 
+  // A form left open across a live reload was re-anchored for display, so
+  // submit the position it is actually sitting at rather than the one
+  // captured when it opened.
+  const handleSubmitNewComment = useCallback(
+    (content) => {
+      const block =
+        pendingBlockIndex >= 0 ? blocks?.[pendingBlockIndex] : undefined;
+      onSubmitComment(
+        content,
+        block
+          ? {
+              blockIndex: block.index,
+              srcLine: block.srcLine,
+              anchorText: block.anchorText,
+            }
+          : undefined,
+      );
+    },
+    [onSubmitComment, pendingBlockIndex, blocks],
+  );
+
   const handleMouseUp = useCallback(() => {
     // Small delay to let selection finalize
     if (selectionTimerRef.current) clearTimeout(selectionTimerRef.current);
@@ -315,6 +336,16 @@ export default function PreviewBody({
     window.getSelection()?.removeAllRanges();
   }, [selectionAnchor, filePath, onAddPreviewComment]);
 
+  // Anything that opens a different form replaces activeForm, which resets the
+  // draft. The + buttons are 18px targets stacked down the gutter, so a
+  // misclick one block away would silently destroy a long comment.
+  const confirmDiscardDraft = useCallback(
+    () =>
+      !draft.trim() ||
+      confirm('Discard the comment you are writing?'),
+    [draft],
+  );
+
   const handleBlockComment = useCallback(
     (block) => {
       // The + button stays mounted under an open form, so a second click
@@ -324,13 +355,22 @@ export default function PreviewBody({
         formTextareaRef.current?.focus();
         return;
       }
+      if (!confirmDiscardDraft()) return;
       onAddPreviewComment(filePath, {
         blockIndex: block.index,
         srcLine: block.srcLine,
         anchorText: block.anchorText,
       });
     },
-    [filePath, onAddPreviewComment, pendingBlockIndex],
+    [filePath, onAddPreviewComment, pendingBlockIndex, confirmDiscardDraft],
+  );
+
+  const handleEditExisting = useCallback(
+    (comment) => {
+      if (!confirmDiscardDraft()) return;
+      onEditComment(comment);
+    },
+    [onEditComment, confirmDiscardDraft],
   );
 
   // Apply text highlights for existing comments.
@@ -384,7 +424,7 @@ export default function PreviewBody({
       <PreviewCommentBubble
         key={comment.id}
         comment={comment}
-        onEdit={onEditComment}
+        onEdit={handleEditExisting}
         onDelete={onDeleteComment}
       />
     );
@@ -398,7 +438,7 @@ export default function PreviewBody({
         value={draft}
         textareaRef={formTextareaRef}
         onChange={setDraft}
-        onSubmit={onSubmitComment}
+        onSubmit={handleSubmitNewComment}
         onCancel={onCancelForm}
       />
     </div>

@@ -510,6 +510,9 @@ function DiffViewer({
     setPrevChunks(file.chunks);
     setExpandedGaps({});
     if (editingLine !== null) setEditingLine(null);
+    // The rendered preview is built from file content, so it is stale for the
+    // same reason fileContentCache is — drop it and refetch on next view
+    if (previewBlocks !== null) setPreviewBlocks(null);
   }
 
   useEffect(() => {

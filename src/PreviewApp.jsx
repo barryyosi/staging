@@ -17,6 +17,7 @@ import Toast from './components/Toast';
 import { FileCommentBubble, FileCommentForm } from './components/FileComments';
 import { SendMediumPicker } from './components/Header';
 import { renderPreviewBlocks } from './utils/renderPreview';
+import { withResolvedLines } from './utils/anchorComments';
 import { formatComments } from './utils/format';
 
 const SEND_MEDIUM_PICKER_ID = 'send-medium-picker';
@@ -99,8 +100,14 @@ export default function PreviewApp({ preview, config }) {
   // instead of pinning a stale render or error screen.
   useEffect(() => {
     let cancelled = false;
+    // A load slower than the poll interval would otherwise let the next tick
+    // overlap it, and the older response could land last and paint stale
+    // content over newer content
+    let inFlight = false;
 
     const tick = async () => {
+      if (inFlight) return;
+      inFlight = true;
       try {
         const res = await fetch('/api/preview-status');
         const data = await res.json();
@@ -119,6 +126,8 @@ export default function PreviewApp({ preview, config }) {
         if (!cancelled) stampRef.current = stamp;
       } catch (err) {
         if (!cancelled && !hasRenderedRef.current) setError(err.message);
+      } finally {
+        inFlight = false;
       }
     };
 
@@ -150,26 +159,29 @@ export default function PreviewApp({ preview, config }) {
   }, [filePath]);
 
   const handleSubmitComment = useCallback(
-    (content) => {
+    (content, anchorOverride) => {
       if (!content.trim()) return;
       if (editingComment) {
         updateComment(editingComment.id, content);
         setEditingComment(null);
       } else if (activeForm) {
-        const extra =
-          activeForm.lineType === 'preview'
-            ? {
-                blockIndex: activeForm.blockIndex,
-                srcLine: activeForm.srcLine,
-                anchorText: activeForm.anchorText,
-                selectedText: activeForm.selectedText,
-                textOffset: activeForm.textOffset,
-                textLength: activeForm.textLength,
-              }
-            : {};
+        const isPreview = activeForm.lineType === 'preview';
+        // anchorOverride carries the block the form was re-anchored to if the
+        // document changed while it was open
+        const extra = isPreview
+          ? {
+              blockIndex: activeForm.blockIndex,
+              srcLine: activeForm.srcLine,
+              anchorText: activeForm.anchorText,
+              ...anchorOverride,
+              selectedText: activeForm.selectedText,
+              textOffset: activeForm.textOffset,
+              textLength: activeForm.textLength,
+            }
+          : {};
         addComment(
           activeForm.file,
-          activeForm.line,
+          isPreview ? (extra.srcLine ?? 0) : activeForm.line,
           activeForm.lineType,
           content,
           extra,
@@ -195,9 +207,24 @@ export default function PreviewApp({ preview, config }) {
     setEditingComment(comment);
   }, []);
 
+  const handleDeleteComment = useCallback(
+    (id) => {
+      deleteComment(id);
+      // Deleting the comment being edited unmounts its form; clear the
+      // pointers too so no invisible form stays "open"
+      if (editingComment?.id === id) {
+        setEditingComment(null);
+        setActiveForm(null);
+      }
+    },
+    [deleteComment, editingComment],
+  );
+
   const handleDismissAllComments = useCallback(() => {
     if (!confirm('Dismiss all review items?')) return;
     deleteAllComments();
+    setActiveForm(null);
+    setEditingComment(null);
     setIsEditingGeneralNote(false);
   }, [deleteAllComments]);
 
@@ -247,9 +274,15 @@ export default function PreviewApp({ preview, config }) {
 
   const handleSendComments = useCallback(async () => {
     if (allComments.length === 0 && !generalNote) return;
-    const formatted = formatComments(allComments, documentPath, generalNote, {
-      context: 'preview',
-    });
+    // The document live-reloads under the reviewer, so a comment's stored
+    // srcLine may predate edits made above it. Re-resolve against the current
+    // render before handing line numbers to the agent.
+    const formatted = formatComments(
+      withResolvedLines(allComments, blocks, filePath),
+      documentPath,
+      generalNote,
+      { context: 'preview' },
+    );
 
     if (selectedMediums.includes('clipboard')) {
       try {
@@ -292,6 +325,8 @@ export default function PreviewApp({ preview, config }) {
     }
   }, [
     allComments,
+    blocks,
+    filePath,
     generalNote,
     documentPath,
     selectedMediums,
@@ -371,7 +406,7 @@ export default function PreviewApp({ preview, config }) {
                 id={COMMENTS_PANEL_ID}
                 commentsByFile={commentsByFile}
                 reviewItemCount={reviewItemCount}
-                onDeleteComment={deleteComment}
+                onDeleteComment={handleDeleteComment}
                 onDismissAll={handleDismissAllComments}
                 onSelectComment={() => closeComments(true)}
                 generalNote={generalNote}
@@ -458,7 +493,7 @@ export default function PreviewApp({ preview, config }) {
                   key={c.id}
                   comment={c}
                   onEdit={handleEditComment}
-                  onDelete={deleteComment}
+                  onDelete={handleDeleteComment}
                 />
               );
             })}
@@ -491,7 +526,7 @@ export default function PreviewApp({ preview, config }) {
             onSubmitComment={handleSubmitComment}
             onCancelForm={handleCancelForm}
             onEditComment={handleEditComment}
-            onDeleteComment={deleteComment}
+            onDeleteComment={handleDeleteComment}
           />
         )}
       </main>
