@@ -56,12 +56,35 @@ export function anchorComments(comments, blocks) {
     }
     const { blockIndex, isStale } = resolved;
     if (!byBlock.has(blockIndex)) byBlock.set(blockIndex, []);
-    byBlock
-      .get(blockIndex)
-      .push({ ...comment, resolvedBlockIndex: blockIndex, isStale });
+    byBlock.get(blockIndex).push({
+      ...comment,
+      resolvedBlockIndex: blockIndex,
+      isStale,
+      // Take the line from where the block sits *now*. The stored srcLine was
+      // captured when the comment was written and goes stale the moment the
+      // document is edited above it — showing or sending that would point at
+      // unrelated content.
+      srcLine: blocks[blockIndex].srcLine,
+    });
   }
 
   return { byBlock, unanchored };
+}
+
+// Returns comments with srcLine refreshed against the current render, for
+// callers that hold the store's copies (e.g. building the agent payload).
+// Comments for other files, and any that no longer resolve, pass through
+// untouched.
+export function withResolvedLines(comments, blocks, filePath) {
+  if (!blocks?.length) return comments;
+  return comments.map((comment) => {
+    if (comment.lineType !== 'preview' || comment.file !== filePath) {
+      return comment;
+    }
+    const resolved = resolveAnchor(comment, blocks);
+    if (!resolved) return comment;
+    return { ...comment, srcLine: blocks[resolved.blockIndex].srcLine };
+  });
 }
 
 // Re-finds a comment's selected text inside a block's plain text.

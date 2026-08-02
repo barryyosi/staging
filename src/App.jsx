@@ -684,26 +684,29 @@ export default function App() {
   }, []);
 
   const handleSubmitComment = useCallback(
-    (content) => {
+    (content, anchorOverride) => {
       if (!content.trim()) return;
       if (editingComment) {
         updateComment(editingComment.id, content);
         setEditingComment(null);
       } else if (activeForm) {
-        const extra =
-          activeForm.lineType === 'preview'
-            ? {
-                blockIndex: activeForm.blockIndex,
-                srcLine: activeForm.srcLine,
-                anchorText: activeForm.anchorText,
-                selectedText: activeForm.selectedText,
-                textOffset: activeForm.textOffset,
-                textLength: activeForm.textLength,
-              }
-            : {};
+        const isPreview = activeForm.lineType === 'preview';
+        // anchorOverride carries the block the form was re-anchored to if the
+        // document changed while it was open
+        const extra = isPreview
+          ? {
+              blockIndex: activeForm.blockIndex,
+              srcLine: activeForm.srcLine,
+              anchorText: activeForm.anchorText,
+              ...anchorOverride,
+              selectedText: activeForm.selectedText,
+              textOffset: activeForm.textOffset,
+              textLength: activeForm.textLength,
+            }
+          : {};
         addComment(
           activeForm.file,
-          activeForm.line,
+          isPreview ? (extra.srcLine ?? 0) : activeForm.line,
           activeForm.lineType,
           content,
           extra,
@@ -732,13 +735,22 @@ export default function App() {
   const handleDeleteComment = useCallback(
     (id) => {
       deleteComment(id);
+      // Deleting the comment being edited unmounts its form, so the pointers
+      // must go too — otherwise activeForm stays set with nothing on screen,
+      // which silently swallows every keyboard shortcut
+      if (editingComment?.id === id) {
+        setEditingComment(null);
+        setActiveForm(null);
+      }
     },
-    [deleteComment],
+    [deleteComment, editingComment],
   );
 
   const handleDismissAllComments = useCallback(() => {
     if (!confirm('Dismiss all review items?')) return;
     deleteAllComments();
+    setActiveForm(null);
+    setEditingComment(null);
     setIsEditingGeneralNote(false);
   }, [deleteAllComments]);
 
