@@ -897,16 +897,19 @@ export default function App() {
     // clipboard write outside the click's user activation, which is the whole
     // reason copyToClipboard takes a promise. Preview comment lines still get
     // re-resolved, they just do it inside the send.
-    const result = await handleSendComments(
-      selectedMediums || ['clipboard', 'file'],
-      {
-        rawFormatted: resolvePreviewLines(allComments).then((comments) =>
-          formatCommitMessageRequest(comments, gitRoot, generalNote),
-        ),
-        suppressToast: true,
-      },
-    );
+    const mediums = selectedMediums || ['clipboard', 'file'];
+    const result = await handleSendComments(mediums, {
+      rawFormatted: resolvePreviewLines(allComments).then((comments) =>
+        formatCommitMessageRequest(comments, gitRoot, generalNote),
+      ),
+      suppressToast: true,
+    });
     if (!result?.ok) return; // handleSendComments already reported the failure
+    if (result.copied === false && !mediums.includes('file')) {
+      // Clipboard was the only destination and it was refused — nothing landed
+      showToast('Clipboard blocked by the browser', 'error');
+      return;
+    }
     showToast(
       result.copied === false
         ? 'Commit message prompt sent — clipboard was blocked, open the review file instead'
