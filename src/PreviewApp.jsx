@@ -18,6 +18,7 @@ import { FileCommentBubble, FileCommentForm } from './components/FileComments';
 import { SendMediumPicker } from './components/Header';
 import { renderPreviewBlocks } from './utils/renderPreview';
 import { withResolvedLines } from './utils/anchorComments';
+import { copyToClipboard } from './utils/clipboard';
 import { formatComments } from './utils/format';
 
 const SEND_MEDIUM_PICKER_ID = 'send-medium-picker';
@@ -284,13 +285,9 @@ export default function PreviewApp({ preview, config }) {
       { context: 'preview' },
     );
 
-    if (selectedMediums.includes('clipboard')) {
-      try {
-        await navigator.clipboard.writeText(formatted);
-      } catch {
-        // Clipboard might not be available
-      }
-    }
+    const copied = selectedMediums.includes('clipboard')
+      ? await copyToClipboard(formatted)
+      : null;
 
     const serverMediums = selectedMediums.filter((m) => m !== 'clipboard');
     if (serverMediums.length > 0) {
@@ -312,12 +309,19 @@ export default function PreviewApp({ preview, config }) {
     }
 
     const parts = [];
-    if (selectedMediums.includes('clipboard'))
-      parts.push('copied to clipboard');
+    if (copied) parts.push('copied to clipboard');
     if (selectedMediums.includes('file'))
       parts.push(`saved to ${config?.reviewFileName || '.staging-review.md'}`);
     if (selectedMediums.includes('cli')) parts.push('printed to CLI');
-    showToast(`Comments ${parts.join(' and ')}`, 'success');
+    // Don't claim the clipboard worked when the browser refused it
+    if (parts.length === 0) {
+      showToast('Clipboard blocked by the browser', 'error');
+    } else {
+      showToast(
+        `Comments ${parts.join(' and ')}${copied === false ? ' (clipboard blocked)' : ''}`,
+        copied === false ? 'info' : 'success',
+      );
+    }
 
     // CLI medium exits the server — close the browser tab
     if (selectedMediums.includes('cli')) {

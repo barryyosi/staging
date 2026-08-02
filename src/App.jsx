@@ -18,6 +18,7 @@ import Toast from './components/Toast';
 import { formatComments, formatCommitMessageRequest } from './utils/format';
 import { renderPreviewBlocks } from './utils/renderPreview';
 import { withResolvedLines } from './utils/anchorComments';
+import { copyToClipboard } from './utils/clipboard';
 import { slugify } from './utils/escape';
 
 const CommitModal = lazy(() => import('./components/CommitModal'));
@@ -794,31 +795,33 @@ export default function App() {
         return;
       }
 
-      let formatted;
+      let formattedPromise;
 
       if (options.approvalMessage) {
-        formatted =
-          '## Review: Approved\n\nLooks good, no changes needed. Approved to proceed.';
+        formattedPromise = Promise.resolve(
+          '## Review: Approved\n\nLooks good, no changes needed. Approved to proceed.',
+        );
       } else if (options.customMessage) {
-        formatted = `## Review Feedback\n\n${options.customMessage}`;
+        formattedPromise = Promise.resolve(
+          `## Review Feedback\n\n${options.customMessage}`,
+        );
       } else if (options.rawFormatted) {
-        formatted = options.rawFormatted;
+        formattedPromise = Promise.resolve(options.rawFormatted);
       } else {
         if (allComments.length === 0 && !generalNote) return;
-        formatted = formatComments(
-          await resolvePreviewLines(allComments),
-          gitRoot,
-          generalNote,
+        formattedPromise = resolvePreviewLines(allComments).then((comments) =>
+          formatComments(comments, gitRoot, generalNote),
         );
       }
 
-      if (mediums.includes('clipboard')) {
-        try {
-          await navigator.clipboard.writeText(formatted);
-        } catch {
-          // Clipboard might not be available
-        }
-      }
+      // Started before the first await so the click's user activation still
+      // covers it — resolving preview lines can take a network round trip
+      const clipboardPromise = mediums.includes('clipboard')
+        ? copyToClipboard(formattedPromise)
+        : null;
+
+      const formatted = await formattedPromise;
+      const copied = clipboardPromise ? await clipboardPromise : null;
 
       const serverMediums = mediums.filter((m) => m !== 'clipboard');
 
@@ -841,7 +844,7 @@ export default function App() {
       }
 
       const parts = [];
-      if (mediums.includes('clipboard')) parts.push('copied to clipboard');
+      if (copied) parts.push('copied to clipboard');
       if (mediums.includes('file'))
         parts.push(`saved to ${config.reviewFileName}`);
       if (mediums.includes('cli')) parts.push('printed to CLI');
@@ -854,7 +857,18 @@ export default function App() {
             ? 'Prompt'
             : 'Comments';
       if (!options.suppressToast) {
-        showToast(`${actionLabel} ${parts.join(' and ')}`, 'success');
+        // Never claim the clipboard worked when it didn't — the browser can
+        // refuse the write and the user would paste stale content
+        if (parts.length === 0) {
+          showToast('Clipboard blocked by the browser', 'error');
+        } else {
+          showToast(
+            `${actionLabel} ${parts.join(' and ')}${
+              copied === false ? ' (clipboard blocked)' : ''
+            }`,
+            copied === false ? 'info' : 'success',
+          );
+        }
       }
 
       // CLI medium exits the server — close the browser tab
@@ -874,7 +888,9 @@ export default function App() {
 
   const handleGenerateCommitViaAgent = useCallback(async () => {
     const formatted = formatCommitMessageRequest(
-      allComments,
+      // Same staleness as the review payload: a preview comment's stored line
+      // drifts once the file changes under it
+      await resolvePreviewLines(allComments),
       gitRoot,
       generalNote,
     );
@@ -894,6 +910,7 @@ export default function App() {
     selectedMediums,
     handleSendComments,
     showToast,
+    resolvePreviewLines,
   ]);
 
   const handleGitAction = useCallback(
