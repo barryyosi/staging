@@ -3865,6 +3865,9 @@ body.is-resizing-sidebar * {
 .preview-container {
   position: relative;
   padding: 24px 32px;
+  /* Width of the comment gutter each block reserves on its left. Must stay
+     <= the container's left padding so the blocks don't overhang it. */
+  --preview-gutter: 28px;
 }
 
 .preview-loading {
@@ -3884,11 +3887,19 @@ body.is-resizing-sidebar * {
   overflow-wrap: break-word;
 }
 
-/* Blocks are plain divs so element margins still collapse through them —
-   do NOT add padding, border, overflow or flex here or the whole document's
-   vertical rhythm changes. */
+/* The gutter the + button sits in is part of the block's own box, via
+   padding-left offset by an equal negative margin-left. That is what makes the
+   button reachable: if it were positioned outside the box, moving the pointer
+   towards it would leave the block, cancel :hover, and hide the button before
+   it could be clicked.
+
+   Only VERTICAL padding/border stops margins collapsing, so horizontal padding
+   and margin here leave the document's rhythm untouched. Still do NOT add
+   padding-top/bottom, border-top/bottom, overflow or flex. */
 .preview-block {
   position: relative;
+  padding-left: var(--preview-gutter);
+  margin-left: calc(-1 * var(--preview-gutter));
 }
 
 .preview-content > .preview-block:first-child .preview-block-body > *:first-child {
@@ -3907,12 +3918,12 @@ body.is-resizing-sidebar * {
 }
 
 /* Hover-revealed per-block add button — mirrors the diff gutter's
-   .btn-comment. Hangs into .preview-container's 32px left padding, so it
-   adds zero layout width. */
+   .btn-comment. Sits inside .preview-block's own padding, so the pointer never
+   leaves the block on its way to the button. */
 .preview-block-add {
   position: absolute;
   top: 2px;
-  left: -26px;
+  left: 3px;
   width: 18px;
   height: 18px;
   display: inline-flex;
@@ -3942,6 +3953,16 @@ body.is-resizing-sidebar * {
   opacity: 1;
   transform: scale(1);
   pointer-events: auto;
+}
+
+/* No hover to reveal it on touch — keep it visible, as the sidebar's
+   stage buttons already do */
+@media (hover: none) {
+  .preview-block-add {
+    opacity: 0.6;
+    transform: scale(1);
+    pointer-events: auto;
+  }
 }
 
 .preview-block-add:hover {
