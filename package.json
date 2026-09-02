@@ -29,7 +29,7 @@
   "type": "module",
   "license": "MIT",
   "dependencies": {
-    "@hono/node-server": "^1.19.9",
+    "@hono/node-server": "^2.0.10",
     "dompurify": "^3.3.1",
     "fuzzysort": "^3.1.0",
     "highlight.js": "^11.11.1",
