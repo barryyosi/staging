@@ -2479,6 +2479,16 @@ body {
   pointer-events: auto;
 }
 
+/* Lines in a multi-line comment range. Per cell so a split row can tint one
+   side only. */
+.diff-table .diff-line td.range-selected {
+  background: var(--comment-bg);
+}
+
+.diff-table .diff-line .line-action.range-selected {
+  box-shadow: inset 3px 0 0 var(--comment-border);
+}
+
 /* Line types */
 .diff-line:hover {
   filter: brightness(0.98);

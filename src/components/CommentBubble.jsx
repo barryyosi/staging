@@ -1,4 +1,5 @@
 import { memo } from 'react';
+import { isLineRange } from '../utils/format';
 
 function CommentBubble({
   comment,
@@ -11,7 +12,9 @@ function CommentBubble({
   onNextComment = null,
   colSpan = 3,
 }) {
-  const location = `${comment.file}:${comment.line}`;
+  const location = isLineRange(comment)
+    ? `${comment.file}:${comment.startLine}-${comment.line}`
+    : `${comment.file}:${comment.line}`;
   const showPager = commentCount > 1;
 
   return (

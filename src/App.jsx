@@ -113,6 +113,10 @@ function countContiguousLoadedFiles(summaries, detailsByPath) {
   return count;
 }
 
+// The multi-line span of a diff comment or form, if it has one
+const lineRangeOf = ({ startLine, startLineType }) =>
+  startLine == null ? {} : { startLine, startLineType };
+
 export default function App() {
   const { theme, toggleTheme } = useTheme();
   const { diffLayout, toggleDiffLayout } = useDiffLayout();
@@ -669,10 +673,12 @@ export default function App() {
     };
   }, [showCommitModal, showShortcutsModal, activeForm, editingComment]);
 
-  const handleAddComment = useCallback((file, line, lineType) => {
+  // `range` is { startLine, startLineType } for a comment dragged over several
+  // lines; `line`/`lineType` is always the last line
+  const handleAddComment = useCallback((file, line, lineType, range = null) => {
     setEditingComment(null);
     setIsEditingGeneralNote(false);
-    setActiveForm({ file, line, lineType });
+    setActiveForm({ file, line, lineType, ...range });
   }, []);
 
   const handleAddPreviewComment = useCallback((file, anchor) => {
@@ -706,7 +712,7 @@ export default function App() {
               textOffset: activeForm.textOffset,
               textLength: activeForm.textLength,
             }
-          : {};
+          : lineRangeOf(activeForm);
         addComment(
           activeForm.file,
           isPreview ? (extra.srcLine ?? 0) : activeForm.line,
@@ -731,6 +737,7 @@ export default function App() {
       file: comment.file,
       line: comment.line,
       lineType: comment.lineType,
+      ...lineRangeOf(comment),
     });
     setEditingComment(comment);
   }, []);

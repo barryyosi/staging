@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { X, Quote, StickyNote } from 'lucide-react';
 import { modKey } from '../utils/platform';
+import { describeLines } from '../utils/format';
 
 function GeneralNoteSection({
   generalNote,
@@ -279,7 +280,7 @@ function CommentPanel({
                       })()}
                     </span>
                   ) : (
-                    `Line ${c.line}`
+                    describeLines(c)
                   )}
                 </div>
                 <div className="panel-comment-text">{c.content}</div>

@@ -1,6 +1,23 @@
 const oneLine = (s) => (s || '').replace(/\s+/g, ' ').trim();
 const clip = (s, n) => (s.length > n ? s.slice(0, n) + '…' : s);
 
+// A diff comment anchors on its last line (`line`/`lineType`); one dragged
+// over several lines also carries `startLine`/`startLineType`.
+export const isLineRange = (c) => c.startLine != null;
+
+export function describeLines(c) {
+  return isLineRange(c) ? `Lines ${c.startLine}-${c.line}` : `Line ${c.line}`;
+}
+
+// With the diff side, for the agent. A range from a deletion to an addition
+// mixes old and new numbering, so each end names its own side.
+function describeLinesWithType(c) {
+  if (isLineRange(c) && c.startLineType !== c.lineType) {
+    return `Lines ${c.startLine} (${c.startLineType}) to ${c.line} (${c.lineType})`;
+  }
+  return `${describeLines(c)} (${c.lineType})`;
+}
+
 export function formatComments(comments, gitRoot, generalNote, options = {}) {
   const isPreview = options.context === 'preview';
   let output = isPreview
@@ -35,7 +52,7 @@ export function formatComments(comments, gitRoot, generalNote, options = {}) {
           : '';
         output += `- ${loc}${anchor}${quote}: ${c.content}\n`;
       } else {
-        output += `- **Line ${c.line}** (${c.lineType}): ${c.content}\n`;
+        output += `- **${describeLinesWithType(c)}**: ${c.content}\n`;
       }
     }
     output += '\n';
@@ -72,7 +89,7 @@ export function formatCommitMessageRequest(comments, gitRoot, generalNote) {
           const where = c.srcLine ? `Document line ${c.srcLine}` : 'Document';
           out += `- ${where}${quote ? ` ("${clip(oneLine(quote), 60)}")` : ''}: ${c.content}\n`;
         } else {
-          out += `- Line ${c.line}: ${c.content}\n`;
+          out += `- ${describeLines(c)}: ${c.content}\n`;
         }
       }
       out += '\n';

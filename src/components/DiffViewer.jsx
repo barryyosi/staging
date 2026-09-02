@@ -35,6 +35,25 @@ import { FileCommentBubble, FileCommentForm } from './FileComments';
 import PreviewBody from './PreviewBody';
 import { MarqueeFileName } from './FileSidebar';
 
+const EMPTY_SET = new Set();
+
+const lineNumOf = (change) =>
+  change.type === 'context' ? change.ln2 : change.ln;
+
+// Comment key: add/context on the new-side number, del on the old-side
+// number. Unique within a file.
+const changeKey = (change) => `${lineNumOf(change)}-${change.type}`;
+
+// The contiguous changes between two keys, in either order. Null when either
+// key is not in `changes`: a range never crosses a hunk boundary.
+function rangeBetween(changes, fromKey, toKey) {
+  const keys = changes.map(changeKey);
+  const from = keys.indexOf(fromKey);
+  const to = keys.indexOf(toKey);
+  if (from < 0 || to < 0) return null;
+  return changes.slice(Math.min(from, to), Math.max(from, to) + 1);
+}
+
 function HunkHeader({ chunk, colSpan = 3 }) {
   return (
     <tr className="diff-hunk-header">
@@ -185,37 +204,61 @@ function DiffLineCells({
   onConfirmEdit = null,
   onCancelEdit = null,
   displayLineNum = null,
+  groupId = null,
+  onRangeDragStart = null,
+  inRange = false,
 }) {
   // Canonical line number used for comment keys / add-comment calls (context
   // keys on the new-side number, ln2). `displayLineNum` overrides only the
   // visible number, so the old (left) side of a split can show ln1.
-  const lineNum = change.type === 'context' ? change.ln2 : change.ln;
+  const lineNum = lineNumOf(change);
   const shownLineNum = displayLineNum ?? lineNum;
+  const lineKey = changeKey(change);
+  const rangeClass = inRange ? ' range-selected' : '';
+  const canDrag = onRangeDragStart != null && groupId != null;
+  // Read back by the document-level drag listener via elementFromPoint
+  const rangeAttrs = canDrag
+    ? { 'data-range-group': groupId, 'data-range-key': lineKey }
+    : {};
 
   const html = useMemo(
     () => highlightLine(change.content, filePath),
     [change.content, filePath],
   );
 
+  // A mouse press starts a range drag and the document mouseup opens the form
+  // for whatever was swept, so click only serves keyboard activation (detail 0)
+  const handleCommentMouseDown = (e) => {
+    if (e.button !== 0 || !canDrag) return;
+    e.preventDefault();
+    onRangeDragStart(groupId, lineKey);
+  };
+  const handleCommentClick = (e) => {
+    if (canDrag && e.detail !== 0) return;
+    onAddComment(filePath, lineNum, change.type);
+  };
+
   return (
     <>
-      <td className="line-action">
+      <td className={`line-action${rangeClass}`} {...rangeAttrs}>
         {!isEditing && (
           <button
             className="btn-comment"
-            title="Add comment"
+            title="Add comment (drag for a range)"
             aria-label="Add comment"
             type="button"
-            onClick={() => onAddComment(filePath, lineNum, change.type)}
+            onMouseDown={handleCommentMouseDown}
+            onClick={handleCommentClick}
           >
             <Plus size={14} strokeWidth={1.5} />
           </button>
         )}
       </td>
       <td
-        className={`line-num${commentCount > 0 ? ' has-comments' : ''}`}
+        className={`line-num${commentCount > 0 ? ' has-comments' : ''}${rangeClass}`}
         data-comment-line={lineNum}
         data-comment-type={change.type}
+        {...rangeAttrs}
       >
         {commentCount > 0 ? (
           <button
@@ -236,7 +279,8 @@ function DiffLineCells({
         )}
       </td>
       <td
-        className={`line-content${isLastChange ? ' hunk-actions-anchor' : ''}${isEditing ? ' is-editing' : ''}`}
+        className={`line-content${isLastChange ? ' hunk-actions-anchor' : ''}${isEditing ? ' is-editing' : ''}${rangeClass}`}
+        {...rangeAttrs}
       >
         {isEditing ? (
           <LineEditInput
@@ -319,6 +363,10 @@ function SplitDiffRow({
   onStartEditLine = null,
   onConfirmEditLine = null,
   onCancelEditLine = null,
+  groupId = null,
+  onRangeDragStart = null,
+  leftInRange = false,
+  rightInRange = false,
 }) {
   // Inline editing applies to the new (right) side only, matching the unified
   // view where only add/context lines are editable.
@@ -358,6 +406,9 @@ function SplitDiffRow({
           commentsExpanded={leftCommentsExpanded}
           onToggleComments={onToggleLeftComments}
           displayLineNum={left.type === 'context' ? left.ln1 : null}
+          groupId={groupId}
+          onRangeDragStart={onRangeDragStart}
+          inRange={leftInRange}
         />
       ) : (
         <EmptyCells />
@@ -379,6 +430,9 @@ function SplitDiffRow({
               : null
           }
           onCancelEdit={onCancelEditLine}
+          groupId={groupId}
+          onRangeDragStart={onRangeDragStart}
+          inRange={rightInRange}
         />
       ) : (
         <EmptyCells
@@ -487,6 +541,8 @@ function DiffViewer({
   const [previewBlocks, setPreviewBlocks] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [editingLine, setEditingLine] = useState(null); // { lineNum, lineType, content }
+  const [dragRange, setDragRange] = useState(null); // { groupId, anchorKey, currentKey }
+  const dragRangeRef = useRef(null);
   const [expandedGaps, setExpandedGaps] = useState({});
   const expandedGapsRef = useRef(expandedGaps);
   const fileContentCache = useRef(null);
@@ -687,6 +743,126 @@ function DiffViewer({
     [],
   );
 
+  // --- Multi-line comment ranges ---
+  // A range is a contiguous slice of one group (a hunk or an expanded-context
+  // block), identified by its first and last line keys.
+  const lineGroups = useMemo(() => {
+    const groups = {};
+    file.chunks.forEach((chunk, ci) => {
+      groups[`chunk-${ci}`] = chunk.changes;
+    });
+    for (const [gapKey, data] of Object.entries(expandedGaps)) {
+      if (data.allLines) groups[`${gapKey}-all`] = data.allLines;
+      if (data.topLines?.length) groups[`${gapKey}-top`] = data.topLines;
+      if (data.bottomLines?.length)
+        groups[`${gapKey}-bottom`] = data.bottomLines;
+    }
+    return groups;
+  }, [file.chunks, expandedGaps]);
+
+  const findRange = useCallback(
+    (fromKey, toKey) => {
+      for (const changes of Object.values(lineGroups)) {
+        const range = rangeBetween(changes, fromKey, toKey);
+        if (range) return range;
+      }
+      return null;
+    },
+    [lineGroups],
+  );
+
+  // Lines to tint: the drag in progress, the open range form, and any
+  // expanded range comment currently shown
+  const rangeHighlightKeys = useMemo(() => {
+    const spans = [];
+    if (dragRange) spans.push([dragRange.anchorKey, dragRange.currentKey]);
+    if (activeForm?.file === filePath && activeForm.startLine != null) {
+      spans.push([
+        `${activeForm.startLine}-${activeForm.startLineType}`,
+        `${activeForm.line}-${activeForm.lineType}`,
+      ]);
+    }
+    for (const [lineKey, lineComments] of Object.entries(commentMap)) {
+      if (!isCommentLineExpanded(lineKey)) continue;
+      const shown = lineComments[getVisibleCommentIndex(lineKey, lineComments)];
+      if (shown.startLine != null) {
+        spans.push([`${shown.startLine}-${shown.startLineType}`, lineKey]);
+      }
+    }
+    const keys = new Set();
+    for (const [from, to] of spans) {
+      findRange(from, to)?.forEach((c) => keys.add(changeKey(c)));
+    }
+    return keys;
+  }, [
+    dragRange,
+    activeForm,
+    filePath,
+    commentMap,
+    isCommentLineExpanded,
+    getVisibleCommentIndex,
+    findRange,
+  ]);
+
+  const handleRangeDragStart = useCallback((groupId, key) => {
+    dragRangeRef.current = { groupId, anchorKey: key, currentKey: key };
+    setDragRange(dragRangeRef.current);
+  }, []);
+
+  const isDraggingRange = dragRange !== null;
+  useEffect(() => {
+    if (!isDraggingRange) return;
+
+    const stop = () => {
+      const drag = dragRangeRef.current;
+      dragRangeRef.current = null;
+      setDragRange(null);
+      return drag;
+    };
+
+    const handleMouseMove = (e) => {
+      const drag = dragRangeRef.current;
+      if (!drag) return;
+      const cell = document
+        .elementFromPoint(e.clientX, e.clientY)
+        ?.closest('[data-range-key]');
+      if (!cell || cell.dataset.rangeGroup !== drag.groupId) return;
+      const key = cell.dataset.rangeKey;
+      if (key === drag.currentKey) return;
+      dragRangeRef.current = { ...drag, currentKey: key };
+      setDragRange(dragRangeRef.current);
+    };
+
+    const handleMouseUp = () => {
+      const drag = stop();
+      const range = drag && findRange(drag.anchorKey, drag.currentKey);
+      if (!range) return;
+      const first = range[0];
+      const last = range[range.length - 1];
+      onAddComment(
+        filePath,
+        lineNumOf(last),
+        last.type,
+        range.length > 1
+          ? { startLine: lineNumOf(first), startLineType: first.type }
+          : null,
+      );
+    };
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') stop();
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isDraggingRange, findRange, filePath, onAddComment]);
+
   const toggleCollapse = useCallback(() => setCollapsed((c) => !c), []);
 
   const handleToggleViewMode = useCallback(
@@ -884,6 +1060,7 @@ function DiffViewer({
             getVisibleCommentIndex,
             onShiftVisibleComment: shiftVisibleComment,
           });
+          const inRange = rangeHighlightKeys.has(lineKey);
           return (
             <Fragment key={`exp-${lineNum}`}>
               {isSplit ? (
@@ -896,6 +1073,10 @@ function DiffViewer({
                   rightCommentCount={commentCount}
                   rightCommentsExpanded={commentsExpanded}
                   onToggleRightComments={() => toggleCommentLine(lineKey)}
+                  groupId={key}
+                  onRangeDragStart={handleRangeDragStart}
+                  leftInRange={inRange}
+                  rightInRange={inRange}
                 />
               ) : (
                 <DiffLine
@@ -907,6 +1088,9 @@ function DiffViewer({
                   commentCount={commentCount}
                   commentsExpanded={commentsExpanded}
                   onToggleComments={() => toggleCommentLine(lineKey)}
+                  groupId={key}
+                  onRangeDragStart={handleRangeDragStart}
+                  inRange={inRange}
                 />
               )}
               {commentRows}
@@ -1128,6 +1312,9 @@ function DiffViewer({
                       onToggleCommentLine={toggleCommentLine}
                       getVisibleCommentIndex={getVisibleCommentIndex}
                       onShiftVisibleComment={shiftVisibleComment}
+                      groupId={`chunk-${ci}`}
+                      onRangeDragStart={handleRangeDragStart}
+                      rangeHighlightKeys={rangeHighlightKeys}
                     />
                   </tbody>
                   {gapsByAfterChunk[ci] && renderGap(gapsByAfterChunk[ci])}
@@ -1303,6 +1490,9 @@ function ChunkRows({
   onToggleCommentLine,
   getVisibleCommentIndex,
   onShiftVisibleComment,
+  groupId = null,
+  onRangeDragStart = null,
+  rangeHighlightKeys = EMPTY_SET,
 }) {
   const rows = [];
 
@@ -1363,6 +1553,9 @@ function ChunkRows({
             : null
         }
         onCancelEdit={onCancelEditLine}
+        groupId={groupId}
+        onRangeDragStart={onRangeDragStart}
+        inRange={rangeHighlightKeys.has(lineKey)}
       />,
     );
 
@@ -1415,6 +1608,9 @@ function SplitChunkRows({
   onToggleCommentLine,
   getVisibleCommentIndex,
   onShiftVisibleComment,
+  groupId = null,
+  onRangeDragStart = null,
+  rangeHighlightKeys = EMPTY_SET,
 }) {
   const rows = [];
   const SPLIT_COLSPAN = 6;
@@ -1531,6 +1727,10 @@ function SplitChunkRows({
         onStartEditLine={onStartEditLine}
         onConfirmEditLine={onConfirmEditLine}
         onCancelEditLine={onCancelEditLine}
+        groupId={groupId}
+        onRangeDragStart={onRangeDragStart}
+        leftInRange={leftKey != null && rangeHighlightKeys.has(leftKey)}
+        rightInRange={rightKey != null && rangeHighlightKeys.has(rightKey)}
       />,
     );
 
