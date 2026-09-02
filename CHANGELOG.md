@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Features
+- Drag the `+` gutter button to comment on a range of lines. Ranges are sent to the agent as `Lines a-b`.
+
 ## 0.2.0 - 2026-03-21
 
 ### Features
