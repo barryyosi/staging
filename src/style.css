@@ -3541,9 +3541,46 @@ body {
   font-size: 12px;
 }
 
+.whats-new-version-commit {
+  margin-left: 8px;
+  padding-left: 8px;
+  border-left: 1px solid var(--border-1);
+  color: var(--text-3);
+}
+
 .whats-new-version-arrow {
   color: var(--text-3);
   font-size: 14px;
+}
+
+.whats-new-version-meta {
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.whats-new-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.whats-new-entry-title {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.whats-new-commit-sha {
+  margin-right: 8px;
+  font-family: var(--font-mono);
+  color: var(--text-3);
+}
+
+.whats-new-commit-more {
+  color: var(--text-3);
+  list-style: none;
 }
 
 .whats-new-sections {
@@ -3912,11 +3949,17 @@ body.is-resizing-sidebar * {
   margin-left: calc(-1 * var(--preview-gutter));
 }
 
-.preview-content > .preview-block:first-child .preview-block-body > *:first-child {
+.preview-content
+  > .preview-block:first-child
+  .preview-block-body
+  > *:first-child {
   margin-top: 0;
 }
 
-.preview-content > .preview-block:last-child .preview-block-body > *:last-child {
+.preview-content
+  > .preview-block:last-child
+  .preview-block-body
+  > *:last-child {
   margin-bottom: 0;
 }
 

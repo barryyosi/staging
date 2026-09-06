@@ -1,9 +1,21 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 - 2026-09-06
 
 ### Features
+- Side-by-side (split) diff layout with a global toggle.
+- Standalone markdown and HTML file preview mode.
+- Inline block comments in markdown previews, anchored to source lines, in both the diff view and the standalone preview.
 - Drag the `+` gutter button to comment on a range of lines. Ranges are sent to the agent as `Lines a-b`.
+
+### Fixes
+- The update prompt shows the commit behind each version and how many commits are new, so it can no longer read "v0.2.0 → v0.2.0" when the version number was not bumped.
+- The update prompt lists every changelog entry since the running version, and falls back to the new commits when the changelog has no entry for them.
+- A checkout that was updated but not restarted now asks for a restart instead of reporting up to date.
+- Preview comments send the agent their current line after a live reload instead of a stale one.
+- Clipboard sends stay inside the click gesture (Safari) and report a refused write instead of claiming success.
+- The block comment button in previews is reachable and clickable; reopening an open block form keeps its draft.
+- Hunk actions are preserved for deletion-only rows in split view.
 
 ## 0.2.0 - 2026-03-21
 
