@@ -216,6 +216,8 @@ export default function App() {
         if (data.status === 'update-available') {
           setUpdateStatus(data);
           setShowWhatsNewModal(true);
+        } else if (data.status === 'restart-needed') {
+          setUpdateStatus(data);
         }
       } catch {
         // Silently ignore
