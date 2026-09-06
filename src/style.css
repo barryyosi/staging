@@ -3578,6 +3578,11 @@ body {
   color: var(--text-3);
 }
 
+.whats-new-commit-more {
+  color: var(--text-3);
+  list-style: none;
+}
+
 .whats-new-sections {
   display: flex;
   flex-direction: column;

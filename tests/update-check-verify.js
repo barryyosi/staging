@@ -50,6 +50,9 @@ const released = [
   '### Features',
   '- Initial release.',
   '',
+  '### Notes',
+  '- Dependency updates.',
+  '',
 ].join('\n');
 const changelog = (...sections) =>
   ['# Changelog', '', ...sections, released].join('\n');
@@ -58,6 +61,8 @@ const unreleasedRange = '## Unreleased\n\n### Features\n- Range comments.\n';
 const release030 =
   '## 0.3.0 - 2026-09-06\n\n### Features\n- Range comments.\n\n### Fixes\n- Accurate update prompt.\n';
 const unreleasedSmall = '## Unreleased\n\n### Fixes\n- Something small.\n';
+const release040 =
+  '## 0.4.0 - 2026-10-01\n\n### Notes\n- Dependency updates.\n';
 
 function upstreamAt(sha) {
   git(upstream, 'reset', '-q', '--hard', sha);
@@ -88,6 +93,17 @@ try {
   const D = commit(upstream, 'fix: something small');
   write(upstream, { 'lib.js': 'x\n' });
   const E = commit(upstream, 'chore: no changelog touch');
+  write(upstream, {
+    'package.json': pkg('0.4.0'),
+    'CHANGELOG.md': changelog(release040, release030),
+  });
+  const F = commit(upstream, 'release 0.4.0');
+  git(upstream, 'checkout', '-q', '-b', 'side');
+  write(upstream, { 'side.js': 'y\n' });
+  const sideCommit = commit(upstream, 'feat: side work');
+  git(upstream, 'checkout', '-q', 'main');
+  git(upstream, 'merge', '-q', '--no-ff', '-m', 'Merge branch side', 'side');
+  const G = git(upstream, 'rev-parse', 'HEAD');
 
   git(root, 'clone', '-q', upstream, clone);
   cloneAt(A);
@@ -182,6 +198,67 @@ try {
   result = checkForUpdates(clone, { version: null, commit: A });
   assert.equal(result.currentVersion, null);
   assert.deepEqual(titles(result), ['Unreleased', '0.3.0 - 2026-09-06']);
+
+  console.log('10. commits made on top of the running build are not a restart');
+  cloneAt(E);
+  upstreamAt(E);
+  const runningE = getBuildInfo(clone);
+  write(clone, { 'local2.txt': 'z\n' });
+  commit(clone, 'more local work');
+  result = checkForUpdates(clone, runningE);
+  assert.equal(result.status, 'up-to-date');
+  cloneAt(E);
+
+  console.log('11. restart-needed is reported even when origin is unreachable');
+  cloneAt(A);
+  const runningA = getBuildInfo(clone);
+  git(clone, 'pull', '-q', 'origin', 'main');
+  git(clone, 'remote', 'set-url', 'origin', path.join(root, 'missing'));
+  result = checkForUpdates(clone, runningA);
+  assert.equal(result.status, 'restart-needed');
+  assert.equal(result.latestCommit, E);
+  result = checkForUpdates(clone);
+  assert.equal(result.status, 'unknown');
+  git(clone, 'remote', 'set-url', 'origin', upstream);
+
+  console.log('12. a release outranks a prerelease of the same version');
+  cloneAt(B);
+  upstreamAt(C);
+  result = checkForUpdates(clone, { version: '0.3.0-beta.1', commit: B });
+  assert.deepEqual(
+    result.changelogEntries.map((entry) => [entry.title, entry.fixes]),
+    [['0.3.0 - 2026-09-06', ['Accurate update prompt.']]],
+  );
+
+  console.log('13. a bullet repeated from an old release is still new');
+  cloneAt(C);
+  upstreamAt(F);
+  result = checkForUpdates(clone);
+  assert.equal(result.latestVersion, '0.4.0');
+  assert.deepEqual(
+    result.changelogEntries.map((entry) => [entry.title, entry.notes]),
+    [['0.4.0 - 2026-10-01', ['Dependency updates.']]],
+  );
+
+  console.log('14. the commit count matches the commit list (no merges)');
+  cloneAt(F);
+  upstreamAt(G);
+  result = checkForUpdates(clone);
+  assert.equal(result.status, 'update-available');
+  assert.equal(result.latestCommit, G);
+  assert.equal(result.commitsBehind, 1);
+  assert.deepEqual(result.commits, [
+    { sha: sideCommit.slice(0, 7), subject: 'feat: side work' },
+  ]);
+
+  console.log('15. a package nested inside another repo is not self-updatable');
+  const nested = path.join(clone, 'vendor', 'staging');
+  fs.mkdirSync(nested, { recursive: true });
+  write(nested, { 'package.json': pkg('9.9.9') });
+  assert.deepEqual(getBuildInfo(nested), { version: '9.9.9', commit: null });
+  result = checkForUpdates(nested);
+  assert.equal(result.status, 'unknown');
+  assert.equal(result.currentVersion, '9.9.9');
 
   console.log('\nAll update-check scenarios passed.');
 } finally {

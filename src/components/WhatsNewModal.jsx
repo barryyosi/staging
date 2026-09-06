@@ -55,7 +55,8 @@ function renderEntries(entries, latestVersion) {
   });
 }
 
-function renderCommits(commits) {
+function renderCommits(commits, commitsBehind) {
+  const omitted = commitsBehind - commits.length;
   return (
     <section className="whats-new-section">
       <h4>Commits</h4>
@@ -66,6 +67,9 @@ function renderCommits(commits) {
             {commit.subject}
           </li>
         ))}
+        {omitted > 0 && (
+          <li className="whats-new-commit-more">and {omitted} more</li>
+        )}
       </ul>
     </section>
   );
@@ -102,7 +106,11 @@ export default function WhatsNewModal({ updateStatus, onClose, onUpdate }) {
       </div>
     );
   } else if (commits.length > 0) {
-    body = <div className="whats-new-sections">{renderCommits(commits)}</div>;
+    body = (
+      <div className="whats-new-sections">
+        {renderCommits(commits, commitsBehind)}
+      </div>
+    );
   } else {
     body = (
       <p className="whats-new-empty">
