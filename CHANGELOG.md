@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.0 - 2026-09-15
 
 ### Features
 - Compare the review against a base branch: pick one from the header, pass `--base <branch>`, or set `baseBranch` in `.stagingrc.json`. The diff then covers everything the branch adds on top of its merge-base with that branch, committed and staged alike.
