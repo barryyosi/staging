@@ -1,4 +1,6 @@
-import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import { useCallback, useMemo, useRef, useEffect } from 'react';
+import { useProjectStore } from './useProjectStore';
+import { loadComments, saveComments } from '../utils/reviewStorage';
 
 let idCounter = 0;
 
@@ -10,40 +12,60 @@ function generateId() {
   );
 }
 
-export function useComments(projectKey) {
-  const [commentsByFile, setCommentsByFile] = useState({});
-  const [generalNote, setGeneralNoteRaw] = useState(null);
-  const storeRef = useRef(new Map());
-  const noteStoreRef = useRef(new Map());
-  const prevKeyRef = useRef(projectKey);
+const EMPTY = { commentsByFile: {}, generalNote: null };
 
+// Comments live in localStorage per project so a review survives closing the
+// tab. `fingerprintByPath` (from the diff summary) stamps each new comment
+// with its file's fingerprint; when a project's comments are loaded, those
+// whose file has since changed come back flagged `stale`. Staleness is only
+// decided on load: while the tab is open a comment stays live however the
+// diff moves under it.
+export function useComments(projectKey, fingerprintByPath = null) {
+  const fingerprintsRef = useRef(fingerprintByPath);
   useEffect(() => {
-    const prevKey = prevKeyRef.current;
-    if (prevKey === projectKey) return;
-    prevKeyRef.current = projectKey;
+    fingerprintsRef.current = fingerprintByPath;
+  }, [fingerprintByPath]);
 
-    setCommentsByFile((current) => {
-      if (prevKey) storeRef.current.set(prevKey, current);
-      return storeRef.current.get(projectKey) || {};
-    });
-    setGeneralNoteRaw((current) => {
-      if (prevKey) noteStoreRef.current.set(prevKey, current);
-      return noteStoreRef.current.get(projectKey) ?? null;
-    });
-  }, [projectKey]);
+  const load = useCallback(
+    (key) => loadComments(key, fingerprintsRef.current),
+    [],
+  );
+  const [value, setValue] = useProjectStore(projectKey, load, saveComments);
+  const { commentsByFile, generalNote } = value || EMPTY;
 
-  const allComments = useMemo(
-    () => Object.values(commentsByFile).flat(),
+  const update = useCallback(
+    (updater) => setValue((prev) => ({ ...prev, ...updater(prev) })),
+    [setValue],
+  );
+
+  // Comments the agent still needs to hear about; stale ones are kept for
+  // the reviewer's reference only
+  const pendingComments = useMemo(
+    () =>
+      Object.values(commentsByFile)
+        .flat()
+        .filter((c) => !c.stale),
     [commentsByFile],
   );
 
-  const setGeneralNote = useCallback((text) => {
-    setGeneralNoteRaw(text && text.trim() ? text.trim() : null);
-  }, []);
+  const staleCount = useMemo(
+    () =>
+      Object.values(commentsByFile)
+        .flat()
+        .filter((c) => c.stale).length,
+    [commentsByFile],
+  );
+
+  const setGeneralNote = useCallback(
+    (text) => {
+      update(() => ({ generalNote: text && text.trim() ? text.trim() : null }));
+    },
+    [update],
+  );
 
   const clearGeneralNote = useCallback(() => {
-    setGeneralNoteRaw(null);
-  }, []);
+    update(() => ({ generalNote: null }));
+  }, [update]);
 
   const addComment = useCallback(
     (file, line, lineType, content, extra = {}) => {
@@ -54,56 +76,80 @@ export function useComments(projectKey) {
         lineType,
         content: content.trim(),
         timestamp: Date.now(),
+        fingerprint: fingerprintsRef.current?.[file] ?? null,
         ...extra,
       };
-      setCommentsByFile((prev) => ({
-        ...prev,
-        [file]: [...(prev[file] || []), comment],
+      update((prev) => ({
+        commentsByFile: {
+          ...prev.commentsByFile,
+          [file]: [...(prev.commentsByFile[file] || []), comment],
+        },
       }));
       return comment;
     },
-    [],
+    [update],
   );
 
-  const updateComment = useCallback((id, content) => {
-    setCommentsByFile((prev) => {
-      const next = {};
-      for (const [file, fileComments] of Object.entries(prev)) {
-        next[file] = fileComments.map((c) =>
-          c.id === id
-            ? { ...c, content: content.trim(), timestamp: Date.now() }
-            : c,
-        );
-      }
-      return next;
-    });
-  }, []);
+  const updateComment = useCallback(
+    (id, content) => {
+      update((prev) => {
+        const next = {};
+        for (const [file, fileComments] of Object.entries(
+          prev.commentsByFile,
+        )) {
+          next[file] = fileComments.map((c) =>
+            c.id === id
+              ? { ...c, content: content.trim(), timestamp: Date.now() }
+              : c,
+          );
+        }
+        return { commentsByFile: next };
+      });
+    },
+    [update],
+  );
 
-  const deleteComment = useCallback((id) => {
-    setCommentsByFile((prev) => {
-      const next = {};
-      for (const [file, fileComments] of Object.entries(prev)) {
-        const filtered = fileComments.filter((c) => c.id !== id);
-        if (filtered.length > 0) next[file] = filtered;
-      }
-      return next;
-    });
-  }, []);
+  const removeWhere = useCallback(
+    (predicate) => {
+      update((prev) => {
+        const next = {};
+        for (const [file, fileComments] of Object.entries(
+          prev.commentsByFile,
+        )) {
+          const kept = fileComments.filter((c) => !predicate(c));
+          if (kept.length > 0) next[file] = kept;
+        }
+        return { commentsByFile: next };
+      });
+    },
+    [update],
+  );
+
+  const deleteComment = useCallback(
+    (id) => removeWhere((c) => c.id === id),
+    [removeWhere],
+  );
+
+  const clearStaleComments = useCallback(
+    () => removeWhere((c) => c.stale),
+    [removeWhere],
+  );
 
   const deleteAllComments = useCallback(() => {
-    setCommentsByFile({});
-    setGeneralNoteRaw(null);
-  }, []);
+    update(() => ({ commentsByFile: {}, generalNote: null }));
+  }, [update]);
 
   return {
     commentsByFile,
-    allComments,
+    pendingComments,
+    staleCount,
     generalNote,
     setGeneralNote,
     clearGeneralNote,
     addComment,
     updateComment,
     deleteComment,
+    clearStaleComments,
     deleteAllComments,
   };
 }

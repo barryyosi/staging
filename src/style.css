@@ -998,6 +998,13 @@ body {
   color: var(--text-2);
 }
 
+.btn-badge.btn-badge-stale {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--border-1);
+  color: var(--text-3);
+  font-weight: 600;
+}
+
 /* === SPLIT BUTTON === */
 .split-btn-wrap {
   --split-caret-width: 38px;
@@ -3368,6 +3375,56 @@ body {
 .panel-comment-item .panel-comment-text {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+/* Stale comments: kept from an earlier review of a file that has changed */
+.panel-stale-section {
+  margin-top: 6px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border-1);
+}
+
+.panel-stale-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 8px;
+  margin-bottom: 4px;
+}
+
+.panel-stale-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-3);
+}
+
+.panel-stale-hint {
+  margin: 0 0 10px;
+  padding: 0 8px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-3);
+}
+
+.panel-comment-item.is-stale {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--border-1);
+}
+
+.panel-comment-item.is-stale .panel-comment-text {
+  color: var(--text-2);
+}
+
+.panel-comment-item.is-stale:hover,
+.panel-comment-item.is-stale:focus-visible {
+  background: var(--bg-hover);
 }
 
 /* === GENERAL NOTE SECTION === */

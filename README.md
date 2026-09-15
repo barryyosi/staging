@@ -22,6 +22,7 @@ Staging gives you a dedicated, browser-based review interface with GitHub-style 
 - **Inline Comments**: Add threaded comments directly on changed lines to guide agent refinements; drag the `+` gutter button to comment on a range of lines
 - **Markdown/HTML Preview**: Toggle per-file between diff and rendered preview for `.md` and `.html` files, with inline commenting on the rendered output — hover any block for a `+` gutter button, or select text to quote it; comments carry the markdown source line so the agent knows exactly where to edit
 - **Standalone File Preview**: Point staging at a single markdown/HTML file — no git repo needed — for a live-reloading rendered preview with the same inline commenting, plus file-level comments, a general review note, and the comments panel
+- **Review State That Survives a Reopen**: Comments, the general note and the files you marked reviewed are kept in the browser per repository. Reopen staging after the agent has worked and the files whose diff did not change are still ticked; comments on files that did change come back as stale, listed in the panel for reference but not sent again
 - **Compare Against a Base Branch**: Switch the review from "what is staged" to "everything this branch adds on top of `main`" (or any branch) — committed and staged alike — from the header, `--base <branch>`, or the `baseBranch` config option
 - **Pull Request Aware**: When the checked-out branch has an open pull/merge request (GitHub via `gh`, GitLab via `glab`, Azure DevOps via `az`), the review defaults to that request's target branch and the handoff names the request — review the PR locally, send the comments straight to the agent
 - **Update Release Notes**: When a newer Staging build is available, the app opens a built-in "What's New" modal showing the running and available versions (with their commits) and every changelog entry since your version before updating
@@ -99,6 +100,27 @@ resolves on the remote your branch tracks; pick `upstream/main` from the
 picker if that is what the request really targets. Bitbucket has no standard
 CLI yet; providers live in `lib/pull-requests.js` and adding one is a single
 entry.
+
+### Review State Across Sessions
+
+Closing the tab does not lose the review. Staging keeps, in the browser's
+local storage and per repository:
+
+- the files you ticked as reviewed, together with a fingerprint of each
+  file's diff (the blobs on either side of it);
+- every inline and file-level comment, with the same fingerprint, plus the
+  general note.
+
+On the next open, a file whose diff is byte-for-byte the same comes back
+reviewed; one that changed since starts unreviewed again. Comments on
+unchanged files come back live and are sent as usual. Comments on files
+that changed or left the diff come back **stale**: the panel lists them in a
+separate section so you can see what you asked for last time, but they are
+not shown inline and not sent to the agent. Dismiss them one by one or with
+"Clear stale". "Dismiss all" clears everything, stored copy included.
+
+Nothing leaves the browser: the state is keyed by the repository path, so a
+worktree or a sibling project keeps its own.
 
 ### Standalone File Preview
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.0 - 2026-09-15
+
+### Features
+- Review state survives closing the tab. Comments, the general note and the files marked reviewed are kept in the browser per repository, each with a fingerprint of the file's diff. On the next open, files whose diff is unchanged come back reviewed, comments on unchanged files come back live, and comments on files that changed since come back as stale: listed in a separate panel section for reference, not shown inline and not sent to the agent, with a "Clear stale" button. The diff summary now carries that fingerprint (`fingerprint`, the two blob ids of each file's diff).
+
 ## 0.5.0 - 2026-09-15
 
 ### Features

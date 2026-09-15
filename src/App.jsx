@@ -11,6 +11,7 @@ import { MinusCircle } from 'lucide-react';
 import { useTheme } from './hooks/useTheme';
 import { useDiffLayout } from './hooks/useDiffLayout';
 import { useComments } from './hooks/useComments';
+import { useProjectStore } from './hooks/useProjectStore';
 import Header from './components/Header';
 import FileSidebar from './components/FileSidebar';
 import DiffViewer from './components/DiffViewer';
@@ -20,6 +21,13 @@ import { renderPreviewBlocks } from './utils/renderPreview';
 import { withResolvedLines } from './utils/anchorComments';
 import { copyToClipboard } from './utils/clipboard';
 import { slugify } from './utils/escape';
+import {
+  loadReviewedMarks,
+  saveReviewedMarks,
+  setReviewedMark,
+  clearReviewedMark,
+  resolveReviewedFiles,
+} from './utils/reviewStorage';
 
 const CommitModal = lazy(() => import('./components/CommitModal'));
 const ShortcutsModal = lazy(() => import('./components/ShortcutsModal'));
@@ -117,23 +125,53 @@ function countContiguousLoadedFiles(summaries, detailsByPath) {
 const lineRangeOf = ({ startLine, startLineType }) =>
   startLine == null ? {} : { startLine, startLineType };
 
+// What each file's diff currently covers (see the summary's `fingerprint`)
+function fingerprintsOf(summaries) {
+  const byPath = {};
+  for (const file of summaries || []) {
+    const filePath = getFilePath(file);
+    if (filePath && file.fingerprint) byPath[filePath] = file.fingerprint;
+  }
+  return byPath;
+}
+
+function withoutStale(commentsByFile) {
+  const next = {};
+  for (const [file, comments] of Object.entries(commentsByFile)) {
+    const pending = comments.filter((c) => !c.stale);
+    if (pending.length > 0) next[file] = pending;
+  }
+  return next;
+}
+
 export default function App() {
   const { theme, toggleTheme } = useTheme();
   const { diffLayout, toggleDiffLayout } = useDiffLayout();
   const [gitRoot, setGitRoot] = useState('');
+  const [fileSummaries, setFileSummaries] = useState(null);
+  const fingerprintByPath = useMemo(
+    () => fingerprintsOf(fileSummaries),
+    [fileSummaries],
+  );
   const {
     commentsByFile,
-    allComments,
+    pendingComments,
+    staleCount,
     generalNote,
     setGeneralNote,
     clearGeneralNote,
     addComment,
     updateComment,
     deleteComment,
+    clearStaleComments,
     deleteAllComments,
-  } = useComments(gitRoot);
+  } = useComments(gitRoot, fingerprintByPath);
+  // Stale comments are for the panel only: nothing inline, no sidebar badge
+  const pendingCommentsByFile = useMemo(
+    () => withoutStale(commentsByFile),
+    [commentsByFile],
+  );
 
-  const [fileSummaries, setFileSummaries] = useState(null);
   const [unstagedFiles, setUnstagedFiles] = useState([]);
   const [fileDetailsByPath, setFileDetailsByPath] = useState({});
   const [unstagedChunksByPath, setUnstagedChunksByPath] = useState({});
@@ -154,7 +192,20 @@ export default function App() {
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
   const [globalCollapsed, setGlobalCollapsed] = useState(false);
   const [collapseVersion, setCollapseVersion] = useState(0);
-  const [reviewedFiles, setReviewedFiles] = useState(new Set());
+  // Every file ever marked reviewed in this project, with the fingerprint it
+  // had at the time; a mark only counts while the file's diff is unchanged
+  const [reviewedMarks, setReviewedMarks] = useProjectStore(
+    gitRoot,
+    loadReviewedMarks,
+    saveReviewedMarks,
+  );
+  const reviewedFiles = useMemo(
+    () =>
+      reviewedMarks
+        ? resolveReviewedFiles(reviewedMarks, fingerprintByPath)
+        : new Set(),
+    [reviewedMarks, fingerprintByPath],
+  );
   const [selectedMediums, setSelectedMediums] = useState(null);
   const [activeFilePath, setActiveFilePath] = useState(null);
   const [updateStatus, setUpdateStatus] = useState(null);
@@ -433,7 +484,6 @@ export default function App() {
     setNextOffset(0);
     setHasMoreFiles(false);
     setCommitted(false);
-    setReviewedFiles(new Set());
     setIsLoadingPage(false);
     nextOffsetRef.current = 0;
     hasMoreFilesRef.current = false;
@@ -874,17 +924,18 @@ export default function App() {
       } else if (options.rawFormatted) {
         formattedPromise = Promise.resolve(options.rawFormatted);
       } else {
-        if (allComments.length === 0 && !generalNote) {
+        if (pendingComments.length === 0 && !generalNote) {
           return { ok: false, copied: null };
         }
-        formattedPromise = resolvePreviewLines(allComments).then((comments) =>
-          formatComments(comments, gitRoot, generalNote, {
-            compareBase: compareBaseRef.current,
-            pullRequest:
-              pullRequest && pullRequest.baseRef === compareBaseRef.current
-                ? pullRequest
-                : null,
-          }),
+        formattedPromise = resolvePreviewLines(pendingComments).then(
+          (comments) =>
+            formatComments(comments, gitRoot, generalNote, {
+              compareBase: compareBaseRef.current,
+              pullRequest:
+                pullRequest && pullRequest.baseRef === compareBaseRef.current
+                  ? pullRequest
+                  : null,
+            }),
         );
       }
 
@@ -954,7 +1005,7 @@ export default function App() {
       return { ok: true, copied };
     },
     [
-      allComments,
+      pendingComments,
       generalNote,
       gitRoot,
       config,
@@ -972,7 +1023,7 @@ export default function App() {
     // re-resolved, they just do it inside the send.
     const mediums = selectedMediums || ['clipboard', 'file'];
     const result = await handleSendComments(mediums, {
-      rawFormatted: resolvePreviewLines(allComments).then((comments) =>
+      rawFormatted: resolvePreviewLines(pendingComments).then((comments) =>
         formatCommitMessageRequest(comments, gitRoot, generalNote),
       ),
       suppressToast: true,
@@ -990,7 +1041,7 @@ export default function App() {
       result.copied === false ? 'info' : 'success',
     );
   }, [
-    allComments,
+    pendingComments,
     generalNote,
     gitRoot,
     selectedMediums,
@@ -1002,7 +1053,7 @@ export default function App() {
   const handleGitAction = useCallback(
     async (action) => {
       if (action === 'commit' || action === 'commit-and-push') {
-        const itemCount = allComments.length + (generalNote ? 1 : 0);
+        const itemCount = pendingComments.length + (generalNote ? 1 : 0);
         if (itemCount > 0) {
           if (
             !confirm(
@@ -1046,7 +1097,7 @@ export default function App() {
         return;
       }
     },
-    [allComments.length, generalNote, projectInfo, showToast],
+    [pendingComments.length, generalNote, projectInfo, showToast],
   );
 
   const handleDoCommit = useCallback(
@@ -1129,17 +1180,17 @@ export default function App() {
     setCollapseVersion((v) => v + 1);
   }, []);
 
-  const handleFileReviewed = useCallback((filePath, isReviewed) => {
-    setReviewedFiles((prev) => {
-      const next = new Set(prev);
-      if (isReviewed) {
-        next.add(filePath);
-      } else {
-        next.delete(filePath);
-      }
-      return next;
-    });
-  }, []);
+  const handleFileReviewed = useCallback(
+    (filePath, isReviewed) => {
+      const fingerprint = fingerprintByPath[filePath];
+      setReviewedMarks((prev) =>
+        isReviewed && fingerprint
+          ? setReviewedMark(prev, filePath, fingerprint)
+          : clearReviewedMark(prev, filePath),
+      );
+    },
+    [fingerprintByPath, setReviewedMarks],
+  );
 
   const fetchProjectInfo = useCallback(async () => {
     try {
@@ -1220,7 +1271,6 @@ export default function App() {
         setError(null);
         setActiveForm(null);
         setEditingComment(null);
-        setReviewedFiles(new Set());
         const knownBranches = [
           ...(data.branches?.local || []),
           ...(data.branches?.remote || []),
@@ -1697,7 +1747,7 @@ export default function App() {
     };
   }, [canAutoLoadMore, loadNextPage]);
 
-  const reviewItemCount = allComments.length + (generalNote ? 1 : 0);
+  const reviewItemCount = pendingComments.length + (generalNote ? 1 : 0);
   const hasReviewItems = reviewItemCount > 0;
 
   const handleToggleEditGeneralNote = useCallback((open) => {
@@ -1733,8 +1783,11 @@ export default function App() {
         hasReviewItems={hasReviewItems}
         reviewItemCount={reviewItemCount}
         commentsByFile={commentsByFile}
+        staleCount={staleCount}
         onDeleteComment={handleDeleteComment}
         onDismissAllComments={handleDismissAllComments}
+        onClearStaleComments={clearStaleComments}
+        onSelectFile={handleSelectFile}
         onSendComments={handleSendComments}
         onGitAction={handleGitAction}
         gitActionType={gitActionType}
@@ -1773,7 +1826,7 @@ export default function App() {
           onStageFile={handleStageFile}
           onUnstageFile={compareBase ? null : handleUnstageFile}
           reviewedFiles={reviewedFiles}
-          commentsByFile={commentsByFile}
+          commentsByFile={pendingCommentsByFile}
           activeFile={activeFilePath}
           unstagedChunksByPath={unstagedChunksByPath}
         />
@@ -1825,7 +1878,7 @@ export default function App() {
                     file={file}
                     className="entering"
                     style={{ animationDelay: `${index * 40}ms` }}
-                    fileComments={commentsByFile[filePath]}
+                    fileComments={pendingCommentsByFile[filePath]}
                     activeForm={activeForm}
                     editingComment={editingComment}
                     onAddComment={handleAddComment}

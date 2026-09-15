@@ -23,6 +23,7 @@ Keep it concise and practical. Put deep implementation details in code comments 
 - `src/components/Header.jsx`: top toolbar actions
 - `src/components/FileSidebar.jsx`: flat/tree navigator + search
 - `src/hooks/useComments.js`: comment state and persistence
+- `src/utils/reviewStorage.js`: what survives a reopen (comments, reviewed marks) and how staleness is decided
 - `src/style.css`: global styles + theme tokens
 
 ## Development Commands
@@ -64,6 +65,7 @@ npm run format   # prettier format
 - Preview comment anchoring: `src/utils/anchorComments.js`, `src/components/PreviewBody.jsx`
 - Collapsed-context expansion: `src/utils/gapCalc.js`, `src/components/DiffViewer.jsx`
 - Comments + panel behavior: `src/hooks/useComments.js`, `src/components/CommentPanel.jsx`, `src/App.jsx`
+- Review state across sessions (persisted comments, stale comments, reviewed marks): `src/utils/reviewStorage.js` (storage + fingerprint checks), `src/hooks/useProjectStore.js` (per-project state mirrored to localStorage), `lib/git.js` (`parseRawDiffOutput` supplies each summary file's `fingerprint`)
 - Send-to-agent mediums: `src/components/Header.jsx`, `src/App.jsx`, `lib/server.js`, `lib/config.js`
 
 ## Coding Conventions

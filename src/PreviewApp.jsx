@@ -31,13 +31,15 @@ export default function PreviewApp({ preview, config }) {
   const documentPath = `${preview.root}/${preview.file}`;
   const {
     commentsByFile,
-    allComments,
+    pendingComments,
+    staleCount,
     generalNote,
     setGeneralNote,
     clearGeneralNote,
     addComment,
     updateComment,
     deleteComment,
+    clearStaleComments,
     deleteAllComments,
   } = useComments(documentPath);
 
@@ -274,12 +276,12 @@ export default function PreviewApp({ preview, config }) {
   );
 
   const handleSendComments = useCallback(async () => {
-    if (allComments.length === 0 && !generalNote) return;
+    if (pendingComments.length === 0 && !generalNote) return;
     // The document live-reloads under the reviewer, so a comment's stored
     // srcLine may predate edits made above it. Re-resolve against the current
     // render before handing line numbers to the agent.
     const formatted = formatComments(
-      withResolvedLines(allComments, blocks, filePath),
+      withResolvedLines(pendingComments, blocks, filePath),
       documentPath,
       generalNote,
       { context: 'preview' },
@@ -328,7 +330,7 @@ export default function PreviewApp({ preview, config }) {
       setTimeout(() => window.close(), 300);
     }
   }, [
-    allComments,
+    pendingComments,
     blocks,
     filePath,
     generalNote,
@@ -342,7 +344,7 @@ export default function PreviewApp({ preview, config }) {
   const fileLevelComments = (fileComments || []).filter(
     (c) => c.lineType === 'file',
   );
-  const reviewItemCount = allComments.length + (generalNote ? 1 : 0);
+  const reviewItemCount = pendingComments.length + (generalNote ? 1 : 0);
   const canSend = reviewItemCount > 0 && selectedMediums.length > 0;
 
   return (
@@ -410,8 +412,10 @@ export default function PreviewApp({ preview, config }) {
                 id={COMMENTS_PANEL_ID}
                 commentsByFile={commentsByFile}
                 reviewItemCount={reviewItemCount}
+                staleCount={staleCount}
                 onDeleteComment={handleDeleteComment}
                 onDismissAll={handleDismissAllComments}
+                onClearStale={clearStaleComments}
                 onSelectComment={() => closeComments(true)}
                 generalNote={generalNote}
                 isEditingGeneralNote={isEditingGeneralNote}
