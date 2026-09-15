@@ -114,7 +114,7 @@ function CompareDropdown({
 
   let lastGroup = null;
   return (
-    <div id={id} className="nav-dropdown nav-dropdown-compare">
+    <div className="nav-dropdown nav-dropdown-compare">
       {showFilter && (
         <div className="nav-dropdown-filter">
           <input
@@ -134,6 +134,7 @@ function CompareDropdown({
         </div>
       )}
       <div
+        id={id}
         className="nav-dropdown-scroll"
         role="menu"
         aria-label="Compare against"
