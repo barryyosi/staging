@@ -95,7 +95,7 @@ npm run format   # prettier format
 ## Releasing (Every Merge To Main Ships)
 - The in-app update prompt installs `origin/main` directly, so every merge to `main` is a release. There is no separate release step.
 - Any change under `src/`, `lib/` or `bin/` must bump `version` in `package.json` (and `package-lock.json`) and add a dated `## x.y.z - YYYY-MM-DD` entry at the top of `CHANGELOG.md`. Features bump minor, fixes bump patch. Never leave an `Unreleased` section.
-- `npm run check:release` enforces this against `origin/main`. Run it before every push; wire it into `.husky/pre-push` (`git fetch --quiet origin main && node scripts/check-release.mjs --against origin/main`) so a push cannot ship code without a release entry. Do not bypass hooks to push.
+- `npm run check:release` enforces this against `origin/main`. Run it before every push; wire it into `.husky/pre-push` (`git fetch --quiet origin main && node scripts/check-release.mjs --against origin/main`) so a push cannot ship code without a release entry. The `Release check` workflow (`.github/workflows/release-check.yml`) runs the same script on every pull request to `main`, with no third-party actions and a read-only token. Do not bypass hooks to push.
 
 ## Documentation Expectations
 - Update `AGENTS.md` only for meaningful architectural or workflow changes.
