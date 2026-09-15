@@ -640,6 +640,28 @@ body {
   color: var(--text-3);
 }
 
+.nav-dropdown-link {
+  text-decoration: none;
+  color: var(--text-2);
+  border-top: 1px solid var(--border-1);
+  border-radius: 0;
+  margin-top: 4px;
+}
+
+.nav-dropdown-link:hover {
+  color: var(--text-1);
+}
+
+.nav-segment-badge {
+  padding: 0 6px;
+  border-radius: 100px;
+  background: var(--accent);
+  color: var(--bg-surface);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+}
+
 /* === SHORTCUTS BUTTON === */
 .btn-shortcuts {
   width: 30px;

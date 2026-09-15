@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.0 - 2026-09-15
+
+### Features
+- Detect the open pull or merge request for the checked-out branch through the platform CLI already signed in on the machine (`gh`, `glab`, `az repos`) and default the review to its target branch, so the agent receives a review of the request itself. The compare picker shows the request, links to it, and the handoff names it. Opt out with `detectPullRequest: false`; force a platform for self-hosted remotes with `pullRequestProvider`.
+
 ## 0.4.0 - 2026-09-15
 
 ### Features
