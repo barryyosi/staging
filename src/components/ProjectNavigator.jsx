@@ -418,15 +418,14 @@ function ProjectNavigator({
             onClick={() => {
               setShowProjectDD(false);
               setShowWorktreeDD(false);
-              setShowCompareDD((v) => {
-                const next = !v;
-                if (next) {
-                  lastOpenedDropdownRef.current = 'compare';
-                  // The target may have been fetched since detection ran
-                  onRefreshPullRequest?.();
-                }
-                return next;
-              });
+              const opening = !showCompareDD;
+              if (opening) {
+                lastOpenedDropdownRef.current = 'compare';
+                // Re-detect only when it can change something: the target
+                // was not fetched last time, or no request was found yet
+                if (!pullRequest?.baseRef) onRefreshPullRequest?.();
+              }
+              setShowCompareDD(opening);
             }}
             type="button"
           >

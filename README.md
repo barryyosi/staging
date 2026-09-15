@@ -87,7 +87,7 @@ contacts the platform. Staging adds no network client of its own:
 | :--- | :--- | :--- |
 | GitHub | `gh` | `github.*` |
 | GitLab | `glab` | `gitlab.*` |
-| Azure DevOps | `az` (with `azure-devops` extension) | `dev.azure.com`, `visualstudio.com` |
+| Azure DevOps | `az` (with `azure-devops` extension; macOS/Linux only, the Windows `.cmd` shim cannot be spawned safely) | `dev.azure.com`, `visualstudio.com` |
 
 No CLI, signed out, or no open request: the picker simply falls back to the
 suggested base. A `--base` flag, a `baseBranch` config value, or a base you

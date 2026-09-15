@@ -187,6 +187,7 @@ export default function App() {
   const fileSelectionRequestIdRef = useRef(0);
   const compareBaseRef = useRef(null);
   const diffLoadIdRef = useRef(0);
+  const gitRootRef = useRef('');
   // Once the user picks a compare base themselves, a detected pull request
   // no longer overrides it
   const compareBaseTouchedRef = useRef(false);
@@ -206,6 +207,10 @@ export default function App() {
   useEffect(() => {
     fileSummariesRef.current = fileSummaries;
   }, [fileSummaries]);
+
+  useEffect(() => {
+    gitRootRef.current = gitRoot;
+  }, [gitRoot]);
 
   useEffect(() => {
     fileDetailsByPathRef.current = fileDetailsByPath;
@@ -1148,13 +1153,20 @@ export default function App() {
     }
   }, []);
 
+  // The CLI lookup can take seconds and runs concurrently on the server, so
+  // an answer for the project we just left can arrive after the switch.
+  // Only the newest request may apply, and only for the project it answered
+  const pullRequestRequestIdRef = useRef(0);
   const fetchPullRequest = useCallback(async (refresh = false) => {
+    const requestId = ++pullRequestRequestIdRef.current;
     try {
       const res = await fetch(
         `/api/pull-request${refresh ? '?refresh=1' : ''}`,
       );
       if (!res.ok) return;
       const data = await res.json();
+      if (requestId !== pullRequestRequestIdRef.current) return;
+      if (data.gitRoot && data.gitRoot !== gitRootRef.current) return;
       setPullRequest(data.pullRequest || null);
     } catch {
       // non-critical — the compare picker just has no request to offer
@@ -1211,8 +1223,10 @@ export default function App() {
         ) {
           setCompareBase(null);
         }
-        // A new project means a new branch and possibly a new request
+        // A new project means a new branch and possibly a new request; the
+        // id bump also retires any lookup still running for the old one
         compareBaseTouchedRef.current = false;
+        gitRootRef.current = data.gitRoot || '';
         setPullRequest(null);
         fetchPullRequest();
         await reloadDiffs();

@@ -122,6 +122,35 @@ async function main() {
   assert.equal(pr.baseRef, null);
   git('branch', '-q', '-m', 'trunk', 'main');
 
+  // Two callers asking at once share one CLI run.
+  const countFile = path.join(root, 'gh.count');
+  fs.writeFileSync(
+    path.join(bin, 'gh'),
+    `#!/bin/sh\necho x >> "${countFile}"\necho '[{"number":12,"title":"t","url":"u","baseRefName":"main"}]'\n`,
+    { mode: 0o755 },
+  );
+  clearPullRequestCache();
+  const [first, second] = await Promise.all([
+    findOpenPullRequest(repo, 'feature'),
+    findOpenPullRequest(repo, 'feature'),
+  ]);
+  assert.equal(first.number, 12);
+  assert.equal(second.number, 12);
+  assert.equal(
+    fs.readFileSync(countFile, 'utf-8').trim().split('\n').length,
+    1,
+  );
+  fakeCli('gh', {
+    json: [
+      {
+        number: 12,
+        title: 'Add widgets',
+        url: 'https://github.com/acme/widgets/pull/12',
+        baseRefName: 'main',
+      },
+    ],
+  });
+
   // Cached for a while: a changed CLI answer is not seen until refresh.
   fakeCli('gh', { json: [] });
   assert.equal((await findOpenPullRequest(repo, 'feature')).number, 12);
