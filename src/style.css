@@ -2391,6 +2391,66 @@ body {
     0 0 0 4px var(--focus-ring-outer);
 }
 
+.file-action-btn.is-active {
+  background: var(--accent-soft);
+  color: var(--text-1);
+}
+
+.file-action-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* === WHOLE-FILE EDITOR (preview mode) === */
+.file-editor {
+  display: flex;
+  flex-direction: column;
+  padding: 12px 16px 10px;
+  gap: 8px;
+}
+
+.file-editor-textarea {
+  width: 100%;
+  min-height: 320px;
+  max-height: 70vh;
+  padding: 10px 12px;
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-xs);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.5;
+  tab-size: 2;
+  background: var(--bg-surface-2);
+  color: var(--text-1);
+  resize: vertical;
+  outline: none;
+  white-space: pre;
+  overflow: auto;
+}
+
+.file-editor-textarea:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.file-editor-textarea:disabled {
+  opacity: 0.6;
+}
+
+.file-editor-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.file-editor-status {
+  margin-right: auto;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--text-3);
+}
+
 .file-action-reviewed.is-reviewed {
   color: var(--add-text);
 }

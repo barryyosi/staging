@@ -20,6 +20,7 @@ import { formatComments, formatCommitMessageRequest } from './utils/format';
 import { renderPreviewBlocks } from './utils/renderPreview';
 import { withResolvedLines } from './utils/anchorComments';
 import { copyToClipboard } from './utils/clipboard';
+import { fetchFileContent, writeFileContent } from './utils/fileContent';
 import { slugify } from './utils/escape';
 import {
   loadReviewedMarks,
@@ -1338,6 +1339,61 @@ export default function App() {
     [reloadDiffs, showToast],
   );
 
+  // Refresh the summary after one file's index entry changed, keeping every
+  // other loaded file in place and (re)loading just that file's details
+  const refreshDiffForFile = useCallback(
+    async (filePath) => {
+      const [summaryData, unstaged] = await Promise.all([
+        requestDiffSummaryWithFallback(),
+        requestUnstagedFiles(),
+      ]);
+
+      const summaries = summaryData.files || [];
+      const retainedDetails = retainLoadedFileDetails(
+        fileDetailsByPathRef.current,
+        summaries,
+      );
+      setGitRoot(summaryData.gitRoot || '');
+      setFileSummaries(summaries);
+      setUnstagedFiles(unstaged);
+      setFileDetailsByPath(retainedDetails);
+
+      fileSummariesRef.current = summaries;
+      fileDetailsByPathRef.current = retainedDetails;
+
+      const contiguousLoadedCount = countContiguousLoadedFiles(
+        summaries,
+        retainedDetails,
+      );
+      const next = Math.min(
+        summaries.length,
+        Math.max(contiguousLoadedCount, nextOffsetRef.current),
+      );
+      const more = next < summaries.length;
+      nextOffsetRef.current = next;
+      hasMoreFilesRef.current = more;
+      setNextOffset(next);
+      setHasMoreFiles(more);
+
+      // The changed file's details are stale by definition; they are kept in
+      // place until the fresh page lands so its card never unmounts (and
+      // loses its view mode) in between
+      const targetIndex = summaries.findIndex(
+        (file) => getFilePath(file) === filePath,
+      );
+      if (targetIndex !== -1) {
+        const targetPage = await requestDiffPage(targetIndex, FILE_JUMP_LIMIT);
+        const mergedDetails = mergeFileDetails(
+          fileDetailsByPathRef.current,
+          targetPage.files || [],
+        );
+        setFileDetailsByPath(mergedDetails);
+        fileDetailsByPathRef.current = mergedDetails;
+      }
+    },
+    [requestDiffPage, requestDiffSummaryWithFallback, requestUnstagedFiles],
+  );
+
   const handleStageFile = useCallback(
     async (filePath, fromPath = null) => {
       try {
@@ -1348,54 +1404,7 @@ export default function App() {
         });
         const data = await res.json();
         if (data.success) {
-          const [summaryData, unstaged] = await Promise.all([
-            requestDiffSummaryWithFallback(),
-            requestUnstagedFiles(),
-          ]);
-
-          const summaries = summaryData.files || [];
-          const retainedDetails = retainLoadedFileDetails(
-            fileDetailsByPathRef.current,
-            summaries,
-          );
-
-          setGitRoot(summaryData.gitRoot || '');
-          setFileSummaries(summaries);
-          setUnstagedFiles(unstaged);
-          setFileDetailsByPath(retainedDetails);
-
-          fileSummariesRef.current = summaries;
-          fileDetailsByPathRef.current = retainedDetails;
-
-          const contiguousLoadedCount = countContiguousLoadedFiles(
-            summaries,
-            retainedDetails,
-          );
-          const next = Math.min(
-            summaries.length,
-            Math.max(contiguousLoadedCount, nextOffsetRef.current),
-          );
-          const more = next < summaries.length;
-          nextOffsetRef.current = next;
-          hasMoreFilesRef.current = more;
-          setNextOffset(next);
-          setHasMoreFiles(more);
-
-          const targetIndex = summaries.findIndex(
-            (file) => getFilePath(file) === filePath,
-          );
-          if (targetIndex !== -1 && !retainedDetails[filePath]) {
-            const targetPage = await requestDiffPage(
-              targetIndex,
-              FILE_JUMP_LIMIT,
-            );
-            const mergedDetails = mergeFileDetails(
-              fileDetailsByPathRef.current,
-              targetPage.files || [],
-            );
-            setFileDetailsByPath(mergedDetails);
-            fileDetailsByPathRef.current = mergedDetails;
-          }
+          await refreshDiffForFile(filePath);
 
           showToast('File staged', 'success');
 
@@ -1417,12 +1426,49 @@ export default function App() {
         showToast(`Failed to stage file: ${err.message}`, 'error');
       }
     },
-    [
-      requestDiffPage,
-      requestDiffSummaryWithFallback,
-      requestUnstagedFiles,
-      showToast,
-    ],
+    [refreshDiffForFile, showToast],
+  );
+
+  // Preview-mode "copy": the file's text as reviewed (its staged copy)
+  const handleCopyFile = useCallback(
+    async (filePath) => {
+      const content = fetchFileContent(filePath);
+      // Started before any await so the click's user activation still covers
+      // the clipboard write
+      const copiedPromise = copyToClipboard(content);
+      try {
+        await content;
+      } catch (err) {
+        showToast(`Failed to read file: ${err.message}`, 'error');
+        return;
+      }
+      const copied = await copiedPromise;
+      showToast(
+        copied ? `Copied ${filePath}` : 'Clipboard blocked by the browser',
+        copied ? 'success' : 'error',
+      );
+    },
+    [showToast],
+  );
+
+  // Preview-mode "edit": replaces the staged copy, like a line edit does
+  const handleSaveFile = useCallback(
+    async (filePath, content) => {
+      let changed;
+      try {
+        changed = await writeFileContent(filePath, content);
+      } catch (err) {
+        showToast(`Failed to save: ${err.message}`, 'error');
+        throw err;
+      }
+      if (!changed) {
+        showToast('No changes detected', 'info');
+        return;
+      }
+      showToast('File saved and staged', 'success');
+      await refreshDiffForFile(filePath);
+    },
+    [refreshDiffForFile, showToast],
   );
 
   const handleRevertFile = useCallback(
@@ -1895,6 +1941,8 @@ export default function App() {
                     onRevertHunk={compareBase ? null : handleRevertHunk}
                     onStageHunk={handleStageHunk}
                     onEditLine={handleEditLine}
+                    onCopyFile={handleCopyFile}
+                    onSaveFile={handleSaveFile}
                     onFileReviewed={handleFileReviewed}
                     isReviewed={reviewedFiles.has(filePath)}
                     globalCollapsed={globalCollapsed}

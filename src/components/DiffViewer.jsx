@@ -20,8 +20,11 @@ import {
   MessageSquarePlus,
   CheckCircle,
   Circle,
+  Copy,
+  Pencil,
 } from 'lucide-react';
 import { slugify } from '../utils/escape';
+import { fetchFileContent } from '../utils/fileContent';
 import { highlightLine } from '../utils/highlight';
 import { isPreviewable, renderPreviewBlocks } from '../utils/renderPreview';
 import {
@@ -33,6 +36,7 @@ import CommentForm from './CommentForm';
 import CommentBubble from './CommentBubble';
 import { FileCommentBubble, FileCommentForm } from './FileComments';
 import PreviewBody from './PreviewBody';
+import FileEditor from './FileEditor';
 import { MarqueeFileName } from './FileSidebar';
 
 const EMPTY_SET = new Set();
@@ -532,6 +536,8 @@ function DiffViewer({
   onRevertHunk,
   onStageHunk,
   onEditLine,
+  onCopyFile,
+  onSaveFile,
   onFileReviewed,
   isReviewed,
   globalCollapsed,
@@ -544,6 +550,9 @@ function DiffViewer({
   const [viewMode, setViewMode] = useState('diff');
   const [previewBlocks, setPreviewBlocks] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  // Whole-file editor over the preview: the text it opened with, or null
+  const [editorContent, setEditorContent] = useState(null);
+  const [editorOpening, setEditorOpening] = useState(false);
   const [editingLine, setEditingLine] = useState(null); // { lineNum, lineType, content }
   const [dragRange, setDragRange] = useState(null); // { groupId, anchorKey, currentKey }
   const dragRangeRef = useRef(null);
@@ -618,12 +627,10 @@ function DiffViewer({
     if (viewMode !== 'preview' || previewBlocks !== null) return;
     let cancelled = false;
 
-    fetch(`/api/file-content?filePath=${encodeURIComponent(filePath)}`)
-      .then((res) => res.json())
-      .then((data) => {
+    fetchFileContent(filePath)
+      .then((content) => {
         if (cancelled) return;
-        if (data.error) throw new Error(data.error);
-        setPreviewBlocks(renderPreviewBlocks(data.content, filePath));
+        setPreviewBlocks(renderPreviewBlocks(content, filePath));
       })
       .catch(() => {
         if (!cancelled)
@@ -915,6 +922,39 @@ function DiffViewer({
     [filePath, onRevertFile],
   );
 
+  const handleCopyFile = useCallback(
+    (e) => {
+      e.stopPropagation();
+      onCopyFile(filePath);
+    },
+    [filePath, onCopyFile],
+  );
+
+  const handleOpenEditor = useCallback(
+    (e) => {
+      e.stopPropagation();
+      if (editorOpening || editorContent !== null) return;
+      setEditorOpening(true);
+      fetchFileContent(filePath)
+        .then((content) => setEditorContent(content))
+        .catch(() => {
+          // The preview itself reports a file it cannot read
+        })
+        .finally(() => setEditorOpening(false));
+    },
+    [editorContent, editorOpening, filePath],
+  );
+
+  const handleSaveEditor = useCallback(
+    async (content) => {
+      await onSaveFile(filePath, content);
+      setEditorContent(null);
+    },
+    [filePath, onSaveFile],
+  );
+
+  const handleCloseEditor = useCallback(() => setEditorContent(null), []);
+
   const handleUnstageFile = useCallback(
     (e) => {
       e.stopPropagation();
@@ -935,14 +975,10 @@ function DiffViewer({
     return map;
   }, [gaps]);
 
-  const fetchFileContent = useCallback(async () => {
+  const fetchFileLines = useCallback(async () => {
     if (fileContentCache.current) return fileContentCache.current;
-    const res = await fetch(
-      `/api/file-content?filePath=${encodeURIComponent(filePath)}`,
-    );
-    const data = await res.json();
-    if (data.error) throw new Error(data.error);
-    const lines = data.content.split('\n');
+    const content = await fetchFileContent(filePath);
+    const lines = content.split('\n');
     if (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
     fileContentCache.current = lines;
     return lines;
@@ -960,7 +996,7 @@ function DiffViewer({
       }));
 
       try {
-        const allFileLines = await fetchFileContent();
+        const allFileLines = await fetchFileLines();
         const existing = expandedGapsRef.current[gapKey] || {
           topLines: [],
           bottomLines: [],
@@ -1033,7 +1069,7 @@ function DiffViewer({
         }));
       }
     },
-    [fetchFileContent],
+    [fetchFileLines],
   );
 
   function renderExpandedContext(lines, key) {
@@ -1172,6 +1208,29 @@ function DiffViewer({
           </button>
         )}
         <div className="file-actions">
+          {viewMode === 'preview' && onCopyFile && (
+            <button
+              className="file-action-btn"
+              type="button"
+              title="Copy file content"
+              aria-label="Copy file content"
+              onClick={handleCopyFile}
+            >
+              <Copy size={18} strokeWidth={1.5} />
+            </button>
+          )}
+          {viewMode === 'preview' && onSaveFile && (
+            <button
+              className={`file-action-btn${editorContent !== null ? ' is-active' : ''}`}
+              type="button"
+              title="Edit file"
+              aria-label="Edit file"
+              onClick={handleOpenEditor}
+              disabled={editorOpening}
+            >
+              <Pencil size={18} strokeWidth={1.5} />
+            </button>
+          )}
           <button
             className={`file-action-btn${fileLevelComments.length > 0 ? ' has-file-comments' : ''}`}
             type="button"
@@ -1371,6 +1430,13 @@ function DiffViewer({
               )}
             </table>
           )
+        ) : editorContent !== null ? (
+          <FileEditor
+            filePath={filePath}
+            initialContent={editorContent}
+            onSave={handleSaveEditor}
+            onCancel={handleCloseEditor}
+          />
         ) : previewLoading ? (
           <div className="preview-loading">Loading preview...</div>
         ) : (

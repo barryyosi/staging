@@ -50,6 +50,7 @@ npm run format   # prettier format
 - `GET /api/tracked-files`: sidebar "show all files"
 - `GET /api/file-content`, `GET /api/raw-file`: preview/context loading
 - `POST /api/file-unstage`, `POST /api/file-stage`, `POST /api/file-revert`
+- `POST /api/edit-line`, `POST /api/file-write`: replace one line / the whole staged copy of a file (the document itself in preview mode); both refuse when the working tree has unstaged changes to it
 - `POST /api/hunk-unstage`, `POST /api/hunk-revert`
 - `POST /api/unstage-all`
 - `POST /api/send-comments`
@@ -62,6 +63,7 @@ npm run format   # prettier format
 - Sidebar tree/search: `src/components/FileSidebar.jsx`, `src/utils/fileTree.js`, `lib/server.js`
 - Diff actions (file/hunk stage/revert): `src/components/DiffViewer.jsx`, `lib/server.js`, `lib/git.js`
 - Markdown/HTML preview: `src/utils/renderPreview.js`, `src/components/PreviewBody.jsx`, `src/components/DiffViewer.jsx`, `src/PreviewApp.jsx`, `lib/server.js`
+- Preview copy/edit actions: `src/components/FileEditor.jsx`, `src/utils/fileContent.js`, `lib/git.js` (`writeStagedFile`), `lib/server.js` (`/api/file-write`)
 - Preview comment anchoring: `src/utils/anchorComments.js`, `src/components/PreviewBody.jsx`
 - Collapsed-context expansion: `src/utils/gapCalc.js`, `src/components/DiffViewer.jsx`
 - Comments + panel behavior: `src/hooks/useComments.js`, `src/components/CommentPanel.jsx`, `src/App.jsx`

@@ -20,7 +20,7 @@ Staging gives you a dedicated, browser-based review interface with GitHub-style 
 - **Private & Lightweight**: Runs locally with zero telemetry. The diff viewer needs no internet at all; the only outbound traffic is git talking to your remote (update check) and, if installed, your own `gh` / `glab` / `az` CLI looking up the open pull request for your branch. Both can be switched off in config.
 - **Multi-Project Support**: Navigate between sibling repositories and git worktrees
 - **Inline Comments**: Add threaded comments directly on changed lines to guide agent refinements; drag the `+` gutter button to comment on a range of lines
-- **Markdown/HTML Preview**: Toggle per-file between diff and rendered preview for `.md` and `.html` files, with inline commenting on the rendered output — hover any block for a `+` gutter button, or select text to quote it; comments carry the markdown source line so the agent knows exactly where to edit
+- **Markdown/HTML Preview**: Toggle per-file between diff and rendered preview for `.md` and `.html` files, with inline commenting on the rendered output — hover any block for a `+` gutter button, or select text to quote it; comments carry the markdown source line so the agent knows exactly where to edit. In preview, one click copies the file's text and another opens it in an editor; saving re-stages the file
 - **Standalone File Preview**: Point staging at a single markdown/HTML file — no git repo needed — for a live-reloading rendered preview with the same inline commenting, plus file-level comments, a general review note, and the comments panel
 - **Review State That Survives a Reopen**: Comments, the general note and the files you marked reviewed are kept in the browser per repository. Reopen staging after the agent has worked and the files whose diff did not change are still ticked; comments on files that did change come back as stale, listed in the panel for reference but not sent again
 - **Compare Against a Base Branch**: Switch the review from "what is staged" to "everything this branch adds on top of `main`" (or any branch) — committed and staged alike — from the header, `--base <branch>`, or the `baseBranch` config option
@@ -142,7 +142,14 @@ staging -r path/to/file.md     # explicit --render/-r alias
 The preview live-reloads when the file changes on disk. Hover any rendered
 block for a `+` button to comment on it, or select text to quote a specific
 phrase — comments appear inline beneath the block they refer to and carry the
-markdown source line. File-level comments and a general review note are
+markdown source line. The header's copy button puts the file's text on the
+clipboard, and the pencil opens it in a plain editor (`Ctrl/Cmd+Enter` saves,
+`Esc` cancels); a save writes the file and the preview re-renders. Inside a
+repository the same two buttons sit on a file's card while it shows the
+preview: there the text is the staged copy, and saving writes it to the
+working tree and re-stages it, exactly like an inline line edit. If the
+working tree already has unstaged changes to that file, the save is refused
+rather than dropping them. File-level comments and a general review note are
 available from the header, alongside the comments panel. Send the feedback to
 your agent via the usual mediums (`clipboard`, `file`, `cli`). The review file
 is written next to the previewed file. If the file changes so much that a
