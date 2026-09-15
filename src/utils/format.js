@@ -26,6 +26,11 @@ export function formatComments(comments, gitRoot, generalNote, options = {}) {
   output += isPreview
     ? `Document: ${gitRoot}\n\n`
     : `Repository: ${gitRoot}\n\n`;
+  if (!isPreview && options.compareBase) {
+    // Line numbers still name the index side; the agent should know the
+    // review covered the whole branch, not only what is staged.
+    output += `Reviewed against base branch: ${options.compareBase}\n\n`;
+  }
 
   if (generalNote) {
     output += `### General comments\n\n${generalNote}\n\n`;

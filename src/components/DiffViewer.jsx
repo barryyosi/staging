@@ -73,6 +73,10 @@ function HunkActions({
   onUnstageHunk,
   onRevertHunk,
 }) {
+  // Comparing against a base branch: the hunk may already be committed, so
+  // there is nothing in the index to unstage or revert.
+  if (!onUnstageHunk && !onRevertHunk) return null;
+
   const handleRevert = (e) => {
     e.stopPropagation();
     if (!confirm('Discard this hunk? This cannot be undone.')) return;
@@ -1198,24 +1202,28 @@ function DiffViewer({
               <Circle size={18} strokeWidth={1.5} />
             )}
           </button>
-          <button
-            className="file-action-btn"
-            type="button"
-            title="Revert file"
-            aria-label="Revert file"
-            onClick={handleRevertFile}
-          >
-            <RotateCcw size={18} strokeWidth={1.5} />
-          </button>
-          <button
-            className="file-action-btn"
-            type="button"
-            title="Unstage file"
-            aria-label="Unstage file"
-            onClick={handleUnstageFile}
-          >
-            <MinusCircle size={18} strokeWidth={1.5} />
-          </button>
+          {onRevertFile && (
+            <button
+              className="file-action-btn"
+              type="button"
+              title="Revert file"
+              aria-label="Revert file"
+              onClick={handleRevertFile}
+            >
+              <RotateCcw size={18} strokeWidth={1.5} />
+            </button>
+          )}
+          {onUnstageFile && (
+            <button
+              className="file-action-btn"
+              type="button"
+              title="Unstage file"
+              aria-label="Unstage file"
+              onClick={handleUnstageFile}
+            >
+              <MinusCircle size={18} strokeWidth={1.5} />
+            </button>
+          )}
           <button
             className="file-action-btn file-action-collapse"
             type="button"

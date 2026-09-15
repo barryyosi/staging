@@ -2,27 +2,45 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { execSync } from 'node:child_process';
+import { execSync, spawnSync } from 'node:child_process';
 import { loadConfig } from '../lib/config.js';
 import { startServer } from '../lib/server.js';
 import { openBrowser } from '../lib/open-browser.js';
 
 // CLI args
-const KNOWN_FLAGS = new Set(['--no-open', '-r', '--render']);
+const KNOWN_FLAGS = new Set(['--no-open', '-r', '--render', '--base']);
 const args = process.argv.slice(2);
-const unknownFlag = args.find((a) => a.startsWith('-') && !KNOWN_FLAGS.has(a));
-if (unknownFlag) {
-  console.error(
-    `Error: unknown option "${unknownFlag}". Supported: -r, --render, --no-open.` +
-      (unknownFlag.startsWith('--')
-        ? ''
-        : ` For a file named "${unknownFlag}", pass a path like ./${unknownFlag}.`),
-  );
-  process.exit(1);
+const flags = new Set();
+const positionals = [];
+let baseBranch;
+for (let i = 0; i < args.length; i++) {
+  const arg = args[i];
+  if (!arg.startsWith('-')) {
+    positionals.push(arg);
+    continue;
+  }
+  if (arg === '--base' || arg.startsWith('--base=')) {
+    baseBranch = arg === '--base' ? args[++i] : arg.slice('--base='.length);
+    if (!baseBranch || baseBranch.startsWith('-')) {
+      console.error('Error: --base requires a branch name, e.g. --base main.');
+      process.exit(1);
+    }
+    continue;
+  }
+  if (!KNOWN_FLAGS.has(arg)) {
+    console.error(
+      `Error: unknown option "${arg}". Supported: -r, --render, --base <branch>, --no-open.` +
+        (arg.startsWith('--')
+          ? ''
+          : ` For a file named "${arg}", pass a path like ./${arg}.`),
+    );
+    process.exit(1);
+  }
+  flags.add(arg);
 }
-const noOpen = args.includes('--no-open');
-const renderFlag = args.includes('-r') || args.includes('--render');
-const positional = args.find((a) => !a.startsWith('-'));
+const noOpen = flags.has('--no-open');
+const renderFlag = flags.has('-r') || flags.has('--render');
+const positional = positionals[0];
 const targetPath = path.resolve(positional || '.');
 
 // Keep in sync with PREVIEW_EXTS in src/utils/renderPreview.js
@@ -105,6 +123,26 @@ if (previewMode) {
 
 // Load config
 const config = loadConfig(configRoot);
+
+if (baseBranch) {
+  if (previewMode) {
+    console.error('Error: --base does not apply to preview mode.');
+    process.exit(1);
+  }
+  const check = spawnSync(
+    'git',
+    ['rev-parse', '--verify', '--quiet', `${baseBranch}^{commit}`],
+    { cwd: gitRoot, encoding: 'utf-8' },
+  );
+  if (check.status !== 0) {
+    console.error(`Error: base branch "${baseBranch}" not found.`);
+    process.exit(1);
+  }
+  config.baseBranch = baseBranch;
+}
+if (config.baseBranch) {
+  console.log(`Comparing against ${config.baseBranch}.`);
+}
 
 // CLI send callback — prints comments to terminal stdout, then exits
 const onCliSend = (text) => {
