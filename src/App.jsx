@@ -1166,7 +1166,15 @@ export default function App() {
       if (!res.ok) return;
       const data = await res.json();
       if (requestId !== pullRequestRequestIdRef.current) return;
-      if (data.gitRoot && data.gitRoot !== gitRootRef.current) return;
+      // The id is the guard; the root echo is a belt-and-braces check that
+      // only applies once the local root is known (it is empty at mount)
+      if (
+        data.gitRoot &&
+        gitRootRef.current &&
+        data.gitRoot !== gitRootRef.current
+      ) {
+        return;
+      }
       setPullRequest(data.pullRequest || null);
     } catch {
       // non-critical — the compare picker just has no request to offer
