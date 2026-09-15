@@ -22,6 +22,7 @@ Staging gives you a dedicated, browser-based review interface with GitHub-style 
 - **Inline Comments**: Add threaded comments directly on changed lines to guide agent refinements; drag the `+` gutter button to comment on a range of lines
 - **Markdown/HTML Preview**: Toggle per-file between diff and rendered preview for `.md` and `.html` files, with inline commenting on the rendered output — hover any block for a `+` gutter button, or select text to quote it; comments carry the markdown source line so the agent knows exactly where to edit
 - **Standalone File Preview**: Point staging at a single markdown/HTML file — no git repo needed — for a live-reloading rendered preview with the same inline commenting, plus file-level comments, a general review note, and the comments panel
+- **Compare Against a Base Branch**: Switch the review from "what is staged" to "everything this branch adds on top of `main`" (or any branch) — committed and staged alike — from the header, `--base <branch>`, or the `baseBranch` config option
 - **Update Release Notes**: When a newer Staging build is available, the app opens a built-in "What's New" modal showing the running and available versions (with their commits) and every changelog entry since your version before updating
 
 ## Tech Stack
@@ -46,6 +47,29 @@ Usage:
 1. Stage changes: `git add [CHANGED_FILES]`
 2. Run `staging`
 3. Review at `http://localhost:3456`
+
+### Comparing Against a Base Branch
+
+By default Staging reviews the staged diff (index vs `HEAD`). To review the
+whole branch the way a pull request would show it, pick a base branch from the
+compare segment in the header (next to the branch name), or set it on launch:
+
+```bash
+staging --base main
+```
+
+The diff then runs from the merge-base of that branch and `HEAD` to the index,
+so it covers the branch's commits plus whatever is staged right now — exactly
+what would land on the base once the staged work is committed. Main-only
+commits made after the branch forked do not show up. Inline comments, preview,
+and line edits work as usual; per-file and per-hunk unstage/revert actions are
+hidden in this mode because the hunks may already be committed. The header
+suggests the remote's default branch: the local branch of that name when you
+have one, else the remote-tracking ref (`origin/main`); without a remote it
+falls back to the first of `main`, `master`, `develop`, `trunk` that exists.
+Pick the remote-tracking ref explicitly when your local `main` lags behind, or
+upstream commits the branch merely inherited will show up as its own. The
+agent handoff notes the base branch the review was made against.
 
 ### Standalone File Preview
 
@@ -89,5 +113,6 @@ Settings are read from `~/.stagingrc.json`, then `./.stagingrc.json`.
 | `reviewFileName` | `".staging-review.md"` | Output file for agent feedback. |
 | `sendMediums` | `["clipboard", "file"]` | Feedback mediums (`clipboard`, `file`, `cli`). |
 | `diffContext` | `3` | Context lines around diffs. |
+| `baseBranch` | `null` | Branch to compare against on launch (e.g. `"main"`). `null` reviews staged changes only. |
 | `port` | `0` (random) | Local server port. |
 | `autoOpen` | `true` | Auto-open browser on launch. |

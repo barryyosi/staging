@@ -158,6 +158,8 @@ export default function App() {
   const [selectedMediums, setSelectedMediums] = useState(null);
   const [activeFilePath, setActiveFilePath] = useState(null);
   const [updateStatus, setUpdateStatus] = useState(null);
+  // Branch the index is compared against; null shows the plain staged diff
+  const [compareBase, setCompareBaseState] = useState(null);
 
   // Active comment form state
   const [activeForm, setActiveForm] = useState(null); // { file, line, lineType }
@@ -180,6 +182,20 @@ export default function App() {
   const hasMoreFilesRef = useRef(false);
   const isLoadingPageRef = useRef(false);
   const fileSelectionRequestIdRef = useRef(0);
+  const compareBaseRef = useRef(null);
+  const diffLoadIdRef = useRef(0);
+
+  const setCompareBase = useCallback((base) => {
+    compareBaseRef.current = base || null;
+    setCompareBaseState(base || null);
+  }, []);
+
+  // /api/diff URL for the current compare base
+  const diffUrl = useCallback((params) => {
+    const search = new URLSearchParams(params);
+    if (compareBaseRef.current) search.set('base', compareBaseRef.current);
+    return `/api/diff?${search.toString()}`;
+  }, []);
 
   useEffect(() => {
     fileSummariesRef.current = fileSummaries;
@@ -290,20 +306,41 @@ export default function App() {
 
   const requestDiffPage = useCallback(
     async (offset, limit = DIFF_PAGE_SIZE) => {
-      const params = new URLSearchParams({
-        mode: 'page',
-        offset: String(offset),
-        limit: String(limit),
-      });
-      const response = await fetch(`/api/diff?${params.toString()}`);
-      if (!response.ok) throw new Error('Failed to load staged changes page');
+      const response = await fetch(
+        diffUrl({ mode: 'page', offset: String(offset), limit: String(limit) }),
+      );
+      if (!response.ok) throw new Error('Failed to load changes page');
 
       const data = await response.json();
       if (data.error) throw new Error(data.error);
       return data;
     },
-    [],
+    [diffUrl],
   );
+
+  const requestDiffSummary = useCallback(async () => {
+    const response = await fetch(diffUrl({ mode: 'summary' }));
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data.error) {
+      const error = new Error(data.error || 'Failed to load changes summary');
+      error.code = data.code;
+      throw error;
+    }
+    return data;
+  }, [diffUrl]);
+
+  // A base that stops resolving (deleted branch, another project) falls back
+  // to the staged diff rather than leaving the review empty
+  const requestDiffSummaryWithFallback = useCallback(async () => {
+    try {
+      return await requestDiffSummary();
+    } catch (err) {
+      if (err.code !== 'INVALID_BASE' || !compareBaseRef.current) throw err;
+      showToast(`${err.message}. Showing staged changes`, 'error');
+      setCompareBase(null);
+      return requestDiffSummary();
+    }
+  }, [requestDiffSummary, setCompareBase, showToast]);
 
   const requestUnstagedFiles = useCallback(async () => {
     const response = await fetch('/api/unstaged-files');
@@ -369,77 +406,90 @@ export default function App() {
     }
   }, [requestDiffPage, showToast]);
 
+  // Summary and first page for the current compare base. Only the newest
+  // call may touch state: a base switched twice in a row, or React re-running
+  // the mount effect, must not let a stale response win
+  const reloadDiffs = useCallback(async () => {
+    const loadId = ++diffLoadIdRef.current;
+    const isCurrent = () => diffLoadIdRef.current === loadId;
+
+    // The newest load owns every flag: a superseded load skips its own
+    // cleanup below, so reset here rather than trusting the previous one
+    setError(null);
+    setFileSummaries(null);
+    setFileDetailsByPath({});
+    setUnstagedChunksByPath({});
+    setNextOffset(0);
+    setHasMoreFiles(false);
+    setCommitted(false);
+    setReviewedFiles(new Set());
+    setIsLoadingPage(false);
+    nextOffsetRef.current = 0;
+    hasMoreFilesRef.current = false;
+    isLoadingPageRef.current = false;
+
+    try {
+      const [summaryData, unstaged] = await Promise.all([
+        requestDiffSummaryWithFallback(),
+        requestUnstagedFiles(),
+      ]);
+      if (!isCurrent()) return;
+
+      const summaries = summaryData.files || [];
+      const stagedPaths = summaries.map((f) => getFilePath(f)).filter(Boolean);
+      setGitRoot(summaryData.gitRoot || '');
+      setFileSummaries(summaries);
+      setUnstagedFiles(unstaged);
+
+      if (summaries.length === 0) return;
+
+      isLoadingPageRef.current = true;
+      setIsLoadingPage(true);
+      try {
+        const [firstPage, hunksMap] = await Promise.all([
+          requestDiffPage(0, DIFF_PAGE_SIZE),
+          requestUnstagedHunksForStagedFiles(stagedPaths),
+        ]);
+        if (!isCurrent()) return;
+        setFileDetailsByPath(mergeFileDetails({}, firstPage.files || []));
+        setUnstagedChunksByPath(hunksMap);
+        const initialNext = Number.isFinite(firstPage.nextOffset)
+          ? firstPage.nextOffset
+          : (firstPage.files || []).length;
+        const initialMore = Boolean(firstPage.hasMore);
+        setNextOffset(initialNext);
+        setHasMoreFiles(initialMore);
+        nextOffsetRef.current = initialNext;
+        hasMoreFilesRef.current = initialMore;
+      } finally {
+        if (isCurrent()) {
+          isLoadingPageRef.current = false;
+          setIsLoadingPage(false);
+        }
+      }
+    } catch (err) {
+      if (isCurrent()) setError(err.message);
+    }
+  }, [
+    requestDiffPage,
+    requestDiffSummaryWithFallback,
+    requestUnstagedFiles,
+    requestUnstagedHunksForStagedFiles,
+  ]);
+
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
       try {
-        const [summaryRes, configRes, unstaged] = await Promise.all([
-          fetch('/api/diff?mode=summary'),
-          fetch('/api/config'),
-          requestUnstagedFiles(),
-        ]);
-        if (!summaryRes.ok)
-          throw new Error('Failed to load staged changes summary');
+        const configRes = await fetch('/api/config');
         if (!configRes.ok) throw new Error('Failed to load config');
-
-        const summaryData = await summaryRes.json();
         const configData = await configRes.json();
-
-        if (summaryData.error) {
-          throw new Error(summaryData.error);
-        }
-
         if (cancelled) return;
 
-        const summaries = summaryData.files || [];
-        const stagedPaths = summaries
-          .map((f) => getFilePath(f))
-          .filter(Boolean);
-
-        setGitRoot(summaryData.gitRoot || '');
         setConfig(configData);
-        setFileSummaries(summaries);
-        setUnstagedFiles(unstaged);
-        setFileDetailsByPath({});
-
-        if (summaries.length === 0) {
-          setNextOffset(0);
-          setHasMoreFiles(false);
-          nextOffsetRef.current = 0;
-          hasMoreFilesRef.current = false;
-          return;
-        }
-
-        isLoadingPageRef.current = true;
-        setIsLoadingPage(true);
-
-        try {
-          const [firstPage, hunksMap] = await Promise.all([
-            requestDiffPage(0, DIFF_PAGE_SIZE),
-            requestUnstagedHunksForStagedFiles(stagedPaths),
-          ]);
-          if (cancelled) return;
-
-          const firstPageFiles = firstPage.files || [];
-          setFileDetailsByPath(mergeFileDetails({}, firstPageFiles));
-          setUnstagedChunksByPath(hunksMap);
-
-          const initialNextOffset = Number.isFinite(firstPage.nextOffset)
-            ? firstPage.nextOffset
-            : firstPageFiles.length;
-          const initialHasMore = Boolean(firstPage.hasMore);
-
-          setNextOffset(initialNextOffset);
-          setHasMoreFiles(initialHasMore);
-          nextOffsetRef.current = initialNextOffset;
-          hasMoreFilesRef.current = initialHasMore;
-        } finally {
-          if (!cancelled) {
-            isLoadingPageRef.current = false;
-            setIsLoadingPage(false);
-          }
-        }
+        setCompareBase(configData.baseBranch || null);
+        await reloadDiffs();
       } catch (err) {
         if (!cancelled) {
           setError(err.message);
@@ -452,11 +502,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [
-    requestDiffPage,
-    requestUnstagedFiles,
-    requestUnstagedHunksForStagedFiles,
-  ]);
+  }, [reloadDiffs, setCompareBase]);
 
   // Initialize selectedMediums once config is available
   useEffect(() => {
@@ -821,7 +867,9 @@ export default function App() {
           return { ok: false, copied: null };
         }
         formattedPromise = resolvePreviewLines(allComments).then((comments) =>
-          formatComments(comments, gitRoot, generalNote),
+          formatComments(comments, gitRoot, generalNote, {
+            compareBase: compareBaseRef.current,
+          }),
         );
       }
 
@@ -890,14 +938,7 @@ export default function App() {
       // So a caller that suppressed the toast can still report honestly
       return { ok: true, copied };
     },
-    [
-      allComments,
-      generalNote,
-      gitRoot,
-      config,
-      showToast,
-      resolvePreviewLines,
-    ],
+    [allComments, generalNote, gitRoot, config, showToast, resolvePreviewLines],
   );
 
   const handleGenerateCommitViaAgent = useCallback(async () => {
@@ -1093,65 +1134,6 @@ export default function App() {
     fetchProjectInfo();
   }, [fetchProjectInfo]);
 
-  const reloadDiffs = useCallback(async () => {
-    setFileSummaries(null);
-    setFileDetailsByPath({});
-    setUnstagedChunksByPath({});
-    setNextOffset(0);
-    setHasMoreFiles(false);
-    setCommitted(false);
-    setReviewedFiles(new Set());
-    nextOffsetRef.current = 0;
-    hasMoreFilesRef.current = false;
-
-    try {
-      const [summaryRes, unstaged] = await Promise.all([
-        fetch('/api/diff?mode=summary'),
-        requestUnstagedFiles(),
-      ]);
-      if (!summaryRes.ok)
-        throw new Error('Failed to load staged changes summary');
-      const summaryData = await summaryRes.json();
-      if (summaryData.error) throw new Error(summaryData.error);
-
-      const summaries = summaryData.files || [];
-      const stagedPaths = summaries.map((f) => getFilePath(f)).filter(Boolean);
-      setGitRoot(summaryData.gitRoot || '');
-      setFileSummaries(summaries);
-      setUnstagedFiles(unstaged);
-
-      if (summaries.length === 0) return;
-
-      isLoadingPageRef.current = true;
-      setIsLoadingPage(true);
-      try {
-        const [firstPage, hunksMap] = await Promise.all([
-          requestDiffPage(0, DIFF_PAGE_SIZE),
-          requestUnstagedHunksForStagedFiles(stagedPaths),
-        ]);
-        setFileDetailsByPath(mergeFileDetails({}, firstPage.files || []));
-        setUnstagedChunksByPath(hunksMap);
-        const initialNext = Number.isFinite(firstPage.nextOffset)
-          ? firstPage.nextOffset
-          : (firstPage.files || []).length;
-        const initialMore = Boolean(firstPage.hasMore);
-        setNextOffset(initialNext);
-        setHasMoreFiles(initialMore);
-        nextOffsetRef.current = initialNext;
-        hasMoreFilesRef.current = initialMore;
-      } finally {
-        isLoadingPageRef.current = false;
-        setIsLoadingPage(false);
-      }
-    } catch (err) {
-      setError(err.message);
-    }
-  }, [
-    requestDiffPage,
-    requestUnstagedFiles,
-    requestUnstagedHunksForStagedFiles,
-  ]);
-
   const switchProject = useCallback(
     async (targetPath) => {
       setIsSwitchingProject(true);
@@ -1172,6 +1154,16 @@ export default function App() {
         setActiveForm(null);
         setEditingComment(null);
         setReviewedFiles(new Set());
+        const knownBranches = [
+          ...(data.branches?.local || []),
+          ...(data.branches?.remote || []),
+        ];
+        if (
+          compareBaseRef.current &&
+          !knownBranches.includes(compareBaseRef.current)
+        ) {
+          setCompareBase(null);
+        }
         await reloadDiffs();
         // Delay flag reset to allow animation to complete (only on success)
         setTimeout(() => setIsSwitchingProject(false), 550);
@@ -1180,7 +1172,18 @@ export default function App() {
         setIsSwitchingProject(false);
       }
     },
-    [reloadDiffs, showToast],
+    [reloadDiffs, setCompareBase, showToast],
+  );
+
+  const handleChangeCompareBase = useCallback(
+    (base) => {
+      if ((base || null) === compareBaseRef.current) return;
+      setCompareBase(base);
+      setActiveForm(null);
+      setEditingComment(null);
+      reloadDiffs();
+    },
+    [reloadDiffs, setCompareBase],
   );
 
   const handleUnstageFile = useCallback(
@@ -1215,16 +1218,10 @@ export default function App() {
         });
         const data = await res.json();
         if (data.success) {
-          const [summaryRes, unstaged] = await Promise.all([
-            fetch('/api/diff?mode=summary'),
+          const [summaryData, unstaged] = await Promise.all([
+            requestDiffSummaryWithFallback(),
             requestUnstagedFiles(),
           ]);
-          if (!summaryRes.ok) {
-            throw new Error('Failed to load staged changes summary');
-          }
-
-          const summaryData = await summaryRes.json();
-          if (summaryData.error) throw new Error(summaryData.error);
 
           const summaries = summaryData.files || [];
           const retainedDetails = retainLoadedFileDetails(
@@ -1290,7 +1287,12 @@ export default function App() {
         showToast(`Failed to stage file: ${err.message}`, 'error');
       }
     },
-    [requestDiffPage, requestUnstagedFiles, showToast],
+    [
+      requestDiffPage,
+      requestDiffSummaryWithFallback,
+      requestUnstagedFiles,
+      showToast,
+    ],
   );
 
   const handleRevertFile = useCallback(
@@ -1664,6 +1666,8 @@ export default function App() {
         onShowShortcuts={handleShowShortcuts}
         projectInfo={projectInfo}
         onSwitchProject={switchProject}
+        compareBase={compareBase}
+        onChangeCompareBase={handleChangeCompareBase}
         selectedMediums={selectedMediums || ['clipboard', 'file']}
         onChangeMediums={handleChangeMediums}
         updateStatus={updateStatus}
@@ -1687,7 +1691,7 @@ export default function App() {
           loadedFilesByPath={fileDetailsByPath}
           onSelectFile={handleSelectFile}
           onStageFile={handleStageFile}
-          onUnstageFile={handleUnstageFile}
+          onUnstageFile={compareBase ? null : handleUnstageFile}
           reviewedFiles={reviewedFiles}
           commentsByFile={commentsByFile}
           activeFile={activeFilePath}
@@ -1712,16 +1716,20 @@ export default function App() {
         >
           {error ? (
             <div id="loading">Error: {error}</div>
-          ) : !fileSummaries ? (
-            <div id="loading">Loading staged changes...</div>
+          ) : !fileSummaries || (loadedFiles.length === 0 && isLoadingPage) ? (
+            <div id="loading">
+              {compareBase
+                ? `Loading changes against ${compareBase}...`
+                : 'Loading staged changes...'}
+            </div>
           ) : fileSummaries.length === 0 ? (
             <div id="loading">
-              {unstagedFiles.length > 0
-                ? 'No staged changes found. Use "Show unstaged" in the sidebar to stage files.'
-                : 'No staged changes found.'}
+              {compareBase
+                ? `No changes against ${compareBase}.`
+                : unstagedFiles.length > 0
+                  ? 'No staged changes found. Use "Show unstaged" in the sidebar to stage files.'
+                  : 'No staged changes found.'}
             </div>
-          ) : loadedFiles.length === 0 && isLoadingPage ? (
-            <div id="loading">Loading staged changes...</div>
           ) : (
             <>
               {committed && (
@@ -1746,10 +1754,10 @@ export default function App() {
                     onCancelForm={handleCancelForm}
                     onEditComment={handleEditComment}
                     onDeleteComment={handleDeleteComment}
-                    onUnstageFile={handleUnstageFile}
-                    onRevertFile={handleRevertFile}
-                    onUnstageHunk={handleUnstageHunk}
-                    onRevertHunk={handleRevertHunk}
+                    onUnstageFile={compareBase ? null : handleUnstageFile}
+                    onRevertFile={compareBase ? null : handleRevertFile}
+                    onUnstageHunk={compareBase ? null : handleUnstageHunk}
+                    onRevertHunk={compareBase ? null : handleRevertHunk}
                     onStageHunk={handleStageHunk}
                     onEditLine={handleEditLine}
                     onFileReviewed={handleFileReviewed}
@@ -1761,7 +1769,7 @@ export default function App() {
                 );
               })}
 
-              {loadedFiles.length > 0 && (
+              {loadedFiles.length > 0 && !compareBase && (
                 <button
                   className="btn btn-secondary btn-unstage-all"
                   type="button"

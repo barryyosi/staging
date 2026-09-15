@@ -42,8 +42,8 @@ npm run format   # prettier format
 - Keep comments and review interactions in reusable hooks/helpers rather than duplicating local state logic.
 
 ## High-Value API Routes
-- `GET /api/diff`: staged diff payload (main data source)
-- `GET /api/project-info`, `POST /api/switch-project`: repo/worktree navigation
+- `GET /api/diff`: staged diff payload (main data source); `?base=<branch>` compares the index against the merge-base with that branch instead of `HEAD` (400 with `code: 'INVALID_BASE'` for a bad ref)
+- `GET /api/project-info`, `POST /api/switch-project`: repo/worktree navigation, plus `branches` and the suggested `defaultBase`
 - `GET /api/tracked-files`: sidebar "show all files"
 - `GET /api/file-content`, `GET /api/raw-file`: preview/context loading
 - `POST /api/file-unstage`, `POST /api/file-stage`, `POST /api/file-revert`
@@ -54,6 +54,7 @@ npm run format   # prettier format
 
 ## Feature Map (Where To Edit)
 - Project/worktree navigation: `src/components/ProjectNavigator.jsx`, `src/App.jsx`, `lib/server.js`, `lib/git.js`
+- Compare against a base branch: `src/components/ProjectNavigator.jsx` (picker), `src/App.jsx` (`compareBase`, hides index-only actions), `lib/git.js` (`resolveCompareBase`), `bin/staging.js` (`--base`)
 - Sidebar tree/search: `src/components/FileSidebar.jsx`, `src/utils/fileTree.js`, `lib/server.js`
 - Diff actions (file/hunk stage/revert): `src/components/DiffViewer.jsx`, `lib/server.js`, `lib/git.js`
 - Markdown/HTML preview: `src/utils/renderPreview.js`, `src/components/PreviewBody.jsx`, `src/components/DiffViewer.jsx`, `src/PreviewApp.jsx`, `lib/server.js`

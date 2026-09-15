@@ -246,6 +246,8 @@ function Header({
   onShowShortcuts,
   projectInfo,
   onSwitchProject,
+  compareBase,
+  onChangeCompareBase,
   selectedMediums,
   onChangeMediums,
   onGitAction,
@@ -392,6 +394,10 @@ function Header({
             worktrees={projectInfo.worktrees}
             gitRoot={projectInfo.gitRoot}
             onSwitchProject={onSwitchProject}
+            branches={projectInfo.branches}
+            defaultBase={projectInfo.defaultBase}
+            compareBase={compareBase}
+            onChangeCompareBase={onChangeCompareBase}
           />
         ) : (
           <h1 className="logo">staging</h1>

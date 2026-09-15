@@ -127,6 +127,9 @@ function FileStageButton({
   onUnstageFile,
 }) {
   const isStage = mode === 'stage';
+  // No handler means the action is unavailable (comparing against a base
+  // branch shows committed files that cannot be unstaged).
+  if (isStage ? !onStageFile : !onUnstageFile) return null;
 
   return (
     <button
