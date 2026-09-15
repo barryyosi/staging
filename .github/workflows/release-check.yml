@@ -1,0 +1,49 @@
+# Every merge to main ships to users through the in-app update prompt, so a
+# pull request that changes code must carry a version bump and a dated
+# changelog entry. The pre-push hook enforces this locally; this workflow
+# enforces it where nobody can skip it.
+#
+# Hardening:
+# - `pull_request`, never `pull_request_target`: fork PRs run with a
+#   read-only token and no secrets, on the PR's own code.
+# - No third-party actions: only the runner's git and node, so there is no
+#   action supply chain to pin or audit.
+# - PR data reaches the shell only through environment variables, and only
+#   the head SHA (a hex string), never titles or branch names.
+# - One run per PR branch; a new push cancels the previous run; hard
+#   timeout. Combined with the repository setting "Require approval for
+#   first-time contributors", a stranger cannot burn minutes on this repo.
+name: Release check
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-check-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  release-check:
+    name: Release check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      REPO: ${{ github.repository }}
+      TOKEN: ${{ github.token }}
+    steps:
+      - name: Fetch the pull request head and main
+        run: |
+          set -euo pipefail
+          git init --quiet .
+          git remote add origin "https://x-access-token:${TOKEN}@github.com/${REPO}.git"
+          # Full history on purpose: the check needs the merge-base of the
+          # PR and main to know whether shipped code changed.
+          git fetch --quiet origin main "+${HEAD_SHA}:refs/remotes/pr/head"
+          git checkout --quiet pr/head
+      - name: Version and changelog match the code change
+        run: node scripts/check-release.mjs --against origin/main
