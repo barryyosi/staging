@@ -1237,11 +1237,13 @@ export default function App() {
     fetchPullRequest();
   }, [fetchProjectInfo, fetchPullRequest]);
 
-  // Default the review to the request's target branch, so what the agent
-  // gets back is a review of the pull request itself. An explicit base from
-  // the CLI or config, or one the user picked, wins.
+  // With `--pr` (or `basePullRequest` in config), default the review to the
+  // request's target branch, so what the agent gets back is a review of the
+  // pull request itself. An explicit base from the CLI or config, or one the
+  // user picked, wins. Without it the request is only shown in the picker.
   useEffect(() => {
-    if (!config || config.baseBranch || compareBaseTouchedRef.current) return;
+    if (!config?.basePullRequest) return;
+    if (config.baseBranch || compareBaseTouchedRef.current) return;
     const baseRef = pullRequest?.baseRef;
     if (!baseRef || compareBaseRef.current === baseRef) return;
     setCompareBase(baseRef);

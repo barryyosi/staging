@@ -58,7 +58,7 @@ npm run format   # prettier format
 ## Feature Map (Where To Edit)
 - Project/worktree navigation: `src/components/ProjectNavigator.jsx`, `src/App.jsx`, `lib/server.js`, `lib/git.js`
 - Compare against a base branch: `src/components/ProjectNavigator.jsx` (picker), `src/App.jsx` (`compareBase`, hides index-only actions), `lib/git.js` (`resolveCompareBase`), `bin/staging.js` (`--base`)
-- Pull request detection: `lib/pull-requests.js` (one `PROVIDERS` entry per platform), `lib/server.js` (`/api/pull-request`), `src/App.jsx` (auto-selects the target unless a base was set explicitly), `src/utils/format.js` (names the request in the handoff)
+- Pull request detection: `lib/pull-requests.js` (one `PROVIDERS` entry per platform), `lib/server.js` (`/api/pull-request`), `src/App.jsx` (selects the target only with `--pr` / `basePullRequest`, and never over an explicit base), `bin/staging.js` (`--pr`), `src/utils/format.js` (names the request in the handoff)
 - Sidebar tree/search: `src/components/FileSidebar.jsx`, `src/utils/fileTree.js`, `lib/server.js`
 - Diff actions (file/hunk stage/revert): `src/components/DiffViewer.jsx`, `lib/server.js`, `lib/git.js`
 - Markdown/HTML preview: `src/utils/renderPreview.js`, `src/components/PreviewBody.jsx`, `src/components/DiffViewer.jsx`, `src/PreviewApp.jsx`, `lib/server.js`
