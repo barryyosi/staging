@@ -16,6 +16,7 @@ Keep it concise and practical. Put deep implementation details in code comments 
 - `bin/staging.js`: CLI entry point
 - `lib/config.js`: config defaults + merge logic
 - `lib/git.js`: git wrappers and diff parsing
+- `lib/pull-requests.js`: open pull/merge request lookup through platform CLIs (`gh`, `glab`, `az`)
 - `lib/server.js`: API routes + static serving
 - `src/App.jsx`: top-level state + orchestration
 - `src/components/DiffViewer.jsx`: core diff rendering/actions/comments
@@ -36,7 +37,7 @@ npm run format   # prettier format
 ```
 
 ## Architecture (Most Important)
-- Keep all raw git operations in `lib/git.js`.
+- Keep all raw git operations in `lib/git.js`; platform CLI calls (`gh`, `glab`, `az`) stay in `lib/pull-requests.js`. The only network activity is git talking to the remote (update check, push, pull) and those CLIs talking to their platform; keep it that way and keep each such call opt-out via config.
 - Keep HTTP surface in `lib/server.js`; frontend should not shell out directly.
 - Keep cross-cutting app state in `src/App.jsx`; keep presentational logic inside components.
 - Keep comments and review interactions in reusable hooks/helpers rather than duplicating local state logic.
@@ -44,6 +45,7 @@ npm run format   # prettier format
 ## High-Value API Routes
 - `GET /api/diff`: staged diff payload (main data source); `?base=<branch>` compares the index against the merge-base with that branch instead of `HEAD` (400 with `code: 'INVALID_BASE'` for a bad ref)
 - `GET /api/project-info`, `POST /api/switch-project`: repo/worktree navigation, plus `branches` and the suggested `defaultBase`
+- `GET /api/pull-request`: the open request for the current branch (`{ enabled, pullRequest }`), fetched separately because the CLI can be slow
 - `GET /api/tracked-files`: sidebar "show all files"
 - `GET /api/file-content`, `GET /api/raw-file`: preview/context loading
 - `POST /api/file-unstage`, `POST /api/file-stage`, `POST /api/file-revert`
@@ -55,6 +57,7 @@ npm run format   # prettier format
 ## Feature Map (Where To Edit)
 - Project/worktree navigation: `src/components/ProjectNavigator.jsx`, `src/App.jsx`, `lib/server.js`, `lib/git.js`
 - Compare against a base branch: `src/components/ProjectNavigator.jsx` (picker), `src/App.jsx` (`compareBase`, hides index-only actions), `lib/git.js` (`resolveCompareBase`), `bin/staging.js` (`--base`)
+- Pull request detection: `lib/pull-requests.js` (one `PROVIDERS` entry per platform), `lib/server.js` (`/api/pull-request`), `src/App.jsx` (auto-selects the target unless a base was set explicitly), `src/utils/format.js` (names the request in the handoff)
 - Sidebar tree/search: `src/components/FileSidebar.jsx`, `src/utils/fileTree.js`, `lib/server.js`
 - Diff actions (file/hunk stage/revert): `src/components/DiffViewer.jsx`, `lib/server.js`, `lib/git.js`
 - Markdown/HTML preview: `src/utils/renderPreview.js`, `src/components/PreviewBody.jsx`, `src/components/DiffViewer.jsx`, `src/PreviewApp.jsx`, `lib/server.js`

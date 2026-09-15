@@ -29,7 +29,13 @@ export function formatComments(comments, gitRoot, generalNote, options = {}) {
   if (!isPreview && options.compareBase) {
     // Line numbers still name the index side; the agent should know the
     // review covered the whole branch, not only what is staged.
-    output += `Reviewed against base branch: ${options.compareBase}\n\n`;
+    output += `Reviewed against base branch: ${options.compareBase}\n`;
+    const pr = options.pullRequest;
+    if (pr) {
+      const noun = pr.requestNoun.replace(/^./, (c) => c.toUpperCase());
+      output += `${noun}: #${pr.number}${pr.title ? ` ${pr.title}` : ''}${pr.url ? ` (${pr.url})` : ''}\n`;
+    }
+    output += '\n';
   }
 
   if (generalNote) {

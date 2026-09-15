@@ -248,6 +248,8 @@ function Header({
   onSwitchProject,
   compareBase,
   onChangeCompareBase,
+  pullRequest,
+  onRefreshPullRequest,
   selectedMediums,
   onChangeMediums,
   onGitAction,
@@ -398,6 +400,8 @@ function Header({
             defaultBase={projectInfo.defaultBase}
             compareBase={compareBase}
             onChangeCompareBase={onChangeCompareBase}
+            pullRequest={pullRequest}
+            onRefreshPullRequest={onRefreshPullRequest}
           />
         ) : (
           <h1 className="logo">staging</h1>

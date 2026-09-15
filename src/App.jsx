@@ -160,6 +160,9 @@ export default function App() {
   const [updateStatus, setUpdateStatus] = useState(null);
   // Branch the index is compared against; null shows the plain staged diff
   const [compareBase, setCompareBaseState] = useState(null);
+  // Open pull/merge request for the checked-out branch, if the platform CLI
+  // found one; its target becomes the default compare base
+  const [pullRequest, setPullRequest] = useState(null);
 
   // Active comment form state
   const [activeForm, setActiveForm] = useState(null); // { file, line, lineType }
@@ -184,6 +187,10 @@ export default function App() {
   const fileSelectionRequestIdRef = useRef(0);
   const compareBaseRef = useRef(null);
   const diffLoadIdRef = useRef(0);
+  const gitRootRef = useRef('');
+  // Once the user picks a compare base themselves, a detected pull request
+  // no longer overrides it
+  const compareBaseTouchedRef = useRef(false);
 
   const setCompareBase = useCallback((base) => {
     compareBaseRef.current = base || null;
@@ -200,6 +207,10 @@ export default function App() {
   useEffect(() => {
     fileSummariesRef.current = fileSummaries;
   }, [fileSummaries]);
+
+  useEffect(() => {
+    gitRootRef.current = gitRoot;
+  }, [gitRoot]);
 
   useEffect(() => {
     fileDetailsByPathRef.current = fileDetailsByPath;
@@ -869,6 +880,10 @@ export default function App() {
         formattedPromise = resolvePreviewLines(allComments).then((comments) =>
           formatComments(comments, gitRoot, generalNote, {
             compareBase: compareBaseRef.current,
+            pullRequest:
+              pullRequest && pullRequest.baseRef === compareBaseRef.current
+                ? pullRequest
+                : null,
           }),
         );
       }
@@ -938,7 +953,15 @@ export default function App() {
       // So a caller that suppressed the toast can still report honestly
       return { ok: true, copied };
     },
-    [allComments, generalNote, gitRoot, config, showToast, resolvePreviewLines],
+    [
+      allComments,
+      generalNote,
+      gitRoot,
+      config,
+      pullRequest,
+      showToast,
+      resolvePreviewLines,
+    ],
   );
 
   const handleGenerateCommitViaAgent = useCallback(async () => {
@@ -1130,9 +1153,53 @@ export default function App() {
     }
   }, []);
 
+  // The CLI lookup can take seconds and runs concurrently on the server, so
+  // an answer for the project we just left can arrive after the switch.
+  // Only the newest request may apply, and only for the project it answered
+  const pullRequestRequestIdRef = useRef(0);
+  const fetchPullRequest = useCallback(async (refresh = false) => {
+    const requestId = ++pullRequestRequestIdRef.current;
+    try {
+      const res = await fetch(
+        `/api/pull-request${refresh ? '?refresh=1' : ''}`,
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      if (requestId !== pullRequestRequestIdRef.current) return;
+      // The id is the guard; the root echo is a belt-and-braces check that
+      // only applies once the local root is known (it is empty at mount)
+      if (
+        data.gitRoot &&
+        gitRootRef.current &&
+        data.gitRoot !== gitRootRef.current
+      ) {
+        return;
+      }
+      setPullRequest(data.pullRequest || null);
+    } catch {
+      // non-critical — the compare picker just has no request to offer
+    }
+  }, []);
+
   useEffect(() => {
     fetchProjectInfo();
-  }, [fetchProjectInfo]);
+    fetchPullRequest();
+  }, [fetchProjectInfo, fetchPullRequest]);
+
+  // Default the review to the request's target branch, so what the agent
+  // gets back is a review of the pull request itself. An explicit base from
+  // the CLI or config, or one the user picked, wins.
+  useEffect(() => {
+    if (!config || config.baseBranch || compareBaseTouchedRef.current) return;
+    const baseRef = pullRequest?.baseRef;
+    if (!baseRef || compareBaseRef.current === baseRef) return;
+    setCompareBase(baseRef);
+    reloadDiffs();
+    showToast(
+      `Comparing against ${baseRef} for ${pullRequest.requestNoun} #${pullRequest.number}`,
+      'info',
+    );
+  }, [config, pullRequest, reloadDiffs, setCompareBase, showToast]);
 
   const switchProject = useCallback(
     async (targetPath) => {
@@ -1164,6 +1231,12 @@ export default function App() {
         ) {
           setCompareBase(null);
         }
+        // A new project means a new branch and possibly a new request; the
+        // id bump also retires any lookup still running for the old one
+        compareBaseTouchedRef.current = false;
+        gitRootRef.current = data.gitRoot || '';
+        setPullRequest(null);
+        fetchPullRequest();
         await reloadDiffs();
         // Delay flag reset to allow animation to complete (only on success)
         setTimeout(() => setIsSwitchingProject(false), 550);
@@ -1172,11 +1245,16 @@ export default function App() {
         setIsSwitchingProject(false);
       }
     },
-    [reloadDiffs, setCompareBase, showToast],
+    [fetchPullRequest, reloadDiffs, setCompareBase, showToast],
   );
+
+  const handleRefreshPullRequest = useCallback(() => {
+    fetchPullRequest(true);
+  }, [fetchPullRequest]);
 
   const handleChangeCompareBase = useCallback(
     (base) => {
+      compareBaseTouchedRef.current = true;
       if ((base || null) === compareBaseRef.current) return;
       setCompareBase(base);
       setActiveForm(null);
@@ -1668,6 +1746,8 @@ export default function App() {
         onSwitchProject={switchProject}
         compareBase={compareBase}
         onChangeCompareBase={handleChangeCompareBase}
+        pullRequest={pullRequest}
+        onRefreshPullRequest={handleRefreshPullRequest}
         selectedMediums={selectedMediums || ['clipboard', 'file']}
         onChangeMediums={handleChangeMediums}
         updateStatus={updateStatus}

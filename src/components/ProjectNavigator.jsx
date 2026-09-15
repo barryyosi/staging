@@ -1,5 +1,11 @@
 import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
-import { GitBranch, GitCompare, ChevronDown } from 'lucide-react';
+import {
+  GitBranch,
+  GitCompare,
+  GitPullRequestArrow,
+  ChevronDown,
+  ExternalLink,
+} from 'lucide-react';
 
 const PROJECT_DROPDOWN_ID = 'project-dropdown';
 const WORKTREE_DROPDOWN_ID = 'worktree-dropdown';
@@ -55,30 +61,49 @@ function WorktreeDropdown({ id, worktrees, onSelect, onClose }) {
   );
 }
 
-// Branches offered as compare targets: the suggested base first, then the
-// rest of the local branches, then remote-tracking ones. The checked-out
-// branch is left out — comparing against it is just the staged diff.
-function orderCompareBranches(branches, currentBranch, defaultBase) {
+// Branches offered as compare targets: the open request's target first,
+// then the suggested base, then the rest of the local branches, then
+// remote-tracking ones. The checked-out branch is left out — comparing
+// against it is just the staged diff.
+function orderCompareBranches(
+  branches,
+  currentBranch,
+  defaultBase,
+  pullRequest = null,
+) {
   const local = (branches?.local || []).filter((b) => b !== currentBranch);
   const remote = branches?.remote || [];
   const ordered = [];
-  if (defaultBase && defaultBase !== currentBranch) {
-    ordered.push({ name: defaultBase, group: 'suggested' });
+  const taken = new Set([currentBranch]);
+  const push = (name, group, extra = {}) => {
+    if (!name || taken.has(name)) return;
+    taken.add(name);
+    ordered.push({ name, group, ...extra });
+  };
+  if (pullRequest?.baseRef) {
+    push(pullRequest.baseRef, 'request', {
+      hint: `#${pullRequest.number}`,
+      title: pullRequest.title,
+    });
   }
-  for (const name of local) {
-    if (name !== defaultBase) ordered.push({ name, group: 'local' });
-  }
-  for (const name of remote) {
-    if (name !== defaultBase) ordered.push({ name, group: 'remote' });
-  }
+  push(defaultBase, 'suggested');
+  for (const name of local) push(name, 'local');
+  for (const name of remote) push(name, 'remote');
   return ordered;
 }
 
-const COMPARE_GROUP_LABELS = {
-  suggested: 'Suggested',
-  local: 'Local branches',
-  remote: 'Remote branches',
-};
+const capitalize = (s) => s.replace(/^./, (c) => c.toUpperCase());
+
+function compareGroupLabel(group, pullRequest) {
+  if (group === 'request') {
+    return `Open ${pullRequest?.requestNoun || 'pull request'}`;
+  }
+  return {
+    suggested: 'Suggested',
+    local: 'Local branches',
+    remote: 'Remote branches',
+  }[group];
+}
 
 function CompareDropdown({
   id,
@@ -86,6 +111,7 @@ function CompareDropdown({
   currentBranch,
   defaultBase,
   compareBase,
+  pullRequest,
   onSelect,
   onClose,
 }) {
@@ -93,8 +119,9 @@ function CompareDropdown({
   const inputRef = useRef(null);
 
   const entries = useMemo(
-    () => orderCompareBranches(branches, currentBranch, defaultBase),
-    [branches, currentBranch, defaultBase],
+    () =>
+      orderCompareBranches(branches, currentBranch, defaultBase, pullRequest),
+    [branches, currentBranch, defaultBase, pullRequest],
   );
   const showFilter = entries.length > COMPARE_FILTER_THRESHOLD;
   const visible = useMemo(() => {
@@ -152,7 +179,7 @@ function CompareDropdown({
         {visible.map((entry) => {
           const heading =
             entry.group !== lastGroup
-              ? COMPARE_GROUP_LABELS[entry.group]
+              ? compareGroupLabel(entry.group, pullRequest)
               : null;
           lastGroup = entry.group;
           const active = entry.name === compareBase;
@@ -167,16 +194,42 @@ function CompareDropdown({
                 aria-checked={active}
                 onClick={() => select(entry.name)}
                 type="button"
+                title={entry.title || entry.name}
               >
-                <span className="nav-dropdown-item-name" title={entry.name}>
-                  {entry.name}
-                </span>
+                <span className="nav-dropdown-item-name">{entry.name}</span>
+                {entry.hint && (
+                  <span className="nav-dropdown-item-hint">{entry.hint}</span>
+                )}
               </button>
             </div>
           );
         })}
         {visible.length === 0 && (
           <div className="nav-dropdown-empty">No matching branches</div>
+        )}
+        {pullRequest && !pullRequest.baseRef && (
+          <div className="nav-dropdown-empty">
+            {capitalize(pullRequest.requestNoun)} #{pullRequest.number} targets{' '}
+            {pullRequest.targetBranch}, which is not fetched locally. Run{' '}
+            <code>git fetch</code> and reopen this menu.
+          </div>
+        )}
+        {pullRequest?.url && (
+          <a
+            className="nav-dropdown-item nav-dropdown-link"
+            role="menuitem"
+            href={pullRequest.url}
+            target="_blank"
+            rel="noreferrer"
+            title={pullRequest.title}
+            onClick={onClose}
+          >
+            <GitPullRequestArrow size={14} strokeWidth={1.5} />
+            <span className="nav-dropdown-item-name">
+              Open #{pullRequest.number} on {pullRequest.platformLabel}
+            </span>
+            <ExternalLink size={12} strokeWidth={1.5} />
+          </a>
         )}
       </div>
     </div>
@@ -194,6 +247,8 @@ function ProjectNavigator({
   defaultBase,
   compareBase,
   onChangeCompareBase,
+  pullRequest,
+  onRefreshPullRequest,
 }) {
   const [showProjectDD, setShowProjectDD] = useState(false);
   const [showWorktreeDD, setShowWorktreeDD] = useState(false);
@@ -256,7 +311,11 @@ function ProjectNavigator({
   const canCompare =
     Boolean(onChangeCompareBase) &&
     (Boolean(compareBase) ||
-      orderCompareBranches(branches, branch, defaultBase).length > 0);
+      orderCompareBranches(branches, branch, defaultBase, pullRequest).length >
+        0);
+  const comparingRequest = Boolean(
+    compareBase && pullRequest && pullRequest.baseRef === compareBase,
+  );
 
   return (
     <nav className="project-nav">
@@ -350,18 +409,23 @@ function ProjectNavigator({
             aria-expanded={showCompareDD}
             aria-controls={showCompareDD ? COMPARE_DROPDOWN_ID : undefined}
             title={
-              compareBase
-                ? `Showing changes against ${compareBase}`
-                : 'Showing staged changes. Compare against a base branch'
+              comparingRequest
+                ? `Reviewing ${pullRequest.requestNoun} #${pullRequest.number}${pullRequest.title ? `: ${pullRequest.title}` : ''} against ${compareBase}`
+                : compareBase
+                  ? `Showing changes against ${compareBase}`
+                  : 'Showing staged changes. Compare against a base branch'
             }
             onClick={() => {
               setShowProjectDD(false);
               setShowWorktreeDD(false);
-              setShowCompareDD((v) => {
-                const next = !v;
-                if (next) lastOpenedDropdownRef.current = 'compare';
-                return next;
-              });
+              const opening = !showCompareDD;
+              if (opening) {
+                lastOpenedDropdownRef.current = 'compare';
+                // Re-detect only when it can change something: the target
+                // was not fetched last time, or no request was found yet
+                if (!pullRequest?.baseRef) onRefreshPullRequest?.();
+              }
+              setShowCompareDD(opening);
             }}
             type="button"
           >
@@ -373,6 +437,9 @@ function ProjectNavigator({
             <span className="nav-segment-label">
               {compareBase ? `vs ${compareBase}` : 'staged'}
             </span>
+            {comparingRequest && (
+              <span className="nav-segment-badge">#{pullRequest.number}</span>
+            )}
             <ChevronDown size={14} strokeWidth={1.5} className="nav-caret" />
           </button>
           {showCompareDD && (
@@ -382,6 +449,7 @@ function ProjectNavigator({
               currentBranch={branch}
               defaultBase={defaultBase}
               compareBase={compareBase}
+              pullRequest={pullRequest}
               onSelect={onChangeCompareBase}
               onClose={() => closeAll(true)}
             />
