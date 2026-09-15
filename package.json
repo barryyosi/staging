@@ -1,6 +1,6 @@
 {
   "name": "staging",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Stop committing blindly. Review staged changes in a rich browser UI and send inline feedback directly to your coding agent.",
   "bin": {
     "staging": "./bin/staging.js"
@@ -12,6 +12,7 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"src/**/*.{js,jsx,css}\" \"lib/**/*.js\" \"bin/**/*.js\"",
+    "check:release": "node scripts/check-release.mjs --against origin/main",
     "prepare": "vite build && husky"
   },
   "lint-staged": {

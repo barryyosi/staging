@@ -10,7 +10,7 @@ export default [
 
   // Backend & config files (Node.js)
   {
-    files: ['lib/**/*.js', 'bin/**/*.js', 'vite.config.js'],
+    files: ['lib/**/*.js', 'bin/**/*.js', 'scripts/**/*.mjs', 'vite.config.js'],
     ...js.configs.recommended,
     languageOptions: {
       ecmaVersion: 2022,
