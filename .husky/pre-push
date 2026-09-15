@@ -1,0 +1,2 @@
+git fetch --quiet origin main
+node scripts/check-release.mjs --against origin/main
