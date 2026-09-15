@@ -413,6 +413,9 @@ export default function App() {
     const loadId = ++diffLoadIdRef.current;
     const isCurrent = () => diffLoadIdRef.current === loadId;
 
+    // The newest load owns every flag: a superseded load skips its own
+    // cleanup below, so reset here rather than trusting the previous one
+    setError(null);
     setFileSummaries(null);
     setFileDetailsByPath({});
     setUnstagedChunksByPath({});
@@ -420,8 +423,10 @@ export default function App() {
     setHasMoreFiles(false);
     setCommitted(false);
     setReviewedFiles(new Set());
+    setIsLoadingPage(false);
     nextOffsetRef.current = 0;
     hasMoreFilesRef.current = false;
+    isLoadingPageRef.current = false;
 
     try {
       const [summaryData, unstaged] = await Promise.all([
@@ -1214,7 +1219,7 @@ export default function App() {
         const data = await res.json();
         if (data.success) {
           const [summaryData, unstaged] = await Promise.all([
-            requestDiffSummary(),
+            requestDiffSummaryWithFallback(),
             requestUnstagedFiles(),
           ]);
 
@@ -1282,7 +1287,12 @@ export default function App() {
         showToast(`Failed to stage file: ${err.message}`, 'error');
       }
     },
-    [requestDiffPage, requestUnstagedFiles, showToast],
+    [
+      requestDiffPage,
+      requestDiffSummaryWithFallback,
+      requestUnstagedFiles,
+      showToast,
+    ],
   );
 
   const handleRevertFile = useCallback(

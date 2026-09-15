@@ -114,12 +114,7 @@ function CompareDropdown({
 
   let lastGroup = null;
   return (
-    <div
-      id={id}
-      className="nav-dropdown nav-dropdown-compare"
-      role="menu"
-      aria-label="Compare against"
-    >
+    <div id={id} className="nav-dropdown nav-dropdown-compare">
       {showFilter && (
         <div className="nav-dropdown-filter">
           <input
@@ -138,7 +133,11 @@ function CompareDropdown({
           />
         </div>
       )}
-      <div className="nav-dropdown-scroll">
+      <div
+        className="nav-dropdown-scroll"
+        role="menu"
+        aria-label="Compare against"
+      >
         <button
           className={`nav-dropdown-item${compareBase ? '' : ' active'}`}
           role="menuitemradio"
@@ -251,7 +250,12 @@ function ProjectNavigator({
 
   const hasMultipleProjects = projects && projects.length > 1;
   const hasMultipleWorktrees = worktrees && worktrees.length > 1;
-  const canCompare = Boolean(onChangeCompareBase);
+  // Nothing to compare against in a single-branch repo, unless a base is
+  // already active and needs a way back to the staged view
+  const canCompare =
+    Boolean(onChangeCompareBase) &&
+    (Boolean(compareBase) ||
+      orderCompareBranches(branches, branch, defaultBase).length > 0);
 
   return (
     <nav className="project-nav">

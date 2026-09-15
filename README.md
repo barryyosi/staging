@@ -64,9 +64,12 @@ what would land on the base once the staged work is committed. Main-only
 commits made after the branch forked do not show up. Inline comments, preview,
 and line edits work as usual; per-file and per-hunk unstage/revert actions are
 hidden in this mode because the hunks may already be committed. The header
-suggests the remote's default branch (`origin/HEAD`, or `main`/`master` when
-there is no remote). The agent handoff notes the base branch the review was
-made against.
+suggests the remote's default branch: the local branch of that name when you
+have one, else the remote-tracking ref (`origin/main`); without a remote it
+falls back to the first of `main`, `master`, `develop`, `trunk` that exists.
+Pick the remote-tracking ref explicitly when your local `main` lags behind, or
+upstream commits the branch merely inherited will show up as its own. The
+agent handoff notes the base branch the review was made against.
 
 ### Standalone File Preview
 

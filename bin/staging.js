@@ -101,23 +101,6 @@ if (previewMode) {
     process.exit(1);
   }
 
-  // Check staged files (but do not block startup when empty)
-  const stagedFilesRaw = execSync('git diff --cached --name-only', {
-    cwd: gitRoot,
-    encoding: 'utf-8',
-  });
-  const stagedFiles = stagedFilesRaw
-    .split('\n')
-    .map((file) => file.trim())
-    .filter(Boolean);
-  const fileCount = stagedFiles.length;
-
-  if (fileCount > 0) {
-    console.log(`Found ${fileCount} staged file${fileCount === 1 ? '' : 's'}.`);
-  } else {
-    console.log('No staged files found. Opening staging for unstaged review.');
-  }
-
   configRoot = gitRoot;
 }
 
@@ -141,7 +124,22 @@ if (baseBranch) {
   config.baseBranch = baseBranch;
 }
 if (config.baseBranch) {
+  // A base from .stagingrc.json is checked by the UI, which falls back to
+  // the staged diff with a toast if it does not resolve
   console.log(`Comparing against ${config.baseBranch}.`);
+} else if (!previewMode) {
+  // Count staged files (but do not block startup when empty)
+  const fileCount = execSync('git diff --cached --name-only', {
+    cwd: gitRoot,
+    encoding: 'utf-8',
+  })
+    .split('\n')
+    .filter((file) => file.trim()).length;
+  if (fileCount > 0) {
+    console.log(`Found ${fileCount} staged file${fileCount === 1 ? '' : 's'}.`);
+  } else {
+    console.log('No staged files found. Opening staging for unstaged review.');
+  }
 }
 
 // CLI send callback — prints comments to terminal stdout, then exits
