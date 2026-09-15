@@ -1148,9 +1148,11 @@ export default function App() {
     }
   }, []);
 
-  const fetchPullRequest = useCallback(async () => {
+  const fetchPullRequest = useCallback(async (refresh = false) => {
     try {
-      const res = await fetch('/api/pull-request');
+      const res = await fetch(
+        `/api/pull-request${refresh ? '?refresh=1' : ''}`,
+      );
       if (!res.ok) return;
       const data = await res.json();
       setPullRequest(data.pullRequest || null);
@@ -1223,6 +1225,10 @@ export default function App() {
     },
     [fetchPullRequest, reloadDiffs, setCompareBase, showToast],
   );
+
+  const handleRefreshPullRequest = useCallback(() => {
+    fetchPullRequest(true);
+  }, [fetchPullRequest]);
 
   const handleChangeCompareBase = useCallback(
     (base) => {
@@ -1719,6 +1725,7 @@ export default function App() {
         compareBase={compareBase}
         onChangeCompareBase={handleChangeCompareBase}
         pullRequest={pullRequest}
+        onRefreshPullRequest={handleRefreshPullRequest}
         selectedMediums={selectedMediums || ['clipboard', 'file']}
         onChangeMediums={handleChangeMediums}
         updateStatus={updateStatus}

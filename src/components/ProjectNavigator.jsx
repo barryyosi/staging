@@ -92,6 +92,8 @@ function orderCompareBranches(
   return ordered;
 }
 
+const capitalize = (s) => s.replace(/^./, (c) => c.toUpperCase());
+
 function compareGroupLabel(group, pullRequest) {
   if (group === 'request') {
     return `Open ${pullRequest?.requestNoun || 'pull request'}`;
@@ -202,10 +204,14 @@ function CompareDropdown({
             </div>
           );
         })}
+        {visible.length === 0 && (
+          <div className="nav-dropdown-empty">No matching branches</div>
+        )}
         {pullRequest && !pullRequest.baseRef && (
           <div className="nav-dropdown-empty">
-            {pullRequest.requestNoun} #{pullRequest.number} targets{' '}
-            {pullRequest.targetBranch}, which is not fetched locally
+            {capitalize(pullRequest.requestNoun)} #{pullRequest.number} targets{' '}
+            {pullRequest.targetBranch}, which is not fetched locally. Run{' '}
+            <code>git fetch</code> and reopen this menu.
           </div>
         )}
         {pullRequest?.url && (
@@ -216,6 +222,7 @@ function CompareDropdown({
             target="_blank"
             rel="noreferrer"
             title={pullRequest.title}
+            onClick={onClose}
           >
             <GitPullRequestArrow size={14} strokeWidth={1.5} />
             <span className="nav-dropdown-item-name">
@@ -223,9 +230,6 @@ function CompareDropdown({
             </span>
             <ExternalLink size={12} strokeWidth={1.5} />
           </a>
-        )}
-        {visible.length === 0 && (
-          <div className="nav-dropdown-empty">No matching branches</div>
         )}
       </div>
     </div>
@@ -244,6 +248,7 @@ function ProjectNavigator({
   compareBase,
   onChangeCompareBase,
   pullRequest,
+  onRefreshPullRequest,
 }) {
   const [showProjectDD, setShowProjectDD] = useState(false);
   const [showWorktreeDD, setShowWorktreeDD] = useState(false);
@@ -415,7 +420,11 @@ function ProjectNavigator({
               setShowWorktreeDD(false);
               setShowCompareDD((v) => {
                 const next = !v;
-                if (next) lastOpenedDropdownRef.current = 'compare';
+                if (next) {
+                  lastOpenedDropdownRef.current = 'compare';
+                  // The target may have been fetched since detection ran
+                  onRefreshPullRequest?.();
+                }
                 return next;
               });
             }}

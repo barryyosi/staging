@@ -48,6 +48,13 @@ const originalPath = process.env.PATH;
 process.env.PATH = `${bin}${path.delimiter}${originalPath}`;
 
 try {
+  await main();
+} finally {
+  process.env.PATH = originalPath;
+  fs.rmSync(root, { recursive: true, force: true });
+}
+
+async function main() {
   git('init', '-q', '-b', 'main');
   fs.writeFileSync(path.join(repo, 'a.txt'), 'a\n');
   git('add', '-A');
@@ -75,7 +82,7 @@ try {
   assert.equal(detectProvider('anything', 'bogus'), null);
 
   // No CLI on PATH: quietly nothing.
-  assert.equal(findOpenPullRequest(repo, 'feature'), null);
+  assert.equal(await findOpenPullRequest(repo, 'feature'), null);
 
   // GitHub: gh answers with an open PR whose target has been fetched.
   const ghArgs = fakeCli('gh', {
@@ -90,7 +97,7 @@ try {
   });
   git('update-ref', 'refs/remotes/origin/main', 'main');
   clearPullRequestCache();
-  let pr = findOpenPullRequest(repo, 'feature');
+  let pr = await findOpenPullRequest(repo, 'feature');
   assert.deepEqual(pr, {
     platform: 'github',
     platformLabel: 'GitHub',
@@ -101,34 +108,37 @@ try {
     targetBranch: 'main',
     baseRef: 'origin/main',
   });
-  assert.match(ghArgs(), /^pr list --head feature --state open/);
+  assert.match(ghArgs(), /^pr list --head=feature --state=open/);
 
   // The remote-tracking target wins over the local twin; without it the
   // local branch is used; with neither, baseRef is null but the PR is kept.
   git('update-ref', '-d', 'refs/remotes/origin/main');
   clearPullRequestCache();
-  assert.equal(findOpenPullRequest(repo, 'feature').baseRef, 'main');
+  assert.equal((await findOpenPullRequest(repo, 'feature')).baseRef, 'main');
   git('branch', '-q', '-m', 'main', 'trunk');
   clearPullRequestCache();
-  pr = findOpenPullRequest(repo, 'feature');
+  pr = await findOpenPullRequest(repo, 'feature');
   assert.equal(pr.targetBranch, 'main');
   assert.equal(pr.baseRef, null);
   git('branch', '-q', '-m', 'trunk', 'main');
 
   // Cached for a while: a changed CLI answer is not seen until refresh.
   fakeCli('gh', { json: [] });
-  assert.equal(findOpenPullRequest(repo, 'feature').number, 12);
-  assert.equal(findOpenPullRequest(repo, 'feature', { refresh: true }), null);
+  assert.equal((await findOpenPullRequest(repo, 'feature')).number, 12);
+  assert.equal(
+    await findOpenPullRequest(repo, 'feature', { refresh: true }),
+    null,
+  );
 
   // A failing or signed-out CLI, or garbage output, means no request.
   fakeCli('gh', { exitCode: 4 });
   clearPullRequestCache();
-  assert.equal(findOpenPullRequest(repo, 'feature'), null);
+  assert.equal(await findOpenPullRequest(repo, 'feature'), null);
   fs.writeFileSync(path.join(bin, 'gh'), '#!/bin/sh\necho not-json\n', {
     mode: 0o755,
   });
   clearPullRequestCache();
-  assert.equal(findOpenPullRequest(repo, 'feature'), null);
+  assert.equal(await findOpenPullRequest(repo, 'feature'), null);
 
   // GitLab through glab, on the remote the branch actually tracks.
   git('remote', 'add', 'upstream', 'https://gitlab.com/acme/widgets.git');
@@ -145,12 +155,12 @@ try {
     ],
   });
   clearPullRequestCache();
-  pr = findOpenPullRequest(repo, 'feature');
+  pr = await findOpenPullRequest(repo, 'feature');
   assert.equal(pr.platform, 'gitlab');
   assert.equal(pr.requestNoun, 'merge request');
   assert.equal(pr.number, 7);
   assert.equal(pr.baseRef, 'upstream/develop');
-  assert.match(glabArgs(), /^mr list --source-branch feature/);
+  assert.match(glabArgs(), /^mr list --source-branch=feature/);
 
   // Azure DevOps through az, target ref unwrapped and URL composed.
   git('config', '--unset', 'branch.feature.remote');
@@ -171,7 +181,7 @@ try {
     ],
   });
   clearPullRequestCache();
-  pr = findOpenPullRequest(repo, 'feature');
+  pr = await findOpenPullRequest(repo, 'feature');
   assert.equal(pr.platform, 'azure');
   assert.equal(pr.targetBranch, 'main');
   assert.equal(
@@ -180,14 +190,16 @@ try {
   );
   assert.equal(pr.baseRef, 'main');
 
-  // Detached HEAD and unknown hosts ask nothing.
-  assert.equal(findOpenPullRequest(repo, 'HEAD'), null);
+  // Detached HEAD, dash-led branch names, and unknown hosts ask nothing.
+  assert.equal(await findOpenPullRequest(repo, 'HEAD'), null);
+  const azArgs = fakeCli('az', { json: [] });
+  fs.rmSync(path.join(root, 'az.args'), { force: true });
+  clearPullRequestCache();
+  assert.equal(await findOpenPullRequest(repo, '--web'), null);
+  assert.throws(azArgs, /ENOENT/, 'the CLI must not have been invoked');
   git('remote', 'set-url', 'origin', 'https://bitbucket.org/acme/widgets.git');
   clearPullRequestCache();
-  assert.equal(findOpenPullRequest(repo, 'feature'), null);
+  assert.equal(await findOpenPullRequest(repo, 'feature'), null);
 
   console.log('pull-request-verify: all checks passed');
-} finally {
-  process.env.PATH = originalPath;
-  fs.rmSync(root, { recursive: true, force: true });
 }

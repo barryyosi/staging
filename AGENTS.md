@@ -37,7 +37,7 @@ npm run format   # prettier format
 ```
 
 ## Architecture (Most Important)
-- Keep all raw git operations in `lib/git.js`; platform CLI calls (`gh`, `glab`, `az`) stay in `lib/pull-requests.js`. Staging itself never talks to the network.
+- Keep all raw git operations in `lib/git.js`; platform CLI calls (`gh`, `glab`, `az`) stay in `lib/pull-requests.js`. The only network activity is git talking to the remote (update check, push, pull) and those CLIs talking to their platform; keep it that way and keep each such call opt-out via config.
 - Keep HTTP surface in `lib/server.js`; frontend should not shell out directly.
 - Keep cross-cutting app state in `src/App.jsx`; keep presentational logic inside components.
 - Keep comments and review interactions in reusable hooks/helpers rather than duplicating local state logic.

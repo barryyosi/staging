@@ -17,7 +17,7 @@ Staging gives you a dedicated, browser-based review interface with GitHub-style 
 
 ## Features
 
-- **Private & Lightweight**: Runs 100% locally. No internet connection required. Zero telemetry.
+- **Private & Lightweight**: Runs locally with zero telemetry. The diff viewer needs no internet at all; the only outbound traffic is git talking to your remote (update check) and, if installed, your own `gh` / `glab` / `az` CLI looking up the open pull request for your branch. Both can be switched off in config.
 - **Multi-Project Support**: Navigate between sibling repositories and git worktrees
 - **Inline Comments**: Add threaded comments directly on changed lines to guide agent refinements; drag the `+` gutter button to comment on a range of lines
 - **Markdown/HTML Preview**: Toggle per-file between diff and rendered preview for `.md` and `.html` files, with inline commenting on the rendered output — hover any block for a `+` gutter button, or select text to quote it; comments carry the markdown source line so the agent knows exactly where to edit
@@ -78,9 +78,10 @@ If the checked-out branch has an open request, Staging defaults the compare
 base to that request's target branch (as the remote-tracking ref, e.g.
 `origin/main`) and shows the request in the compare picker with a link to it.
 The handoff then reads `Pull request: #12 <title> (<url>)`, so the agent knows
-it is addressing PR feedback. Detection runs through the platform CLI that is
-already installed and signed in on your machine, so Staging itself still
-makes no network calls:
+it is addressing PR feedback. Detection is on by default and runs on every
+launch and project switch through the platform CLI that is already installed
+and signed in on your machine, so it is that CLI, with your credentials, that
+contacts the platform. Staging adds no network client of its own:
 
 | Platform | CLI | Remote host match |
 | :--- | :--- | :--- |
@@ -90,10 +91,14 @@ makes no network calls:
 
 No CLI, signed out, or no open request: the picker simply falls back to the
 suggested base. A `--base` flag, a `baseBranch` config value, or a base you
-pick yourself always wins over the detected request. Self-hosted remote on an
-unrecognised host: set `pullRequestProvider`. To turn detection off entirely,
-set `detectPullRequest` to `false`. Bitbucket has no standard CLI yet;
-providers live in `lib/pull-requests.js` and adding one is a single entry.
+pick yourself always wins over the detected request. The lookup runs off the
+server's event loop, so a slow CLI never delays the diff. Self-hosted remote
+on an unrecognised host: set `pullRequestProvider`. To turn detection off
+entirely, set `detectPullRequest` to `false`. In a fork workflow the target
+resolves on the remote your branch tracks; pick `upstream/main` from the
+picker if that is what the request really targets. Bitbucket has no standard
+CLI yet; providers live in `lib/pull-requests.js` and adding one is a single
+entry.
 
 ### Standalone File Preview
 
