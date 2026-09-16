@@ -182,6 +182,44 @@ try {
   // No fingerprints to check against (preview mode): untouched
   assert.equal(markStaleComments(allStale, null), allStale);
 
+  // A comment written this session is never flagged by a re-judge (the
+  // staged view answering before `--pr` switches the base): it follows the
+  // file's current fingerprint instead. Older comments are judged as usual.
+  const sessionStart = 1_000_000;
+  const mixed = {
+    'a.txt': [
+      { id: 'old', file: 'a.txt', timestamp: 1, fingerprint: 'head:idx' },
+      {
+        id: 'new',
+        file: 'a.txt',
+        timestamp: sessionStart,
+        fingerprint: 'head:idx',
+      },
+    ],
+  };
+  const rejudged = markStaleComments(
+    mixed,
+    { 'a.txt': 'base:idx' },
+    sessionStart,
+  );
+  assert.equal(rejudged['a.txt'][0].stale, true);
+  assert.equal(rejudged['a.txt'][1].stale, false);
+  assert.equal(rejudged['a.txt'][1].fingerprint, 'base:idx');
+  // ...and keeps its old fingerprint when the file left the diff
+  const gone = markStaleComments(mixed, {}, sessionStart);
+  assert.equal(Boolean(gone['a.txt'][1].stale), false);
+  assert.equal(gone['a.txt'][1].fingerprint, 'head:idx');
+  assert.equal(gone['a.txt'][0].stale, true);
+
+  // A stored shape that is not an object of arrays is ignored
+  memory.set(
+    'staging-comments:/null',
+    JSON.stringify({ commentsByFile: null }),
+  );
+  assert.deepEqual(loadComments('/null').commentsByFile, {});
+  memory.set('staging-comments:/arr', JSON.stringify({ commentsByFile: [] }));
+  assert.deepEqual(loadComments('/arr').commentsByFile, {});
+
   // markStaleComments keeps object identity when nothing changes
   const again = markStaleComments(judged, byPath);
   assert.equal(again['a.txt'][0], judged['a.txt'][0]);

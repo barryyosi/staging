@@ -538,6 +538,7 @@ function DiffViewer({
   onEditLine,
   onCopyFile,
   onSaveFile,
+  onNotify,
   onFileReviewed,
   isReviewed,
   globalCollapsed,
@@ -937,12 +938,12 @@ function DiffViewer({
       setEditorOpening(true);
       fetchFileContent(filePath)
         .then((content) => setEditorContent(content))
-        .catch(() => {
-          // The preview itself reports a file it cannot read
-        })
+        .catch((err) =>
+          onNotify?.(`Failed to read file: ${err.message}`, 'error'),
+        )
         .finally(() => setEditorOpening(false));
     },
-    [editorContent, editorOpening, filePath],
+    [editorContent, editorOpening, filePath, onNotify],
   );
 
   const handleSaveEditor = useCallback(

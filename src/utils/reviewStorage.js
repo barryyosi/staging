@@ -59,15 +59,24 @@ function removeKey(key) {
 // Flags every comment whose file no longer carries the fingerprint it was
 // written against, and clears the flag on those that match again (the same
 // comment can be stale against the staged diff and live against the pull
-// request's base). With no fingerprint map nothing can be verified, so the
-// comments are returned untouched.
-export function markStaleComments(commentsByFile, fingerprintByPath) {
+// request's base). Comments written at or after `since` (this session) are
+// about the diff on screen whatever base it is shown under, so they are
+// never flagged and instead follow the file's current fingerprint. With no
+// fingerprint map nothing can be verified, so the comments are returned
+// untouched.
+export function markStaleComments(commentsByFile, fingerprintByPath, since) {
   if (!fingerprintByPath) return commentsByFile;
   const next = {};
   for (const [file, comments] of Object.entries(commentsByFile)) {
     next[file] = comments.map((comment) => {
-      const stale =
-        !comment.fingerprint || comment.fingerprint !== fingerprintByPath[file];
+      const current = fingerprintByPath[file];
+      if (since != null && comment.timestamp >= since) {
+        const fingerprint = current || comment.fingerprint;
+        return !comment.stale && comment.fingerprint === fingerprint
+          ? comment
+          : { ...comment, stale: false, fingerprint };
+      }
+      const stale = !comment.fingerprint || comment.fingerprint !== current;
       return stale === Boolean(comment.stale) ? comment : { ...comment, stale };
     });
   }
@@ -79,7 +88,9 @@ export function markStaleComments(commentsByFile, fingerprintByPath) {
 export function loadComments(projectKey) {
   const stored = projectKey ? readJson(COMMENTS_PREFIX + projectKey) : null;
   const commentsByFile =
-    stored && typeof stored.commentsByFile === 'object'
+    stored?.commentsByFile &&
+    typeof stored.commentsByFile === 'object' &&
+    !Array.isArray(stored.commentsByFile)
       ? stored.commentsByFile
       : {};
   return {

@@ -40,6 +40,8 @@ export function useComments(projectKey, diffSummary = null) {
   const loaded = value !== null;
   const { commentsByFile, generalNote } = value || EMPTY;
 
+  // Comments from this session are never judged stale (see markStaleComments)
+  const sessionStartRef = useRef(Date.now());
   // Which (project, base) the stored comments were last judged against
   const judgedRef = useRef(null);
   useEffect(() => {
@@ -58,6 +60,7 @@ export function useComments(projectKey, diffSummary = null) {
       commentsByFile: markStaleComments(
         prev.commentsByFile,
         diffSummary.fingerprintByPath,
+        sessionStartRef.current,
       ),
     }));
   }, [loaded, diffSummary, projectKey, setValue]);

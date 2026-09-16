@@ -136,10 +136,14 @@ function fingerprintsOf(summaries) {
   return byPath;
 }
 
+// Keeps each file's array identity when nothing is stale, so untouched
+// cards do not re-render on every comment change
 function withoutStale(commentsByFile) {
   const next = {};
   for (const [file, comments] of Object.entries(commentsByFile)) {
-    const pending = comments.filter((c) => !c.stale);
+    const pending = comments.some((c) => c.stale)
+      ? comments.filter((c) => !c.stale)
+      : comments;
     if (pending.length > 0) next[file] = pending;
   }
   return next;
@@ -1476,7 +1480,16 @@ export default function App() {
         return;
       }
       showToast('File saved and staged', 'success');
-      await refreshDiffForFile(filePath);
+      // The write is done either way; a failed refresh must not keep the
+      // editor open over content that is already on disk
+      try {
+        await refreshDiffForFile(filePath);
+      } catch (err) {
+        showToast(
+          `Saved, but failed to reload the diff: ${err.message}`,
+          'error',
+        );
+      }
     },
     [refreshDiffForFile, showToast],
   );
@@ -1953,6 +1966,7 @@ export default function App() {
                     onEditLine={handleEditLine}
                     onCopyFile={handleCopyFile}
                     onSaveFile={handleSaveFile}
+                    onNotify={showToast}
                     onFileReviewed={handleFileReviewed}
                     isReviewed={reviewedFiles.has(filePath)}
                     globalCollapsed={globalCollapsed}
