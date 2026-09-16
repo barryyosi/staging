@@ -64,6 +64,23 @@ try {
   );
   assert.equal(getStagedFileContent(repo, 'doc.md'), '# Title\n\nv3\n');
 
+  // Under autocrlf a clean checkout reads as CRLF while the index holds LF;
+  // that must not count as unstaged changes
+  git('config', 'core.autocrlf', 'true');
+  fs.rmSync(path.join(repo, 'doc.md'));
+  git('checkout', '--', 'doc.md');
+  assert.equal(
+    getWorkingTreeFileContent(repo, 'doc.md'),
+    '# Title\r\n\r\nv3\r\n',
+  );
+  assert.equal(git('status', '--porcelain'), 'M  doc.md', 'clean checkout');
+  assert.deepEqual(writeStagedFile(repo, 'doc.md', '# Title\n\nv4\n'), {
+    changed: true,
+  });
+  assert.equal(getStagedFileContent(repo, 'doc.md'), '# Title\n\nv4\n');
+  git('config', '--unset', 'core.autocrlf');
+  write('doc.md', '# Title\n\nv4\n');
+
   // A file deleted from the working tree but still staged can be rewritten
   fs.rmSync(path.join(repo, 'doc.md'));
   assert.deepEqual(writeStagedFile(repo, 'doc.md', '# Title\n\nv5\n'), {
