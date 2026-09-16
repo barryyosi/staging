@@ -155,30 +155,40 @@ try {
   };
   saveComments('/repo', { commentsByFile: comments, generalNote: 'note' });
 
-  // Same diff: everything but the unverifiable comment is live
-  let loaded = loadComments('/repo', byPath);
+  // Loading returns the comments as stored; judging is a separate step
+  const loaded = loadComments('/repo');
   assert.equal(loaded.generalNote, 'note');
-  assert.equal(Boolean(loaded.commentsByFile['a.txt'][0].stale), false);
-  assert.equal(Boolean(loaded.commentsByFile['c.txt'][0].stale), false);
-  assert.equal(loaded.commentsByFile['c.txt'][1].stale, true);
+  assert.deepEqual(loaded.commentsByFile, comments);
+
+  // Same diff: everything but the unverifiable comment is live
+  let judged = markStaleComments(loaded.commentsByFile, byPath);
+  assert.equal(Boolean(judged['a.txt'][0].stale), false);
+  assert.equal(Boolean(judged['c.txt'][0].stale), false);
+  assert.equal(judged['c.txt'][1].stale, true);
 
   // a.txt changed, c.txt gone from the diff: all stale
-  loaded = loadComments('/repo', { 'a.txt': 'x:y' });
-  assert.equal(loaded.commentsByFile['a.txt'][0].stale, true);
-  assert.equal(loaded.commentsByFile['c.txt'][0].stale, true);
+  const allStale = markStaleComments(judged, { 'a.txt': 'x:y' });
+  assert.equal(allStale['a.txt'][0].stale, true);
+  assert.equal(allStale['c.txt'][0].stale, true);
 
-  // No fingerprints to check against (preview mode): nothing is flagged
-  loaded = loadComments('/repo', null);
-  assert.equal('stale' in loaded.commentsByFile['a.txt'][0], false);
+  // Judged again against a diff where the files match (a compare base that
+  // covers them): the flags clear. This is the `--pr` reopen, where the
+  // staged diff answers first and the request's base later.
+  const revived = markStaleComments(allStale, byPath);
+  assert.equal(revived['a.txt'][0].stale, false);
+  assert.equal(revived['c.txt'][0].stale, false);
+  assert.equal(revived['c.txt'][1].stale, true, 'still unverifiable');
+
+  // No fingerprints to check against (preview mode): untouched
+  assert.equal(markStaleComments(allStale, null), allStale);
 
   // markStaleComments keeps object identity when nothing changes
-  const marked = markStaleComments(loaded.commentsByFile, byPath);
-  const again = markStaleComments(marked, byPath);
-  assert.equal(again['a.txt'][0], marked['a.txt'][0]);
+  const again = markStaleComments(judged, byPath);
+  assert.equal(again['a.txt'][0], judged['a.txt'][0]);
 
   saveComments('/repo', { commentsByFile: {}, generalNote: null });
   assert.equal(memory.has('staging-comments:/repo'), false);
-  assert.deepEqual(loadComments('', byPath), {
+  assert.deepEqual(loadComments(''), {
     commentsByFile: {},
     generalNote: null,
   });

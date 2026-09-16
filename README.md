@@ -119,8 +119,10 @@ local storage and per repository:
   general note.
 
 On the next open, a file whose diff is byte-for-byte the same comes back
-reviewed; one that changed since starts unreviewed again. Comments on
-unchanged files come back live and are sent as usual. Comments on files
+reviewed; one that changed since starts unreviewed again. Comments are
+judged when the project loads and again whenever the compare base changes
+(so a review made with `--pr` is judged against the request's diff, not the
+staged one). Comments on unchanged files come back live and are sent as usual. Comments on files
 that changed or left the diff come back **stale**: the panel lists them in a
 separate section so you can see what you asked for last time, but they are
 not shown inline and not sent to the agent. Dismiss them one by one or with
@@ -142,8 +144,10 @@ staging -r path/to/file.md     # explicit --render/-r alias
 The preview live-reloads when the file changes on disk. Hover any rendered
 block for a `+` button to comment on it, or select text to quote a specific
 phrase — comments appear inline beneath the block they refer to and carry the
-markdown source line. The header's copy button puts the file's text on the
-clipboard, and the pencil opens it in a plain editor (`Ctrl/Cmd+Enter` saves,
+markdown source line. Comments and the general note persist per document,
+like they do per repository (see above), but without a diff to judge them
+against they always come back live. The header's copy button puts the file's
+text on the clipboard, and the pencil opens it in a plain editor (`Ctrl/Cmd+Enter` saves,
 `Esc` cancels); a save writes the file and the preview re-renders. Inside a
 repository the same two buttons sit on a file's card while it shows the
 preview: there the text is the staged copy, and saving writes it to the

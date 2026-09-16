@@ -1,6 +1,10 @@
 import { useCallback, useMemo, useRef, useEffect } from 'react';
 import { useProjectStore } from './useProjectStore';
-import { loadComments, saveComments } from '../utils/reviewStorage';
+import {
+  loadComments,
+  saveComments,
+  markStaleComments,
+} from '../utils/reviewStorage';
 
 let idCounter = 0;
 
@@ -15,23 +19,48 @@ function generateId() {
 const EMPTY = { commentsByFile: {}, generalNote: null };
 
 // Comments live in localStorage per project so a review survives closing the
-// tab. `fingerprintByPath` (from the diff summary) stamps each new comment
-// with its file's fingerprint; when a project's comments are loaded, those
-// whose file has since changed come back flagged `stale`. Staleness is only
-// decided on load: while the tab is open a comment stays live however the
-// diff moves under it.
-export function useComments(projectKey, fingerprintByPath = null) {
-  const fingerprintsRef = useRef(fingerprintByPath);
+// tab. `diffSummary` ({ base, fingerprintByPath }, null while loading) comes
+// from the diff summary: it stamps each new comment with its file's
+// fingerprint, and each comment is judged `stale` against it once per
+// project and compare base, when that base's summary lands. Between those
+// points a comment stays live however the diff moves under it, so nothing
+// silently drops out of a handoff mid-session. With no summary at all
+// (preview mode) nothing is ever flagged.
+export function useComments(projectKey, diffSummary = null) {
+  const fingerprintsRef = useRef(diffSummary?.fingerprintByPath || null);
   useEffect(() => {
-    fingerprintsRef.current = fingerprintByPath;
-  }, [fingerprintByPath]);
+    fingerprintsRef.current = diffSummary?.fingerprintByPath || null;
+  }, [diffSummary]);
 
-  const load = useCallback(
-    (key) => loadComments(key, fingerprintsRef.current),
-    [],
+  const [value, setValue] = useProjectStore(
+    projectKey,
+    loadComments,
+    saveComments,
   );
-  const [value, setValue] = useProjectStore(projectKey, load, saveComments);
+  const loaded = value !== null;
   const { commentsByFile, generalNote } = value || EMPTY;
+
+  // Which (project, base) the stored comments were last judged against
+  const judgedRef = useRef(null);
+  useEffect(() => {
+    if (!loaded || !diffSummary) return;
+    const judged = judgedRef.current;
+    if (
+      judged &&
+      judged.key === projectKey &&
+      judged.base === diffSummary.base
+    ) {
+      return;
+    }
+    judgedRef.current = { key: projectKey, base: diffSummary.base };
+    setValue((prev) => ({
+      ...prev,
+      commentsByFile: markStaleComments(
+        prev.commentsByFile,
+        diffSummary.fingerprintByPath,
+      ),
+    }));
+  }, [loaded, diffSummary, projectKey, setValue]);
 
   const update = useCallback(
     (updater) => setValue((prev) => ({ ...prev, ...updater(prev) })),

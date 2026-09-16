@@ -150,9 +150,17 @@ export default function App() {
   const { diffLayout, toggleDiffLayout } = useDiffLayout();
   const [gitRoot, setGitRoot] = useState('');
   const [fileSummaries, setFileSummaries] = useState(null);
+  // The base the current summaries were built against (null: staged diff);
+  // set in the same batch as fileSummaries
+  const [summaryBase, setSummaryBase] = useState(null);
   const fingerprintByPath = useMemo(
     () => fingerprintsOf(fileSummaries),
     [fileSummaries],
+  );
+  // What comments are judged stale against: null while a summary is loading
+  const diffSummary = useMemo(
+    () => (fileSummaries ? { base: summaryBase, fingerprintByPath } : null),
+    [fileSummaries, summaryBase, fingerprintByPath],
   );
   const {
     commentsByFile,
@@ -166,7 +174,7 @@ export default function App() {
     deleteComment,
     clearStaleComments,
     deleteAllComments,
-  } = useComments(gitRoot, fingerprintByPath);
+  } = useComments(gitRoot, diffSummary);
   // Stale comments are for the panel only: nothing inline, no sidebar badge
   const pendingCommentsByFile = useMemo(
     () => withoutStale(commentsByFile),
@@ -500,6 +508,7 @@ export default function App() {
       const summaries = summaryData.files || [];
       const stagedPaths = summaries.map((f) => getFilePath(f)).filter(Boolean);
       setGitRoot(summaryData.gitRoot || '');
+      setSummaryBase(summaryData.base || null);
       setFileSummaries(summaries);
       setUnstagedFiles(unstaged);
 
@@ -1354,6 +1363,7 @@ export default function App() {
         summaries,
       );
       setGitRoot(summaryData.gitRoot || '');
+      setSummaryBase(summaryData.base || null);
       setFileSummaries(summaries);
       setUnstagedFiles(unstaged);
       setFileDetailsByPath(retainedDetails);

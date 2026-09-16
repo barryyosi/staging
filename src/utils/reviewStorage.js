@@ -57,8 +57,10 @@ function removeKey(key) {
 // --- Comments ---
 
 // Flags every comment whose file no longer carries the fingerprint it was
-// written against. With no fingerprint map (preview mode) nothing can be
-// verified, so nothing is flagged.
+// written against, and clears the flag on those that match again (the same
+// comment can be stale against the staged diff and live against the pull
+// request's base). With no fingerprint map nothing can be verified, so the
+// comments are returned untouched.
 export function markStaleComments(commentsByFile, fingerprintByPath) {
   if (!fingerprintByPath) return commentsByFile;
   const next = {};
@@ -72,14 +74,16 @@ export function markStaleComments(commentsByFile, fingerprintByPath) {
   return next;
 }
 
-export function loadComments(projectKey, fingerprintByPath) {
+// Stored as saved, `stale` flags from the last session included; the caller
+// re-judges them with markStaleComments once the current diff is known
+export function loadComments(projectKey) {
   const stored = projectKey ? readJson(COMMENTS_PREFIX + projectKey) : null;
   const commentsByFile =
     stored && typeof stored.commentsByFile === 'object'
       ? stored.commentsByFile
       : {};
   return {
-    commentsByFile: markStaleComments(commentsByFile, fingerprintByPath),
+    commentsByFile,
     generalNote:
       typeof stored?.generalNote === 'string' ? stored.generalNote : null,
   };
