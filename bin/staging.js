@@ -8,7 +8,7 @@ import { startServer } from '../lib/server.js';
 import { openBrowser } from '../lib/open-browser.js';
 
 // CLI args
-const KNOWN_FLAGS = new Set(['--no-open', '-r', '--render', '--base']);
+const KNOWN_FLAGS = new Set(['--no-open', '-r', '--render', '--base', '--pr']);
 const args = process.argv.slice(2);
 const flags = new Set();
 const positionals = [];
@@ -29,7 +29,7 @@ for (let i = 0; i < args.length; i++) {
   }
   if (!KNOWN_FLAGS.has(arg)) {
     console.error(
-      `Error: unknown option "${arg}". Supported: -r, --render, --base <branch>, --no-open.` +
+      `Error: unknown option "${arg}". Supported: -r, --render, --base <branch>, --pr, --no-open.` +
         (arg.startsWith('--')
           ? ''
           : ` For a file named "${arg}", pass a path like ./${arg}.`),
@@ -40,6 +40,7 @@ for (let i = 0; i < args.length; i++) {
 }
 const noOpen = flags.has('--no-open');
 const renderFlag = flags.has('-r') || flags.has('--render');
+const prFlag = flags.has('--pr');
 const positional = positionals[0];
 const targetPath = path.resolve(positional || '.');
 
@@ -123,11 +124,33 @@ if (baseBranch) {
   }
   config.baseBranch = baseBranch;
 }
+if (prFlag) {
+  if (previewMode) {
+    console.error('Error: --pr does not apply to preview mode.');
+    process.exit(1);
+  }
+  if (baseBranch) {
+    console.error('Error: --pr and --base cannot be combined.');
+    process.exit(1);
+  }
+  if (!config.detectPullRequest) {
+    console.error(
+      'Error: --pr needs pull request detection, which detectPullRequest turns off in config.',
+    );
+    process.exit(1);
+  }
+  config.basePullRequest = true;
+}
 if (config.baseBranch) {
   // A base from .stagingrc.json is checked by the UI, which falls back to
   // the staged diff with a toast if it does not resolve
   console.log(`Comparing against ${config.baseBranch}.`);
 } else if (!previewMode) {
+  if (config.basePullRequest && config.detectPullRequest) {
+    console.log(
+      'Comparing against the open pull request target once it is found.',
+    );
+  }
   // Count staged files (but do not block startup when empty)
   const fileCount = execSync('git diff --cached --name-only', {
     cwd: gitRoot,

@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useCallback, memo } from 'react';
-import { X, Quote, StickyNote } from 'lucide-react';
+import { X, Quote, StickyNote, History } from 'lucide-react';
 import { modKey } from '../utils/platform';
 import { describeLines } from '../utils/format';
+import { slugify } from '../utils/escape';
 
 function GeneralNoteSection({
   generalNote,
@@ -128,13 +129,82 @@ function GeneralNoteSection({
   );
 }
 
+// Stale comments (see useComments) are listed apart from the live ones: their
+// file changed since they were written, so the line they name may no longer
+// exist and they are not sent to the agent
+function splitStale(commentsByFile) {
+  const pending = [];
+  const stale = [];
+  for (const [file, comments] of Object.entries(commentsByFile)) {
+    const live = comments.filter((c) => !c.stale);
+    const old = comments.filter((c) => c.stale);
+    if (live.length > 0) pending.push([file, live]);
+    if (old.length > 0) stale.push([file, old]);
+  }
+  return { pending, stale };
+}
+
+function CommentLocation({ comment }) {
+  if (comment.lineType === 'file') return 'File comment';
+  if (comment.lineType === 'preview') {
+    // Quote only, no line number: the panel reads the store, whose srcLine
+    // goes stale as soon as the document is edited above the comment. The
+    // bubble and the agent payload resolve it against the current render;
+    // showing the stored one here would contradict both.
+    const label = comment.selectedText || comment.anchorText || '';
+    return (
+      <span className="panel-quote-ref">
+        <Quote size={12} strokeWidth={1.5} />
+        {label.length > 50 ? label.slice(0, 50) + '...' : label}
+      </span>
+    );
+  }
+  return describeLines(comment);
+}
+
+function CommentItem({ comment, onActivate, onDelete }) {
+  return (
+    <div
+      className={`panel-comment-item${comment.stale ? ' is-stale' : ''}`}
+      role="button"
+      tabIndex={0}
+      onClick={() => onActivate(comment)}
+      onKeyDown={(event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        onActivate(comment);
+      }}
+    >
+      <button
+        className="panel-dismiss-btn"
+        type="button"
+        aria-label="Dismiss comment"
+        title="Dismiss comment"
+        onClick={(e) => {
+          e.stopPropagation();
+          onDelete(comment.id);
+        }}
+      >
+        <X size={14} strokeWidth={1.5} />
+      </button>
+      <div className="panel-line-ref">
+        <CommentLocation comment={comment} />
+      </div>
+      <div className="panel-comment-text">{comment.content}</div>
+    </div>
+  );
+}
+
 function CommentPanel({
   id,
   commentsByFile,
   reviewItemCount,
+  staleCount = 0,
   onDeleteComment,
   onDismissAll,
+  onClearStale,
   onSelectComment,
+  onSelectFile,
   generalNote,
   isEditingGeneralNote,
   onToggleEditGeneralNote,
@@ -205,6 +275,23 @@ function CommentPanel({
     [onSelectComment, scrollToComment],
   );
 
+  // A stale comment has nothing inline to land on; the file it names is the
+  // closest thing, when it is still in the diff
+  const handleStaleActivate = useCallback(
+    (comment) => {
+      if (onSelectFile) {
+        onSelectFile(comment.file);
+      } else {
+        const node = document.getElementById(`file-${slugify(comment.file)}`);
+        if (node) node.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+      onSelectComment?.();
+    },
+    [onSelectComment, onSelectFile],
+  );
+
+  const { pending, stale } = splitStale(commentsByFile);
+
   return (
     <aside
       id={id}
@@ -233,61 +320,53 @@ function CommentPanel({
           onSave={onSaveGeneralNote}
           onClear={onClearGeneralNote}
         />
-        {Object.entries(commentsByFile).map(([file, fileComments]) => (
+        {pending.map(([file, fileComments]) => (
           <div key={file} className="panel-comment-group">
             <h3>{file}</h3>
             {fileComments.map((c) => (
-              <div
+              <CommentItem
                 key={c.id}
-                className="panel-comment-item"
-                role="button"
-                tabIndex={0}
-                onClick={() => handleCommentActivate(c)}
-                onKeyDown={(event) => {
-                  if (event.key !== 'Enter' && event.key !== ' ') return;
-                  event.preventDefault();
-                  handleCommentActivate(c);
-                }}
-              >
-                <button
-                  className="panel-dismiss-btn"
-                  type="button"
-                  aria-label="Dismiss comment"
-                  title="Dismiss comment"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDeleteComment(c.id);
-                  }}
-                >
-                  <X size={14} strokeWidth={1.5} />
-                </button>
-                <div className="panel-line-ref">
-                  {c.lineType === 'file' ? (
-                    'File comment'
-                  ) : c.lineType === 'preview' ? (
-                    // Quote only, no line number: the panel reads the store,
-                    // whose srcLine goes stale as soon as the document is
-                    // edited above the comment. The bubble and the agent
-                    // payload resolve it against the current render; showing
-                    // the stored one here would contradict both.
-                    <span className="panel-quote-ref">
-                      <Quote size={12} strokeWidth={1.5} />
-                      {(() => {
-                        const label = c.selectedText || c.anchorText || '';
-                        return label.length > 50
-                          ? label.slice(0, 50) + '...'
-                          : label;
-                      })()}
-                    </span>
-                  ) : (
-                    describeLines(c)
-                  )}
-                </div>
-                <div className="panel-comment-text">{c.content}</div>
-              </div>
+                comment={c}
+                onActivate={handleCommentActivate}
+                onDelete={onDeleteComment}
+              />
             ))}
           </div>
         ))}
+        {stale.length > 0 && (
+          <section className="panel-stale-section" aria-label="Stale comments">
+            <div className="panel-stale-header">
+              <span className="panel-stale-title">
+                <History size={12} strokeWidth={1.5} />
+                Stale ({staleCount})
+              </span>
+              <button
+                className="panel-dismiss-all-btn"
+                type="button"
+                onClick={onClearStale}
+              >
+                Clear stale
+              </button>
+            </div>
+            <p className="panel-stale-hint">
+              From an earlier review; these files changed since. Not sent to the
+              agent.
+            </p>
+            {stale.map(([file, fileComments]) => (
+              <div key={file} className="panel-comment-group">
+                <h3>{file}</h3>
+                {fileComments.map((c) => (
+                  <CommentItem
+                    key={c.id}
+                    comment={c}
+                    onActivate={handleStaleActivate}
+                    onDelete={onDeleteComment}
+                  />
+                ))}
+              </div>
+            ))}
+          </section>
+        )}
       </div>
     </aside>
   );

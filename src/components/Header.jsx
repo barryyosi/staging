@@ -237,8 +237,11 @@ function Header({
   hasReviewItems,
   reviewItemCount,
   commentsByFile,
+  staleCount,
   onDeleteComment,
   onDismissAllComments,
+  onClearStaleComments,
+  onSelectFile,
   onSendComments,
   committed,
   allCollapsed,
@@ -484,18 +487,30 @@ function Header({
             type="button"
           >
             <MessageSquare size={16} strokeWidth={1.5} />
-            {reviewItemCount > 0 && (
+            {reviewItemCount > 0 ? (
               <span className="btn-badge">{reviewItemCount}</span>
-            )}
+            ) : staleCount > 0 ? (
+              // Only stale comments left over from an earlier review: worth a
+              // muted hint that the panel is not empty
+              <span
+                className="btn-badge btn-badge-stale"
+                title={`${staleCount} stale comment${staleCount === 1 ? '' : 's'}`}
+              >
+                {staleCount}
+              </span>
+            ) : null}
           </button>
           {commentsOpen && (
             <CommentPanel
               id={COMMENTS_PANEL_ID}
               commentsByFile={commentsByFile}
               reviewItemCount={reviewItemCount}
+              staleCount={staleCount}
               onDeleteComment={onDeleteComment}
               onDismissAll={onDismissAllComments}
+              onClearStale={onClearStaleComments}
               onSelectComment={() => closeComments(true)}
+              onSelectFile={onSelectFile}
               generalNote={generalNote}
               isEditingGeneralNote={isEditingGeneralNote}
               onToggleEditGeneralNote={onToggleEditGeneralNote}

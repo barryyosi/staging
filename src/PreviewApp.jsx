@@ -7,11 +7,14 @@ import {
   FileText,
   MessageSquare,
   MessageSquarePlus,
+  Copy,
+  Pencil,
 } from 'lucide-react';
 import { useTheme } from './hooks/useTheme';
 import { useComments } from './hooks/useComments';
 import { useDismissablePopover } from './hooks/useDismissablePopover';
 import PreviewBody from './components/PreviewBody';
+import FileEditor from './components/FileEditor';
 import CommentPanel from './components/CommentPanel';
 import Toast from './components/Toast';
 import { FileCommentBubble, FileCommentForm } from './components/FileComments';
@@ -19,6 +22,7 @@ import { SendMediumPicker } from './components/Header';
 import { renderPreviewBlocks } from './utils/renderPreview';
 import { withResolvedLines } from './utils/anchorComments';
 import { copyToClipboard } from './utils/clipboard';
+import { fetchFileContent, writeFileContent } from './utils/fileContent';
 import { formatComments } from './utils/format';
 
 const SEND_MEDIUM_PICKER_ID = 'send-medium-picker';
@@ -31,13 +35,15 @@ export default function PreviewApp({ preview, config }) {
   const documentPath = `${preview.root}/${preview.file}`;
   const {
     commentsByFile,
-    allComments,
+    pendingComments,
+    staleCount,
     generalNote,
     setGeneralNote,
     clearGeneralNote,
     addComment,
     updateComment,
     deleteComment,
+    clearStaleComments,
     deleteAllComments,
   } = useComments(documentPath);
 
@@ -47,6 +53,9 @@ export default function PreviewApp({ preview, config }) {
   const [activeForm, setActiveForm] = useState(null);
   const [editingComment, setEditingComment] = useState(null);
   const [isEditingGeneralNote, setIsEditingGeneralNote] = useState(false);
+  // Whole-file editor over the preview: the text it opened with, or null
+  const [editorContent, setEditorContent] = useState(null);
+  const [editorOpening, setEditorOpening] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [selectedMediums, setSelectedMediums] = useState(
     () =>
@@ -152,6 +161,54 @@ export default function PreviewApp({ preview, config }) {
       ...anchor,
     });
   }, []);
+
+  const handleCopyFile = useCallback(async () => {
+    const content = fetchFileContent(filePath);
+    // Started before any await so the click's user activation still covers
+    // the clipboard write
+    const copiedPromise = copyToClipboard(content);
+    try {
+      await content;
+    } catch (err) {
+      showToast(`Failed to read file: ${err.message}`, 'error');
+      return;
+    }
+    const copied = await copiedPromise;
+    showToast(
+      copied ? `Copied ${filePath}` : 'Clipboard blocked by the browser',
+      copied ? 'success' : 'error',
+    );
+  }, [filePath, showToast]);
+
+  const handleOpenEditor = useCallback(() => {
+    if (editorOpening || editorContent !== null) return;
+    setEditorOpening(true);
+    fetchFileContent(filePath)
+      .then((content) => setEditorContent(content))
+      .catch((err) => showToast(`Failed to read file: ${err.message}`, 'error'))
+      .finally(() => setEditorOpening(false));
+  }, [editorContent, editorOpening, filePath, showToast]);
+
+  // The poll loop notices the new mtime and re-renders the preview
+  const handleSaveEditor = useCallback(
+    async (content) => {
+      let changed;
+      try {
+        changed = await writeFileContent(filePath, content);
+      } catch (err) {
+        showToast(`Failed to save: ${err.message}`, 'error');
+        throw err;
+      }
+      showToast(
+        changed ? 'File saved' : 'No changes detected',
+        changed ? 'success' : 'info',
+      );
+      setEditorContent(null);
+    },
+    [filePath, showToast],
+  );
+
+  const handleCloseEditor = useCallback(() => setEditorContent(null), []);
 
   const handleAddFileComment = useCallback(() => {
     setEditingComment(null);
@@ -274,12 +331,12 @@ export default function PreviewApp({ preview, config }) {
   );
 
   const handleSendComments = useCallback(async () => {
-    if (allComments.length === 0 && !generalNote) return;
+    if (pendingComments.length === 0 && !generalNote) return;
     // The document live-reloads under the reviewer, so a comment's stored
     // srcLine may predate edits made above it. Re-resolve against the current
     // render before handing line numbers to the agent.
     const formatted = formatComments(
-      withResolvedLines(allComments, blocks, filePath),
+      withResolvedLines(pendingComments, blocks, filePath),
       documentPath,
       generalNote,
       { context: 'preview' },
@@ -328,7 +385,7 @@ export default function PreviewApp({ preview, config }) {
       setTimeout(() => window.close(), 300);
     }
   }, [
-    allComments,
+    pendingComments,
     blocks,
     filePath,
     generalNote,
@@ -342,7 +399,7 @@ export default function PreviewApp({ preview, config }) {
   const fileLevelComments = (fileComments || []).filter(
     (c) => c.lineType === 'file',
   );
-  const reviewItemCount = allComments.length + (generalNote ? 1 : 0);
+  const reviewItemCount = pendingComments.length + (generalNote ? 1 : 0);
   const canSend = reviewItemCount > 0 && selectedMediums.length > 0;
 
   return (
@@ -357,6 +414,25 @@ export default function PreviewApp({ preview, config }) {
           </span>
         </div>
         <div className="header-right">
+          <button
+            className="file-action-btn"
+            type="button"
+            title="Copy file content"
+            aria-label="Copy file content"
+            onClick={handleCopyFile}
+          >
+            <Copy size={18} strokeWidth={1.5} />
+          </button>
+          <button
+            className={`file-action-btn${editorContent !== null ? ' is-active' : ''}`}
+            type="button"
+            title="Edit file"
+            aria-label="Edit file"
+            onClick={handleOpenEditor}
+            disabled={editorOpening}
+          >
+            <Pencil size={18} strokeWidth={1.5} />
+          </button>
           <button
             className={`file-action-btn${fileLevelComments.length > 0 ? ' has-file-comments' : ''}`}
             type="button"
@@ -410,8 +486,10 @@ export default function PreviewApp({ preview, config }) {
                 id={COMMENTS_PANEL_ID}
                 commentsByFile={commentsByFile}
                 reviewItemCount={reviewItemCount}
+                staleCount={staleCount}
                 onDeleteComment={handleDeleteComment}
                 onDismissAll={handleDismissAllComments}
+                onClearStale={clearStaleComments}
                 onSelectComment={() => closeComments(true)}
                 generalNote={generalNote}
                 isEditingGeneralNote={isEditingGeneralNote}
@@ -517,6 +595,14 @@ export default function PreviewApp({ preview, config }) {
           <div className="preview-standalone-error">
             Failed to load file: {error}
           </div>
+        ) : editorContent !== null ? (
+          <FileEditor
+            filePath={filePath}
+            draftScope={documentPath}
+            initialContent={editorContent}
+            onSave={handleSaveEditor}
+            onCancel={handleCloseEditor}
+          />
         ) : blocks === null ? (
           <div className="preview-standalone-loading">Loading…</div>
         ) : (

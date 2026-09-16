@@ -20,10 +20,11 @@ Staging gives you a dedicated, browser-based review interface with GitHub-style 
 - **Private & Lightweight**: Runs locally with zero telemetry. The diff viewer needs no internet at all; the only outbound traffic is git talking to your remote (update check) and, if installed, your own `gh` / `glab` / `az` CLI looking up the open pull request for your branch. Both can be switched off in config.
 - **Multi-Project Support**: Navigate between sibling repositories and git worktrees
 - **Inline Comments**: Add threaded comments directly on changed lines to guide agent refinements; drag the `+` gutter button to comment on a range of lines
-- **Markdown/HTML Preview**: Toggle per-file between diff and rendered preview for `.md` and `.html` files, with inline commenting on the rendered output — hover any block for a `+` gutter button, or select text to quote it; comments carry the markdown source line so the agent knows exactly where to edit
+- **Markdown/HTML Preview**: Toggle per-file between diff and rendered preview for `.md` and `.html` files, with inline commenting on the rendered output — hover any block for a `+` gutter button, or select text to quote it; comments carry the markdown source line so the agent knows exactly where to edit. In preview, one click copies the file's text and another opens it in an editor; saving re-stages the file
 - **Standalone File Preview**: Point staging at a single markdown/HTML file — no git repo needed — for a live-reloading rendered preview with the same inline commenting, plus file-level comments, a general review note, and the comments panel
+- **Review State That Survives a Reopen**: Comments, the general note and the files you marked reviewed are kept on disk per repository (under `~/.staging-reviews/`). Reopen staging after the agent has worked and the files whose diff did not change are still ticked; comments on files that did change come back as stale, listed in the panel for reference but not sent again
 - **Compare Against a Base Branch**: Switch the review from "what is staged" to "everything this branch adds on top of `main`" (or any branch) — committed and staged alike — from the header, `--base <branch>`, or the `baseBranch` config option
-- **Pull Request Aware**: When the checked-out branch has an open pull/merge request (GitHub via `gh`, GitLab via `glab`, Azure DevOps via `az`), the review defaults to that request's target branch and the handoff names the request — review the PR locally, send the comments straight to the agent
+- **Pull Request Aware**: When the checked-out branch has an open pull/merge request (GitHub via `gh`, GitLab via `glab`, Azure DevOps via `az`), the compare picker offers its target branch and the handoff names the request; run `staging --pr` to open the review on the whole request instead of the staged diff — review the PR locally, send the comments straight to the agent
 - **Update Release Notes**: When a newer Staging build is available, the app opens a built-in "What's New" modal showing the running and available versions (with their commits) and every changelog entry since your version before updating
 
 ## Tech Stack
@@ -74,9 +75,16 @@ agent handoff notes the base branch the review was made against.
 
 #### Open pull / merge requests
 
-If the checked-out branch has an open request, Staging defaults the compare
-base to that request's target branch (as the remote-tracking ref, e.g.
-`origin/main`) and shows the request in the compare picker with a link to it.
+If the checked-out branch has an open request, Staging shows it in the compare
+picker, with its target branch (as the remote-tracking ref, e.g. `origin/main`)
+and a link to it. The review itself still opens on the staged diff. To open it
+on the whole request instead, ask for it:
+
+```bash
+staging --pr          # compare against the open request's target when one is found
+```
+
+or set `basePullRequest: true` in `.stagingrc.json` to make that the default.
 The handoff then reads `Pull request: #12 <title> (<url>)`, so the agent knows
 it is addressing PR feedback. Detection is on by default and runs on every
 launch and project switch through the platform CLI that is already installed
@@ -90,8 +98,8 @@ contacts the platform. Staging adds no network client of its own:
 | Azure DevOps | `az` (with `azure-devops` extension; macOS/Linux only, the Windows `.cmd` shim cannot be spawned safely) | `dev.azure.com`, `visualstudio.com` |
 
 No CLI, signed out, or no open request: the picker simply falls back to the
-suggested base. A `--base` flag, a `baseBranch` config value, or a base you
-pick yourself always wins over the detected request. The lookup runs off the
+suggested base, `--pr` included. A `--base` flag, a `baseBranch` config value,
+or a base you pick yourself always wins over the detected request. The lookup runs off the
 server's event loop, so a slow CLI never delays the diff. Self-hosted remote
 on an unrecognised host: set `pullRequestProvider`. To turn detection off
 entirely, set `detectPullRequest` to `false`. In a fork workflow the target
@@ -99,6 +107,32 @@ resolves on the remote your branch tracks; pick `upstream/main` from the
 picker if that is what the request really targets. Bitbucket has no standard
 CLI yet; providers live in `lib/pull-requests.js` and adding one is a single
 entry.
+
+### Review State Across Sessions
+
+Closing the tab, or the server, does not lose the review. Staging keeps, in
+one file per repository under `~/.staging-reviews/` (override the directory
+with `STAGING_STATE_DIR`):
+
+- the files you ticked as reviewed, together with a fingerprint of each
+  file's diff (the blobs on either side of it);
+- every inline and file-level comment, with the same fingerprint, plus the
+  general note.
+
+On the next open, a file whose diff is byte-for-byte the same comes back
+reviewed; one that changed since starts unreviewed again. Comments are
+judged when the project loads and again whenever the compare base changes
+(so a review made with `--pr` is judged against the request's diff, not the
+staged one). Comments on unchanged files come back live and are sent as usual. Comments on files
+that changed or left the diff come back **stale**: the panel lists them in a
+separate section so you can see what you asked for last time, but they are
+not shown inline and not sent to the agent. Dismiss them one by one or with
+"Clear stale". "Dismiss all" clears everything, stored copy included.
+
+Nothing leaves the machine: the state is keyed by the repository path, so a
+worktree or a sibling project keeps its own. It is written on every change
+from the tab that made it, so review a repository from one tab at a time;
+two tabs open on the same review overwrite each other.
 
 ### Standalone File Preview
 
@@ -113,7 +147,17 @@ staging -r path/to/file.md     # explicit --render/-r alias
 The preview live-reloads when the file changes on disk. Hover any rendered
 block for a `+` button to comment on it, or select text to quote a specific
 phrase — comments appear inline beneath the block they refer to and carry the
-markdown source line. File-level comments and a general review note are
+markdown source line. Comments and the general note persist per document,
+like they do per repository (see above), but without a diff to judge them
+against they always come back live. An unsaved editor draft survives until
+the tab closes: reopen the editor and it is restored. The header's copy button puts the file's
+text on the clipboard, and the pencil opens it in a plain editor (`Ctrl/Cmd+Enter` saves,
+`Esc` cancels); a save writes the file and the preview re-renders. Inside a
+repository the same two buttons sit on a file's card while it shows the
+preview: there the text is the staged copy, and saving writes it to the
+working tree and re-stages it, exactly like an inline line edit. If the
+working tree already has unstaged changes to that file, the save is refused
+rather than dropping them. File-level comments and a general review note are
 available from the header, alongside the comments panel. Send the feedback to
 your agent via the usual mediums (`clipboard`, `file`, `cli`). The review file
 is written next to the previewed file. If the file changes so much that a
@@ -143,7 +187,8 @@ Settings are read from `~/.stagingrc.json`, then `./.stagingrc.json`.
 | `sendMediums` | `["clipboard", "file"]` | Feedback mediums (`clipboard`, `file`, `cli`). |
 | `diffContext` | `3` | Context lines around diffs. |
 | `baseBranch` | `null` | Branch to compare against on launch (e.g. `"main"`). `null` reviews staged changes only. |
-| `detectPullRequest` | `true` | Find the open pull/merge request for the current branch via `gh` / `glab` / `az` and default the compare base to its target. |
+| `detectPullRequest` | `true` | Find the open pull/merge request for the current branch via `gh` / `glab` / `az`; the picker shows it and the handoff names it. |
+| `basePullRequest` | `false` | Also default the compare base to that request's target (what `--pr` does for one launch). Ignored when `detectPullRequest` is off; `baseBranch` wins. |
 | `pullRequestProvider` | `null` | Force `"github"`, `"gitlab"` or `"azure"` instead of matching the remote URL (self-hosted hosts). |
 | `port` | `0` (random) | Local server port. |
 | `autoOpen` | `true` | Auto-open browser on launch. |

@@ -23,6 +23,8 @@ Keep it concise and practical. Put deep implementation details in code comments 
 - `src/components/Header.jsx`: top toolbar actions
 - `src/components/FileSidebar.jsx`: flat/tree navigator + search
 - `src/hooks/useComments.js`: comment state and persistence
+- `lib/review-state.js`: on-disk review state (comments, reviewed marks), one file per project under `~/.staging-reviews/`
+- `src/utils/reviewStorage.js`: the client side of that state and how staleness is decided
 - `src/style.css`: global styles + theme tokens
 
 ## Development Commands
@@ -49,6 +51,8 @@ npm run format   # prettier format
 - `GET /api/tracked-files`: sidebar "show all files"
 - `GET /api/file-content`, `GET /api/raw-file`: preview/context loading
 - `POST /api/file-unstage`, `POST /api/file-stage`, `POST /api/file-revert`
+- `GET /api/review-state?key=<root>`, `PUT /api/review-state`: the current project's persisted comments and reviewed marks (409 for any other key)
+- `POST /api/edit-line`, `POST /api/file-write`: replace one line / the whole staged copy of a file (the document itself in preview mode); both refuse when the working tree has unstaged changes to it
 - `POST /api/hunk-unstage`, `POST /api/hunk-revert`
 - `POST /api/unstage-all`
 - `POST /api/send-comments`
@@ -57,13 +61,15 @@ npm run format   # prettier format
 ## Feature Map (Where To Edit)
 - Project/worktree navigation: `src/components/ProjectNavigator.jsx`, `src/App.jsx`, `lib/server.js`, `lib/git.js`
 - Compare against a base branch: `src/components/ProjectNavigator.jsx` (picker), `src/App.jsx` (`compareBase`, hides index-only actions), `lib/git.js` (`resolveCompareBase`), `bin/staging.js` (`--base`)
-- Pull request detection: `lib/pull-requests.js` (one `PROVIDERS` entry per platform), `lib/server.js` (`/api/pull-request`), `src/App.jsx` (auto-selects the target unless a base was set explicitly), `src/utils/format.js` (names the request in the handoff)
+- Pull request detection: `lib/pull-requests.js` (one `PROVIDERS` entry per platform), `lib/server.js` (`/api/pull-request`), `src/App.jsx` (selects the target only with `--pr` / `basePullRequest`, and never over an explicit base), `bin/staging.js` (`--pr`), `src/utils/format.js` (names the request in the handoff)
 - Sidebar tree/search: `src/components/FileSidebar.jsx`, `src/utils/fileTree.js`, `lib/server.js`
 - Diff actions (file/hunk stage/revert): `src/components/DiffViewer.jsx`, `lib/server.js`, `lib/git.js`
 - Markdown/HTML preview: `src/utils/renderPreview.js`, `src/components/PreviewBody.jsx`, `src/components/DiffViewer.jsx`, `src/PreviewApp.jsx`, `lib/server.js`
+- Preview copy/edit actions: `src/components/FileEditor.jsx`, `src/utils/fileContent.js`, `lib/git.js` (`writeStagedFile`), `lib/server.js` (`/api/file-write`)
 - Preview comment anchoring: `src/utils/anchorComments.js`, `src/components/PreviewBody.jsx`
 - Collapsed-context expansion: `src/utils/gapCalc.js`, `src/components/DiffViewer.jsx`
 - Comments + panel behavior: `src/hooks/useComments.js`, `src/components/CommentPanel.jsx`, `src/App.jsx`
+- Review state across sessions (persisted comments, stale comments, reviewed marks): `lib/review-state.js` + `lib/server.js` (`/api/review-state`, one JSON file per project), `src/utils/reviewStorage.js` (client + fingerprint checks), `src/hooks/useProjectStore.js` (per-project state mirrored to the server), `lib/git.js` (`parseRawDiffOutput` supplies each summary file's `fingerprint`)
 - Send-to-agent mediums: `src/components/Header.jsx`, `src/App.jsx`, `lib/server.js`, `lib/config.js`
 
 ## Coding Conventions
