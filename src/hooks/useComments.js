@@ -18,7 +18,7 @@ function generateId() {
 
 const EMPTY = { commentsByFile: {}, generalNote: null };
 
-// Comments live in localStorage per project so a review survives closing the
+// Comments live in the per-project review file so a review survives closing the
 // tab. `diffSummary` ({ base, fingerprintByPath }, null while loading) comes
 // from the diff summary: it stamps each new comment with its file's
 // fingerprint, and each comment is judged `stale` against it once per
@@ -40,7 +40,8 @@ export function useComments(projectKey, diffSummary = null) {
   const loaded = value !== null;
   const { commentsByFile, generalNote } = value || EMPTY;
 
-  // Comments from this session are never judged stale (see markStaleComments)
+  // Comments created this session are never judged stale (see
+  // markStaleComments)
   const sessionStartRef = useRef(Date.now());
   // Which (project, base) the stored comments were last judged against
   const judgedRef = useRef(null);
@@ -107,7 +108,9 @@ export function useComments(projectKey, diffSummary = null) {
         line: parseInt(line, 10),
         lineType,
         content: content.trim(),
+        // timestamp moves on edit; createdAt is what staleness judging reads
         timestamp: Date.now(),
+        createdAt: Date.now(),
         fingerprint: fingerprintsRef.current?.[file] ?? null,
         ...extra,
       };

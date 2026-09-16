@@ -1,6 +1,33 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { modKey } from '../utils/platform';
 
+// Unsaved drafts live in sessionStorage for the life of the tab, so the
+// editor being unmounted underneath the user (a diff reload, a view toggle)
+// does not lose what they typed: the next open of the same file restores it
+function readDraft(key) {
+  try {
+    return sessionStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function writeDraft(key, text) {
+  try {
+    sessionStorage.setItem(key, text);
+  } catch {
+    // Storage unavailable: the draft only lives in the component
+  }
+}
+
+function clearDraft(key) {
+  try {
+    sessionStorage.removeItem(key);
+  } catch {
+    // Nothing to clear
+  }
+}
+
 // Plain-text editor for a whole file, shown in place of its preview. Saving
 // hands the text to the caller; the editor stays open with the draft intact
 // if that fails, so nothing typed is lost.
@@ -10,7 +37,14 @@ export default function FileEditor({
   onSave,
   onCancel,
 }) {
-  const [draft, setDraft] = useState(initialContent);
+  const draftKey = `staging-draft:${filePath}`;
+  const [draft, setDraft] = useState(() => {
+    const stored = readDraft(draftKey);
+    return stored !== null && stored !== initialContent
+      ? stored
+      : initialContent;
+  });
+  const [restored] = useState(() => draft !== initialContent);
   const [saving, setSaving] = useState(false);
   const textareaRef = useRef(null);
   const dirty = draft !== initialContent;
@@ -19,22 +53,29 @@ export default function FileEditor({
     textareaRef.current?.focus();
   }, []);
 
+  useEffect(() => {
+    if (dirty) writeDraft(draftKey, draft);
+    else clearDraft(draftKey);
+  }, [draft, dirty, draftKey]);
+
   const handleSave = useCallback(async () => {
     if (saving) return;
     setSaving(true);
     try {
       await onSave(draft);
+      clearDraft(draftKey);
     } catch {
       // The caller reported the failure; keep the draft on screen
     } finally {
       setSaving(false);
     }
-  }, [draft, onSave, saving]);
+  }, [draft, draftKey, onSave, saving]);
 
   const handleCancel = useCallback(() => {
     if (dirty && !confirm(`Discard your edits to ${filePath}?`)) return;
+    clearDraft(draftKey);
     onCancel();
-  }, [dirty, filePath, onCancel]);
+  }, [dirty, draftKey, filePath, onCancel]);
 
   function handleKeyDown(e) {
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
@@ -71,7 +112,13 @@ export default function FileEditor({
       />
       <div className="file-editor-actions">
         <span className="file-editor-status">
-          {saving ? 'Saving...' : dirty ? 'Unsaved changes' : 'No changes'}
+          {saving
+            ? 'Saving...'
+            : dirty
+              ? restored
+                ? 'Restored unsaved draft'
+                : 'Unsaved changes'
+              : 'No changes'}
         </span>
         <button
           className="btn btn-sm"

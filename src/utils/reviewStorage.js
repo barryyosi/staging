@@ -1,6 +1,8 @@
-// Review state that survives closing the tab: comments, the general note and
-// the files marked reviewed, kept in localStorage per project (the git root,
-// or the document path in preview mode).
+// Review state that survives closing the tab and relaunching staging:
+// comments, the general note and the files marked reviewed. The local server
+// keeps it on disk per project (lib/review-state.js); the browser is not the
+// store, because the server's default port is random and browser storage is
+// scoped per origin.
 //
 // Each entry remembers the diff fingerprint of its file at the time it was
 // made (see parseRawDiffOutput in lib/git.js). On the next open, a reviewed
@@ -8,49 +10,24 @@
 // comment whose file changed comes back as stale: still listed, no longer
 // sent to the agent.
 
-const COMMENTS_PREFIX = 'staging-comments:';
-const REVIEWED_PREFIX = 'staging-reviewed:';
-// Reviewed marks accumulate one entry per file ever marked; keep the most
-// recent ones only
-const REVIEWED_LIMIT = 2000;
-
-function getStorage() {
-  try {
-    return globalThis.localStorage || null;
-  } catch {
-    // Access itself can throw (private mode, blocked site data)
-    return null;
-  }
+async function fetchState(projectKey) {
+  const res = await fetch(
+    `/api/review-state?key=${encodeURIComponent(projectKey)}`,
+  );
+  const data = await res.json();
+  if (!res.ok || data.error) throw new Error(data.error || 'Failed to load');
+  return data;
 }
 
-function readJson(key) {
-  const storage = getStorage();
-  if (!storage) return null;
-  try {
-    const raw = storage.getItem(key);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-}
-
-function writeJson(key, value) {
-  const storage = getStorage();
-  if (!storage) return;
-  try {
-    storage.setItem(key, JSON.stringify(value));
-  } catch {
-    // Quota exceeded or storage disabled: the review just stays in-memory
-  }
-}
-
-function removeKey(key) {
-  const storage = getStorage();
-  if (!storage) return;
-  try {
-    storage.removeItem(key);
-  } catch {
-    // Nothing to clean up
+async function putSection(projectKey, section, value) {
+  const res = await fetch('/api/review-state', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key: projectKey, section, value }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.success) {
+    throw new Error(data.error || 'Failed to save review state');
   }
 }
 
@@ -59,7 +36,7 @@ function removeKey(key) {
 // Flags every comment whose file no longer carries the fingerprint it was
 // written against, and clears the flag on those that match again (the same
 // comment can be stale against the staged diff and live against the pull
-// request's base). Comments written at or after `since` (this session) are
+// request's base). Comments created at or after `since` (this session) are
 // about the diff on screen whatever base it is shown under, so they are
 // never flagged and instead follow the file's current fingerprint. With no
 // fingerprint map nothing can be verified, so the comments are returned
@@ -70,7 +47,8 @@ export function markStaleComments(commentsByFile, fingerprintByPath, since) {
   for (const [file, comments] of Object.entries(commentsByFile)) {
     next[file] = comments.map((comment) => {
       const current = fingerprintByPath[file];
-      if (since != null && comment.timestamp >= since) {
+      const createdAt = comment.createdAt ?? comment.timestamp;
+      if (since != null && createdAt >= since) {
         const fingerprint = current || comment.fingerprint;
         return !comment.stale && comment.fingerprint === fingerprint
           ? comment
@@ -83,49 +61,47 @@ export function markStaleComments(commentsByFile, fingerprintByPath, since) {
   return next;
 }
 
-// Stored as saved, `stale` flags from the last session included; the caller
-// re-judges them with markStaleComments once the current diff is known
-export function loadComments(projectKey) {
-  const stored = projectKey ? readJson(COMMENTS_PREFIX + projectKey) : null;
-  const commentsByFile =
-    stored?.commentsByFile &&
-    typeof stored.commentsByFile === 'object' &&
-    !Array.isArray(stored.commentsByFile)
-      ? stored.commentsByFile
-      : {};
-  return {
-    commentsByFile,
-    generalNote:
-      typeof stored?.generalNote === 'string' ? stored.generalNote : null,
-  };
+const EMPTY_COMMENTS = { commentsByFile: {}, generalNote: null };
+
+// Returns the comments as stored, `stale` flags from the last session
+// included; the caller re-judges them with markStaleComments once the
+// current diff is known. A server that cannot answer means an empty review,
+// never a broken one.
+export async function loadComments(projectKey) {
+  if (!projectKey) return EMPTY_COMMENTS;
+  try {
+    const { comments } = await fetchState(projectKey);
+    return comments || EMPTY_COMMENTS;
+  } catch {
+    return EMPTY_COMMENTS;
+  }
 }
 
-export function saveComments(projectKey, { commentsByFile, generalNote }) {
-  if (!projectKey) return;
-  const key = COMMENTS_PREFIX + projectKey;
-  if (Object.keys(commentsByFile).length === 0 && !generalNote) {
-    removeKey(key);
-    return;
-  }
-  writeJson(key, { commentsByFile, generalNote });
+export function saveComments(projectKey, value) {
+  if (!projectKey) return Promise.resolve();
+  return putSection(projectKey, 'comments', value);
 }
 
 // --- Reviewed files ---
 
+// Reviewed marks accumulate one entry per file ever marked; keep the most
+// recent ones only
+const REVIEWED_LIMIT = 2000;
+
 // { [path]: { fingerprint, at } }
-export function loadReviewedMarks(projectKey) {
-  const stored = projectKey ? readJson(REVIEWED_PREFIX + projectKey) : null;
-  return stored && typeof stored === 'object' ? stored : {};
+export async function loadReviewedMarks(projectKey) {
+  if (!projectKey) return {};
+  try {
+    const { reviewed } = await fetchState(projectKey);
+    return reviewed || {};
+  } catch {
+    return {};
+  }
 }
 
 export function saveReviewedMarks(projectKey, marks) {
-  if (!projectKey) return;
-  const key = REVIEWED_PREFIX + projectKey;
-  if (Object.keys(marks).length === 0) {
-    removeKey(key);
-    return;
-  }
-  writeJson(key, marks);
+  if (!projectKey) return Promise.resolve();
+  return putSection(projectKey, 'reviewed', marks);
 }
 
 export function setReviewedMark(marks, filePath, fingerprint) {

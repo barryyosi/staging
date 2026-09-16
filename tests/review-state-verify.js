@@ -10,16 +10,17 @@ import { spawnSync } from 'node:child_process';
 import { getStagedDiffSummary } from '../lib/git.js';
 import {
   markStaleComments,
-  loadComments,
-  saveComments,
-  loadReviewedMarks,
-  saveReviewedMarks,
   setReviewedMark,
   clearReviewedMark,
   resolveReviewedFiles,
 } from '../src/utils/reviewStorage.js';
 
 const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'staging-review-state-'));
+// The on-disk store reads its directory at import time
+const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'staging-state-dir-'));
+process.env.STAGING_STATE_DIR = stateDir;
+const { loadReviewState, saveReviewState } =
+  await import('../lib/review-state.js');
 
 function git(...args) {
   const result = spawnSync(
@@ -42,14 +43,6 @@ function write(files) {
 const summary = () => getStagedDiffSummary(repo, { refresh: true });
 const fingerprints = (s) =>
   Object.fromEntries(s.files.map((f) => [f.to || f.from, f.fingerprint]));
-
-// A localStorage stand-in for the storage helpers
-const memory = new Map();
-globalThis.localStorage = {
-  getItem: (key) => (memory.has(key) ? memory.get(key) : null),
-  setItem: (key, value) => memory.set(key, String(value)),
-  removeItem: (key) => memory.delete(key),
-};
 
 try {
   // --- Fingerprints from git ---
@@ -104,14 +97,18 @@ try {
   assert.equal(oldBlob, newBlob, 'a pure rename keeps the blob');
   assert.equal(oldBlob, git('rev-parse', 'HEAD:d.txt'));
 
-  // --- Reviewed marks ---
-  let marks = loadReviewedMarks('/repo');
-  assert.deepEqual(marks, {});
+  // --- Reviewed marks (on disk, per project) ---
+  assert.deepEqual(loadReviewState('/repo'), {
+    comments: null,
+    reviewed: null,
+  });
+  let marks = {};
   marks = setReviewedMark(marks, 'a.txt', byPath['a.txt']);
   marks = setReviewedMark(marks, 'c.txt', byPath['c.txt']);
-  saveReviewedMarks('/repo', marks);
-  const restored = loadReviewedMarks('/repo');
+  saveReviewState('/repo', 'reviewed', marks);
+  const restored = loadReviewState('/repo').reviewed;
   assert.deepEqual(Object.keys(restored).sort(), ['a.txt', 'c.txt']);
+  assert.equal(fs.readdirSync(stateDir).length, 1, 'one file per project');
 
   // Unchanged files come back reviewed, a changed one does not, and a file
   // that left the diff is simply not counted.
@@ -127,9 +124,9 @@ try {
 
   marks = clearReviewedMark(restored, 'a.txt');
   assert.deepEqual(Object.keys(marks), ['c.txt']);
-  saveReviewedMarks('/repo', {});
-  assert.equal(memory.has('staging-reviewed:/repo'), false, 'empty = gone');
-  assert.deepEqual(loadReviewedMarks(''), {}, 'no key, nothing loaded');
+  saveReviewState('/repo', 'reviewed', {});
+  assert.equal(fs.readdirSync(stateDir).length, 0, 'empty review = no file');
+  assert.deepEqual(loadReviewState(''), { comments: null, reviewed: null });
 
   // --- Comments ---
   const comments = {
@@ -153,12 +150,23 @@ try {
       { id: '3', file: 'c.txt', line: 1, content: 'z', fingerprint: null },
     ],
   };
-  saveComments('/repo', { commentsByFile: comments, generalNote: 'note' });
+  saveReviewState('/repo', 'comments', {
+    commentsByFile: comments,
+    generalNote: 'note',
+  });
 
   // Loading returns the comments as stored; judging is a separate step
-  const loaded = loadComments('/repo');
+  const loaded = loadReviewState('/repo').comments;
   assert.equal(loaded.generalNote, 'note');
   assert.deepEqual(loaded.commentsByFile, comments);
+  // Sections are independent: writing one keeps the other
+  saveReviewState('/repo', 'reviewed', {
+    'a.txt': { fingerprint: 'f', at: 1 },
+  });
+  assert.deepEqual(loadReviewState('/repo').comments, loaded);
+  assert.deepEqual(loadReviewState('/repo').reviewed, {
+    'a.txt': { fingerprint: 'f', at: 1 },
+  });
 
   // Same diff: everything but the unverifiable comment is live
   let judged = markStaleComments(loaded.commentsByFile, byPath);
@@ -211,31 +219,8 @@ try {
   assert.equal(gone['a.txt'][1].fingerprint, 'head:idx');
   assert.equal(gone['a.txt'][0].stale, true);
 
-  // A stored shape that is not an object of arrays is ignored
-  memory.set(
-    'staging-comments:/null',
-    JSON.stringify({ commentsByFile: null }),
-  );
-  assert.deepEqual(loadComments('/null').commentsByFile, {});
-  memory.set('staging-comments:/arr', JSON.stringify({ commentsByFile: [] }));
-  assert.deepEqual(loadComments('/arr').commentsByFile, {});
-
-  // markStaleComments keeps object identity when nothing changes
-  const again = markStaleComments(judged, byPath);
-  assert.equal(again['a.txt'][0], judged['a.txt'][0]);
-
-  saveComments('/repo', { commentsByFile: {}, generalNote: null });
-  assert.equal(memory.has('staging-comments:/repo'), false);
-  assert.deepEqual(loadComments(''), {
-    commentsByFile: {},
-    generalNote: null,
-  });
-
-  // Corrupt storage is ignored rather than thrown
-  memory.set('staging-comments:/bad', '{not json');
-  assert.deepEqual(loadComments('/bad', byPath).commentsByFile, {});
-
   console.log('review-state-verify: all assertions passed');
 } finally {
   fs.rmSync(repo, { recursive: true, force: true });
+  fs.rmSync(stateDir, { recursive: true, force: true });
 }

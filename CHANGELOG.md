@@ -3,7 +3,7 @@
 ## 0.6.0 - 2026-09-15
 
 ### Features
-- Review state survives closing the tab. Comments, the general note and the files marked reviewed are kept in the browser per repository, each with a fingerprint of the file's diff. On the next open, files whose diff is unchanged come back reviewed, comments on unchanged files come back live, and comments on files that changed since come back as stale: listed in a separate panel section for reference, not shown inline and not sent to the agent, with a "Clear stale" button. The diff summary now carries that fingerprint (`fingerprint`, the two blob ids of each file's diff).
+- Review state survives closing the tab and relaunching staging. Comments, the general note and the files marked reviewed are kept on disk per repository (`~/.staging-reviews/`, served by the local server through `GET`/`PUT /api/review-state`), each with a fingerprint of the file's diff. On the next open, files whose diff is unchanged come back reviewed, comments on unchanged files come back live, and comments on files that changed since come back as stale: listed in a separate panel section for reference, not shown inline and not sent to the agent, with a "Clear stale" button. The diff summary now carries that fingerprint (`fingerprint`, the two blob ids of each file's diff).
 
 - Markdown and HTML preview gains two actions: copy the file's text to the clipboard, and edit the file in place. In a repository the edit replaces the staged copy (written to the working tree and re-staged, like a line edit); in standalone preview it writes the document. A save is refused when the file has unstaged working tree changes it would drop; line edits now get the same guard.
 

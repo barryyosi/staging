@@ -880,6 +880,9 @@ function DiffViewer({
   const handleToggleViewMode = useCallback(
     (e) => {
       e.stopPropagation();
+      // The whole-file editor lives in the preview branch; switching away
+      // would unmount it under the user
+      if (editorContent !== null) return;
       setViewMode((v) => {
         const next = v === 'diff' ? 'preview' : 'diff';
         if (next === 'preview' && previewBlocks === null) {
@@ -888,7 +891,7 @@ function DiffViewer({
         return next;
       });
     },
-    [previewBlocks],
+    [editorContent, previewBlocks],
   );
 
   const handleStartEditLine = useCallback((lineNum, lineType, content) => {
@@ -1187,6 +1190,8 @@ function DiffViewer({
             className="view-mode-toggle"
             type="button"
             onClick={handleToggleViewMode}
+            disabled={editorContent !== null}
+            title={editorContent !== null ? 'Finish editing first' : undefined}
             aria-label={`Switch to ${viewMode === 'diff' ? 'preview' : 'diff'} mode`}
           >
             <span
