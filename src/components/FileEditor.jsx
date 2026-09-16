@@ -31,13 +31,16 @@ function clearDraft(key) {
 // Plain-text editor for a whole file, shown in place of its preview. Saving
 // hands the text to the caller; the editor stays open with the draft intact
 // if that fails, so nothing typed is lost.
+// `draftScope` tells one project's file from another's of the same relative
+// path in a tab that switched projects
 export default function FileEditor({
   filePath,
+  draftScope,
   initialContent,
   onSave,
   onCancel,
 }) {
-  const draftKey = `staging-draft:${filePath}`;
+  const draftKey = `staging-draft:${draftScope}:${filePath}`;
   const [draft, setDraft] = useState(() => {
     const stored = readDraft(draftKey);
     return stored !== null && stored !== initialContent

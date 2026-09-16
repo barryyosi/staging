@@ -56,14 +56,17 @@ export function useComments(projectKey, diffSummary = null) {
       return;
     }
     judgedRef.current = { key: projectKey, base: diffSummary.base };
-    setValue((prev) => ({
-      ...prev,
-      commentsByFile: markStaleComments(
+    setValue((prev) => {
+      const commentsByFile = markStaleComments(
         prev.commentsByFile,
         diffSummary.fingerprintByPath,
         sessionStartRef.current,
-      ),
-    }));
+      );
+      // Same value back means nothing to store
+      return commentsByFile === prev.commentsByFile
+        ? prev
+        : { ...prev, commentsByFile };
+    });
   }, [loaded, diffSummary, projectKey, setValue]);
 
   const update = useCallback(

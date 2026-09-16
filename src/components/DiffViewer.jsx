@@ -539,6 +539,7 @@ function DiffViewer({
   onCopyFile,
   onSaveFile,
   onNotify,
+  draftScope,
   onFileReviewed,
   isReviewed,
   globalCollapsed,
@@ -1439,6 +1440,7 @@ function DiffViewer({
         ) : editorContent !== null ? (
           <FileEditor
             filePath={filePath}
+            draftScope={draftScope}
             initialContent={editorContent}
             onSave={handleSaveEditor}
             onCancel={handleCloseEditor}

@@ -1967,6 +1967,7 @@ export default function App() {
                     onCopyFile={handleCopyFile}
                     onSaveFile={handleSaveFile}
                     onNotify={showToast}
+                    draftScope={gitRoot}
                     onFileReviewed={handleFileReviewed}
                     isReviewed={reviewedFiles.has(filePath)}
                     globalCollapsed={globalCollapsed}

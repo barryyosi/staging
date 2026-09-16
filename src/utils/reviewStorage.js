@@ -43,9 +43,10 @@ async function putSection(projectKey, section, value) {
 // untouched.
 export function markStaleComments(commentsByFile, fingerprintByPath, since) {
   if (!fingerprintByPath) return commentsByFile;
+  let changed = false;
   const next = {};
   for (const [file, comments] of Object.entries(commentsByFile)) {
-    next[file] = comments.map((comment) => {
+    const judged = comments.map((comment) => {
       const current = fingerprintByPath[file];
       const createdAt = comment.createdAt ?? comment.timestamp;
       if (since != null && createdAt >= since) {
@@ -57,8 +58,15 @@ export function markStaleComments(commentsByFile, fingerprintByPath, since) {
       const stale = !comment.fingerprint || comment.fingerprint !== current;
       return stale === Boolean(comment.stale) ? comment : { ...comment, stale };
     });
+    if (judged.some((comment, i) => comment !== comments[i])) {
+      changed = true;
+      next[file] = judged;
+    } else {
+      next[file] = comments;
+    }
   }
-  return next;
+  // Same input back when nothing moved, so callers can tell a no-op apart
+  return changed ? next : commentsByFile;
 }
 
 const EMPTY_COMMENTS = { commentsByFile: {}, generalNote: null };

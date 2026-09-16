@@ -11,6 +11,9 @@ export function useProjectStore(projectKey, load, save) {
   // Set by setValue; the save effect writes only what the user changed, not
   // what was just loaded
   const dirtyRef = useRef(false);
+  // Saves run one after another: each carries the whole section, and two in
+  // flight at once could land on the server out of order
+  const saveChainRef = useRef(Promise.resolve());
 
   useEffect(() => {
     let cancelled = false;
@@ -27,20 +30,24 @@ export function useProjectStore(projectKey, load, save) {
   useEffect(() => {
     if (store.value === null || !dirtyRef.current) return;
     dirtyRef.current = false;
-    save(store.key, store.value).catch((err) => {
-      console.warn(`Failed to save review state: ${err.message}`);
-    });
+    const { key, value } = store;
+    saveChainRef.current = saveChainRef.current
+      .then(() => save(key, value))
+      .catch((err) => {
+        console.warn(`Failed to save review state: ${err.message}`);
+      });
   }, [store, save]);
 
   const setValue = useCallback((updater) => {
     setStore((prev) => {
       // Nothing to change until the current key's value is in
       if (prev.value === null) return prev;
+      const value =
+        typeof updater === 'function' ? updater(prev.value) : updater;
+      // An updater handing back the same value has nothing to store
+      if (value === prev.value) return prev;
       dirtyRef.current = true;
-      return {
-        ...prev,
-        value: typeof updater === 'function' ? updater(prev.value) : updater,
-      };
+      return { ...prev, value };
     });
   }, []);
 

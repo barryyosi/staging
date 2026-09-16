@@ -598,6 +598,7 @@ export default function PreviewApp({ preview, config }) {
         ) : editorContent !== null ? (
           <FileEditor
             filePath={filePath}
+            draftScope={documentPath}
             initialContent={editorContent}
             onSave={handleSaveEditor}
             onCancel={handleCloseEditor}

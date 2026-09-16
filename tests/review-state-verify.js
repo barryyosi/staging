@@ -190,6 +190,11 @@ try {
   // No fingerprints to check against (preview mode): untouched
   assert.equal(markStaleComments(allStale, null), allStale);
 
+  // The very same map comes back when nothing moved, so a no-op judge never
+  // triggers a save; a real change yields a new map
+  assert.equal(markStaleComments(judged, byPath), judged);
+  assert.notEqual(markStaleComments(judged, {}), judged);
+
   // A comment written this session is never flagged by a re-judge (the
   // staged view answering before `--pr` switches the base): it follows the
   // file's current fingerprint instead. Older comments are judged as usual.
