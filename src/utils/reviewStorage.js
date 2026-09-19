@@ -107,6 +107,25 @@ export function markCommentsSent(commentsByFile, sent, at = Date.now()) {
   return changed ? next : commentsByFile;
 }
 
+// Undoes one stamp (a send that was claimed ahead of delivery and then
+// failed): only comments carrying exactly that `at` go back to pending
+export function unmarkCommentsSent(commentsByFile, at) {
+  let changed = false;
+  const next = {};
+  for (const [file, comments] of Object.entries(commentsByFile)) {
+    const cleared = comments.map((comment) =>
+      comment.sentAt === at ? { ...comment, sentAt: null } : comment,
+    );
+    if (cleared.some((comment, i) => comment !== comments[i])) {
+      changed = true;
+      next[file] = cleared;
+    } else {
+      next[file] = comments;
+    }
+  }
+  return changed ? next : commentsByFile;
+}
+
 const EMPTY_COMMENTS = {
   commentsByFile: {},
   generalNote: null,

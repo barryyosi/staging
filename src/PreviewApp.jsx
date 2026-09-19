@@ -45,6 +45,7 @@ export default function PreviewApp({ preview, config }) {
     updateComment,
     deleteComment,
     markSent,
+    unmarkSent,
     clearPreviousComments,
     deleteAllComments,
   } = useComments(documentPath);
@@ -352,6 +353,12 @@ export default function PreviewApp({ preview, config }) {
       : null;
 
     const serverMediums = selectedMediums.filter((m) => m !== 'clipboard');
+    // The cli medium makes the server print and exit, so the stamp has to be
+    // on disk before that request; a failed request takes it back
+    const claimAhead = selectedMediums.includes('cli');
+    const claimedAt = claimAhead
+      ? await markSent(sentComments, sentNote, { persistFirst: true })
+      : null;
     if (serverMediums.length > 0) {
       try {
         const res = await fetch('/api/send-comments', {
@@ -361,10 +368,12 @@ export default function PreviewApp({ preview, config }) {
         });
         const data = await res.json();
         if (!data.success) {
+          if (claimedAt) unmarkSent(claimedAt);
           showToast(`Failed to send: ${data.error}`, 'error');
           return;
         }
       } catch (err) {
+        if (claimedAt) unmarkSent(claimedAt);
         showToast(`Failed to send: ${err.message}`, 'error');
         return;
       }
@@ -383,8 +392,9 @@ export default function PreviewApp({ preview, config }) {
         `Comments ${parts.join(' and ')}${copied === false ? ' (clipboard blocked)' : ''}`,
         copied === false ? 'info' : 'success',
       );
-      // Out the door: kept for reference, not sent again
-      markSent(sentComments, sentNote);
+      // Out the door: kept for reference, not sent again (unless claimed
+      // ahead, above)
+      if (!claimAhead) markSent(sentComments, sentNote);
     }
 
     // CLI medium exits the server — close the browser tab
@@ -398,6 +408,7 @@ export default function PreviewApp({ preview, config }) {
     generalNote,
     generalNotePending,
     markSent,
+    unmarkSent,
     documentPath,
     selectedMediums,
     config,

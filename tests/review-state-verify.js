@@ -11,6 +11,7 @@ import { getStagedDiffSummary } from '../lib/git.js';
 import {
   markStaleComments,
   markCommentsSent,
+  unmarkCommentsSent,
   commentStatus,
   isPendingComment,
   setReviewedMark,
@@ -275,6 +276,16 @@ try {
     markCommentsSent({ 'a.txt': [snapshot] }, [snapshot], 9)['a.txt'][0].sentAt,
     9,
   );
+  // A claim taken back: only the stamp with that exact `at` is undone
+  const claimed = markCommentsSent(cycle, cycle['a.txt'], 11);
+  const older = {
+    'a.txt': [{ ...claimed['a.txt'][0], sentAt: 3 }, claimed['a.txt'][1]],
+  };
+  const undone = unmarkCommentsSent(older, 11);
+  assert.equal(undone['a.txt'][0].sentAt, 3, 'another send keeps its stamp');
+  assert.equal(undone['a.txt'][1].sentAt, null);
+  assert.equal(unmarkCommentsSent(undone, 11), undone, 'no-op identity');
+
   // A sent comment whose file changed is stale, whatever its stamp
   const changed = markStaleComments(sent, { 'a.txt': 'other' });
   assert.equal(commentStatus(changed['a.txt'][0]), 'stale');

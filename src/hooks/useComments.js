@@ -5,6 +5,7 @@ import {
   saveComments,
   markStaleComments,
   markCommentsSent,
+  unmarkCommentsSent,
   isPendingComment,
 } from '../utils/reviewStorage';
 
@@ -16,6 +17,20 @@ function generateId() {
     (idCounter++).toString(36) +
     Math.random().toString(36).slice(2, 6)
   );
+}
+
+// The stamp a handoff of `sentComments` and `sentNote` (the snapshot that
+// was formatted) leaves behind: those are no longer pending. A comment or
+// note edited while the send was in flight is not what the agent got, so
+// it stays pending
+function stampSent(prev, sentComments, sentNote, at) {
+  const patch = {};
+  const stamped = markCommentsSent(prev.commentsByFile, sentComments, at);
+  if (stamped !== prev.commentsByFile) patch.commentsByFile = stamped;
+  if (sentNote && prev.generalNote === sentNote && !prev.generalNoteSentAt) {
+    patch.generalNoteSentAt = at;
+  }
+  return patch;
 }
 
 const EMPTY = {
@@ -45,6 +60,10 @@ export function useComments(projectKey, diffSummary = null) {
   );
   const loaded = value !== null;
   const { commentsByFile, generalNote, generalNoteSentAt } = value || EMPTY;
+  const valueRef = useRef(value);
+  useEffect(() => {
+    valueRef.current = value;
+  }, [value]);
 
   // Comments created this session are never judged stale (see
   // markStaleComments)
@@ -121,19 +140,40 @@ export function useComments(projectKey, diffSummary = null) {
     update(() => ({ generalNote: null, generalNoteSentAt: null }));
   }, [update]);
 
-  // Called after a handoff went out with `sentComments` and `sentNote` (the
-  // snapshot that was formatted): those are no longer pending. A comment or
-  // note edited while the send was in flight is not what the agent got, so
-  // it stays pending
+  // Called once the handoff went out. With `persistFirst`, the stamp is
+  // written to the server before this resolves: a send whose medium shuts
+  // the server down (cli) has no "after" in which the usual save could land.
+  // Resolves to the stamp's `at`, for unmarkSent
   const markSent = useCallback(
-    (sentComments, sentNote) => {
+    async (sentComments, sentNote, { persistFirst = false } = {}) => {
       const at = Date.now();
-      update((prev) => ({
-        commentsByFile: markCommentsSent(prev.commentsByFile, sentComments, at),
-        ...(sentNote && prev.generalNote === sentNote
-          ? { generalNoteSentAt: at }
-          : {}),
-      }));
+      const current = valueRef.current;
+      if (persistFirst && current) {
+        const patch = stampSent(current, sentComments, sentNote, at);
+        if (Object.keys(patch).length > 0) {
+          try {
+            await saveComments(projectKey, { ...current, ...patch });
+          } catch {
+            // The store's own save will retry once state settles
+          }
+        }
+      }
+      update((prev) => stampSent(prev, sentComments, sentNote, at));
+      return at;
+    },
+    [projectKey, update],
+  );
+
+  // A send claimed ahead of delivery that then failed: back to pending
+  const unmarkSent = useCallback(
+    (at) => {
+      update((prev) => {
+        const patch = {};
+        const cleared = unmarkCommentsSent(prev.commentsByFile, at);
+        if (cleared !== prev.commentsByFile) patch.commentsByFile = cleared;
+        if (prev.generalNoteSentAt === at) patch.generalNoteSentAt = null;
+        return patch;
+      });
     },
     [update],
   );
@@ -234,6 +274,7 @@ export function useComments(projectKey, diffSummary = null) {
     updateComment,
     deleteComment,
     markSent,
+    unmarkSent,
     clearPreviousComments,
     deleteAllComments,
   };

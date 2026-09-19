@@ -177,6 +177,7 @@ export default function App() {
     updateComment,
     deleteComment,
     markSent,
+    unmarkSent,
     clearPreviousComments,
     deleteAllComments,
   } = useComments(gitRoot, diffSummary);
@@ -968,6 +969,18 @@ export default function App() {
       const copied = clipboardPromise ? await clipboardPromise : null;
 
       const serverMediums = mediums.filter((m) => m !== 'clipboard');
+      // Only the plain comment send marks anything: approvals, free-text
+      // messages and the commit-message request address nothing
+      const isCommentSend =
+        !options.approvalMessage &&
+        !options.customMessage &&
+        !options.rawFormatted;
+      // The cli medium makes the server print and exit, so the stamp has to
+      // be on disk before that request; a failed request takes it back
+      const claimAhead = isCommentSend && mediums.includes('cli');
+      const claimedAt = claimAhead
+        ? await markSent(sentComments, sentNote, { persistFirst: true })
+        : null;
 
       if (serverMediums.length > 0) {
         try {
@@ -978,10 +991,12 @@ export default function App() {
           });
           const data = await res.json();
           if (!data.success) {
+            if (claimedAt) unmarkSent(claimedAt);
             showToast(`Failed to send: ${data.error}`, 'error');
             return { ok: false, copied };
           }
         } catch (err) {
+          if (claimedAt) unmarkSent(claimedAt);
           showToast(`Failed to send: ${err.message}`, 'error');
           return { ok: false, copied };
         }
@@ -1016,13 +1031,8 @@ export default function App() {
       }
 
       // The handoff is out: what it carried stays visible but is not sent
-      // again. Only the plain comment send counts; approvals, free-text
-      // messages and the commit-message request address nothing
-      const isCommentSend =
-        !options.approvalMessage &&
-        !options.customMessage &&
-        !options.rawFormatted;
-      if (isCommentSend && parts.length > 0) {
+      // again (unless claimed ahead, above)
+      if (isCommentSend && !claimAhead && parts.length > 0) {
         markSent(sentComments, sentNote);
       }
 
@@ -1039,6 +1049,7 @@ export default function App() {
       generalNote,
       generalNotePending,
       markSent,
+      unmarkSent,
       gitRoot,
       config,
       pullRequest,

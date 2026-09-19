@@ -3098,8 +3098,6 @@ body {
   align-items: center;
   gap: 6px;
   max-width: 100%;
-  /* Keeps a "sent" badge beside the location, not floating mid-header */
-  margin-right: auto;
   padding: 3px 8px;
   border-radius: 999px;
   border: none;
@@ -3520,6 +3518,9 @@ body {
   align-items: center;
   gap: 3px;
   margin-left: 8px;
+  /* Takes the head's free space so it sits beside the location, with the
+     actions still flush right */
+  margin-right: auto;
   padding: 2px 7px;
   border-radius: 999px;
   font-family: var(--font-mono);
