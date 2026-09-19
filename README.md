@@ -129,10 +129,10 @@ agent gets the new text. The general note works the same way. When a file
 changes after a comment on it was written (judged when the project loads and
 again whenever the compare base changes, so a review made with `--pr` is
 judged against the request's diff), the comment shows as **file changed**:
-listed in the panel's "Already sent" section, not inline, and not sent, since
+listed in the panel's "Earlier" section, not inline, and not sent, since
 the agent has presumably addressed it. So the panel always shows what the
 next send carries at the top, and what you already asked for below it, one
-"Clear sent" away. "Dismiss all" clears everything, stored copy included.
+"Clear earlier" away. "Dismiss all" clears everything, stored copy included.
 
 Nothing leaves the machine: the state is keyed by the repository path, so a
 worktree or a sibling project keeps its own. It is written on every change

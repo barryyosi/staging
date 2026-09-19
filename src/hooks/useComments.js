@@ -121,13 +121,18 @@ export function useComments(projectKey, diffSummary = null) {
     update(() => ({ generalNote: null, generalNoteSentAt: null }));
   }, [update]);
 
-  // Called after a handoff went out: what it carried is no longer pending
+  // Called after a handoff went out with `sentComments` and `sentNote` (the
+  // snapshot that was formatted): those are no longer pending. A comment or
+  // note edited while the send was in flight is not what the agent got, so
+  // it stays pending
   const markSent = useCallback(
-    (commentIds, noteIncluded) => {
+    (sentComments, sentNote) => {
       const at = Date.now();
       update((prev) => ({
-        commentsByFile: markCommentsSent(prev.commentsByFile, commentIds, at),
-        ...(noteIncluded && prev.generalNote ? { generalNoteSentAt: at } : {}),
+        commentsByFile: markCommentsSent(prev.commentsByFile, sentComments, at),
+        ...(sentNote && prev.generalNote === sentNote
+          ? { generalNoteSentAt: at }
+          : {}),
       }));
     },
     [update],

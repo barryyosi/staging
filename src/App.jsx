@@ -925,13 +925,12 @@ export default function App() {
     return resolved;
   }, []);
 
-  const handleSendComments = useCallback(
-    async (mediums = ['clipboard', 'file'], options = {}) => {
-      if (!config) {
-        showToast('Config is still loading', 'error');
-        return { ok: false, copied: null };
-      }
-
+  const sendComments = useCallback(
+    async (mediums, options) => {
+      // The snapshot this send formats; only these exact revisions get
+      // stamped as sent afterwards
+      const sentComments = pendingComments;
+      const sentNote = generalNotePending ? generalNote : null;
       let formattedPromise;
 
       if (options.approvalMessage) {
@@ -945,23 +944,17 @@ export default function App() {
       } else if (options.rawFormatted) {
         formattedPromise = Promise.resolve(options.rawFormatted);
       } else {
-        if (pendingComments.length === 0 && !generalNotePending) {
+        if (sentComments.length === 0 && !sentNote) {
           return { ok: false, copied: null };
         }
-        formattedPromise = resolvePreviewLines(pendingComments).then(
-          (comments) =>
-            formatComments(
-              comments,
-              gitRoot,
-              generalNotePending ? generalNote : null,
-              {
-                compareBase: compareBaseRef.current,
-                pullRequest:
-                  pullRequest && pullRequest.baseRef === compareBaseRef.current
-                    ? pullRequest
-                    : null,
-              },
-            ),
+        formattedPromise = resolvePreviewLines(sentComments).then((comments) =>
+          formatComments(comments, gitRoot, sentNote, {
+            compareBase: compareBaseRef.current,
+            pullRequest:
+              pullRequest && pullRequest.baseRef === compareBaseRef.current
+                ? pullRequest
+                : null,
+          }),
         );
       }
 
@@ -1030,10 +1023,7 @@ export default function App() {
         !options.customMessage &&
         !options.rawFormatted;
       if (isCommentSend && parts.length > 0) {
-        markSent(
-          pendingComments.map((c) => c.id),
-          generalNotePending,
-        );
+        markSent(sentComments, sentNote);
       }
 
       // CLI medium exits the server — close the browser tab
@@ -1057,6 +1047,30 @@ export default function App() {
     ],
   );
 
+  // One handoff at a time: a second click while the first is still being
+  // formatted or delivered would send the same comments twice
+  const sendInFlightRef = useRef(false);
+
+  const handleSendComments = useCallback(
+    async (mediums = ['clipboard', 'file'], options = {}) => {
+      if (!config) {
+        showToast('Config is still loading', 'error');
+        return { ok: false, copied: null };
+      }
+      if (sendInFlightRef.current) {
+        showToast('A send is already in progress', 'info');
+        return { ok: false, copied: null };
+      }
+      sendInFlightRef.current = true;
+      try {
+        return await sendComments(mediums, options);
+      } finally {
+        sendInFlightRef.current = false;
+      }
+    },
+    [config, sendComments, showToast],
+  );
+
   const handleGenerateCommitViaAgent = useCallback(async () => {
     setShowCommitModal(false);
     // Passed as a promise, not awaited here: awaiting first would push the
@@ -1064,8 +1078,11 @@ export default function App() {
     // reason copyToClipboard takes a promise. Preview comment lines still get
     // re-resolved, they just do it inside the send.
     const mediums = selectedMediums || ['clipboard', 'file'];
+    // Context for a commit message is the whole review as it stands, sent
+    // or not; nothing here gets marked as sent
+    const reviewComments = Object.values(visibleCommentsByFile).flat();
     const result = await handleSendComments(mediums, {
-      rawFormatted: resolvePreviewLines(pendingComments).then((comments) =>
+      rawFormatted: resolvePreviewLines(reviewComments).then((comments) =>
         formatCommitMessageRequest(comments, gitRoot, generalNote),
       ),
       suppressToast: true,
@@ -1083,7 +1100,7 @@ export default function App() {
       result.copied === false ? 'info' : 'success',
     );
   }, [
-    pendingComments,
+    visibleCommentsByFile,
     generalNote,
     gitRoot,
     selectedMediums,

@@ -332,15 +332,18 @@ export default function PreviewApp({ preview, config }) {
     [selectedMediums],
   );
 
-  const handleSendComments = useCallback(async () => {
-    if (pendingComments.length === 0 && !generalNotePending) return;
+  const sendComments = useCallback(async () => {
+    // The snapshot this send formats; only these exact revisions get
+    // stamped as sent afterwards
+    const sentComments = pendingComments;
+    const sentNote = generalNotePending ? generalNote : null;
     // The document live-reloads under the reviewer, so a comment's stored
     // srcLine may predate edits made above it. Re-resolve against the current
     // render before handing line numbers to the agent.
     const formatted = formatComments(
-      withResolvedLines(pendingComments, blocks, filePath),
+      withResolvedLines(sentComments, blocks, filePath),
       documentPath,
-      generalNotePending ? generalNote : null,
+      sentNote,
       { context: 'preview' },
     );
 
@@ -381,10 +384,7 @@ export default function PreviewApp({ preview, config }) {
         copied === false ? 'info' : 'success',
       );
       // Out the door: kept for reference, not sent again
-      markSent(
-        pendingComments.map((c) => c.id),
-        generalNotePending,
-      );
+      markSent(sentComments, sentNote);
     }
 
     // CLI medium exits the server — close the browser tab
@@ -403,6 +403,24 @@ export default function PreviewApp({ preview, config }) {
     config,
     showToast,
   ]);
+
+  // One handoff at a time: a second click while the first is still in
+  // flight would send the same comments twice
+  const sendInFlightRef = useRef(false);
+
+  const handleSendComments = useCallback(async () => {
+    if (pendingComments.length === 0 && !generalNotePending) return;
+    if (sendInFlightRef.current) {
+      showToast('A send is already in progress', 'info');
+      return;
+    }
+    sendInFlightRef.current = true;
+    try {
+      await sendComments();
+    } finally {
+      sendInFlightRef.current = false;
+    }
+  }, [pendingComments.length, generalNotePending, sendComments, showToast]);
 
   const fileComments = commentsByFile[filePath];
   const fileLevelComments = (fileComments || []).filter(

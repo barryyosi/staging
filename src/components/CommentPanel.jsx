@@ -367,24 +367,24 @@ function CommentPanel({
         {previous.length > 0 && (
           <section
             className="panel-stale-section"
-            aria-label="Already sent comments"
+            aria-label="Earlier comments, not in the next send"
           >
             <div className="panel-stale-header">
               <span className="panel-stale-title">
                 <History size={12} strokeWidth={1.5} />
-                Already sent ({previousCount})
+                Earlier ({previousCount})
               </span>
               <button
                 className="panel-dismiss-all-btn"
                 type="button"
                 onClick={onClearPrevious}
               >
-                Clear sent
+                Clear earlier
               </button>
             </div>
             <p className="panel-stale-hint">
-              Not sent again. Edit one to resend it; a changed file means the
-              agent probably addressed it.
+              Not in the next send. Edit a sent one to resend it; a changed file
+              means the agent probably addressed it.
             </p>
             {previous.map(([file, fileComments]) => (
               <div key={file} className="panel-comment-group">

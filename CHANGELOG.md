@@ -3,7 +3,7 @@
 ## 0.7.0 - 2026-09-19
 
 ### Features
-- A comment goes to the agent exactly once. Sending marks what went out as sent: it stays inline and in the panel, dimmed with a "sent" chip, and the next send carries only what is new. Editing a sent comment sends its new text again; the general note works the same way. Comments whose file changed since are listed as "file changed" in the panel's "Already sent" section (previously "Stale"), with one "Clear sent" button for both. Header and sidebar badges count what the next send carries.
+- A comment goes to the agent exactly once. Sending marks what went out as sent: it stays inline and in the panel, dimmed with a "sent" chip, and the next send carries only what is new. Editing a sent comment sends its new text again; the general note works the same way. Comments whose file changed since are listed as "file changed" in the panel's "Earlier" section (previously "Stale"), with one "Clear earlier" button for both. Header and sidebar badges count what the next send carries.
 
 ## 0.6.0 - 2026-09-15
 

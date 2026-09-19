@@ -495,7 +495,7 @@ function Header({
               // the panel is not empty
               <span
                 className="btn-badge btn-badge-stale"
-                title={`${previousCount} comment${previousCount === 1 ? '' : 's'} already sent`}
+                title={`${previousCount} earlier comment${previousCount === 1 ? '' : 's'}, not in the next send`}
               >
                 {previousCount}
               </span>

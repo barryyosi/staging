@@ -3098,6 +3098,8 @@ body {
   align-items: center;
   gap: 6px;
   max-width: 100%;
+  /* Keeps a "sent" badge beside the location, not floating mid-header */
+  margin-right: auto;
   padding: 3px 8px;
   border-radius: 999px;
   border: none;

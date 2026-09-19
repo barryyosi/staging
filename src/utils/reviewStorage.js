@@ -82,14 +82,18 @@ export function commentStatus(comment) {
 export const isPendingComment = (comment) =>
   commentStatus(comment) === 'pending';
 
-// Stamps the comments just delivered so the next send skips them
-export function markCommentsSent(commentsByFile, ids, at = Date.now()) {
-  const wanted = new Set(ids);
+// Stamps the comments just delivered so the next send skips them. `sent`
+// is the snapshot that was formatted; a comment edited since (its
+// `timestamp` moved) is not the revision the agent got, so it stays pending
+export function markCommentsSent(commentsByFile, sent, at = Date.now()) {
+  const delivered = new Map(sent.map((c) => [c.id, c.timestamp]));
   let changed = false;
   const next = {};
   for (const [file, comments] of Object.entries(commentsByFile)) {
     const stamped = comments.map((comment) =>
-      wanted.has(comment.id) && !comment.sentAt
+      delivered.has(comment.id) &&
+      delivered.get(comment.id) === comment.timestamp &&
+      !comment.sentAt
         ? { ...comment, sentAt: at }
         : comment,
     );

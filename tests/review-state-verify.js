@@ -254,15 +254,27 @@ try {
     ],
   };
   assert.equal(commentStatus(cycle['a.txt'][0]), 'pending');
-  const sent = markCommentsSent(cycle, ['p'], 7);
+  const sent = markCommentsSent(cycle, [cycle['a.txt'][0]], 7);
   assert.notEqual(sent, cycle);
   assert.equal(sent['a.txt'][0].sentAt, 7);
   assert.equal(commentStatus(sent['a.txt'][0]), 'sent');
   assert.equal(sent['a.txt'][1], cycle['a.txt'][1], 'untouched sibling');
   assert.equal(isPendingComment(sent['a.txt'][1]), true);
   // Stamping again is a no-op, identity included
-  assert.equal(markCommentsSent(sent, ['p'], 9), sent);
-  assert.equal(markCommentsSent(sent, ['nope'], 9), sent);
+  assert.equal(markCommentsSent(sent, [cycle['a.txt'][0]], 9), sent);
+  assert.equal(markCommentsSent(sent, [{ id: 'nope' }], 9), sent);
+  // A comment edited while the send was in flight is not the revision the
+  // agent got: the snapshot's timestamp no longer matches, so it stays
+  // pending
+  const snapshot = { id: 'q', file: 'a.txt', fingerprint: 'f', timestamp: 1 };
+  const edited = {
+    'a.txt': [{ ...snapshot, timestamp: 2, content: 'newer' }],
+  };
+  assert.equal(markCommentsSent(edited, [snapshot], 9), edited);
+  assert.equal(
+    markCommentsSent({ 'a.txt': [snapshot] }, [snapshot], 9)['a.txt'][0].sentAt,
+    9,
+  );
   // A sent comment whose file changed is stale, whatever its stamp
   const changed = markStaleComments(sent, { 'a.txt': 'other' });
   assert.equal(commentStatus(changed['a.txt'][0]), 'stale');
