@@ -24,7 +24,7 @@ Keep it concise and practical. Put deep implementation details in code comments 
 - `src/components/FileSidebar.jsx`: flat/tree navigator + search
 - `src/hooks/useComments.js`: comment state and persistence
 - `lib/review-state.js`: on-disk review state (comments, reviewed marks), one file per project under `~/.staging-reviews/`
-- `src/utils/reviewStorage.js`: the client side of that state and how staleness is decided
+- `src/utils/reviewStorage.js`: the client side of that state, the comment lifecycle (pending → sent → file changed) and how staleness is decided
 - `src/style.css`: global styles + theme tokens
 
 ## Development Commands

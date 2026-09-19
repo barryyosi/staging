@@ -4,6 +4,8 @@ import {
   loadComments,
   saveComments,
   markStaleComments,
+  markCommentsSent,
+  isPendingComment,
 } from '../utils/reviewStorage';
 
 let idCounter = 0;
@@ -16,7 +18,11 @@ function generateId() {
   );
 }
 
-const EMPTY = { commentsByFile: {}, generalNote: null };
+const EMPTY = {
+  commentsByFile: {},
+  generalNote: null,
+  generalNoteSentAt: null,
+};
 
 // Comments live in the per-project review file so a review survives closing the
 // tab. `diffSummary` ({ base, fingerprintByPath }, null while loading) comes
@@ -38,7 +44,7 @@ export function useComments(projectKey, diffSummary = null) {
     saveComments,
   );
   const loaded = value !== null;
-  const { commentsByFile, generalNote } = value || EMPTY;
+  const { commentsByFile, generalNote, generalNoteSentAt } = value || EMPTY;
 
   // Comments created this session are never judged stale (see
   // markStaleComments)
@@ -69,39 +75,63 @@ export function useComments(projectKey, diffSummary = null) {
     });
   }, [loaded, diffSummary, projectKey, setValue]);
 
+  // An updater returning an empty patch leaves the store (and its dirty
+  // flag) untouched
   const update = useCallback(
-    (updater) => setValue((prev) => ({ ...prev, ...updater(prev) })),
+    (updater) =>
+      setValue((prev) => {
+        const patch = updater(prev);
+        return Object.keys(patch).length === 0 ? prev : { ...prev, ...patch };
+      }),
     [setValue],
   );
 
-  // Comments the agent still needs to hear about; stale ones are kept for
-  // the reviewer's reference only
+  // Comments the agent still needs to hear about: not yet sent, on a file
+  // that has not changed since. Sent and stale ones are kept for the
+  // reviewer's reference only
   const pendingComments = useMemo(
-    () =>
-      Object.values(commentsByFile)
-        .flat()
-        .filter((c) => !c.stale),
+    () => Object.values(commentsByFile).flat().filter(isPendingComment),
     [commentsByFile],
   );
 
-  const staleCount = useMemo(
+  const previousCount = useMemo(
     () =>
       Object.values(commentsByFile)
         .flat()
-        .filter((c) => c.stale).length,
+        .filter((c) => !isPendingComment(c)).length,
     [commentsByFile],
   );
+
+  // The note goes out once; editing it sends the new text again
+  const generalNotePending = Boolean(generalNote) && !generalNoteSentAt;
 
   const setGeneralNote = useCallback(
     (text) => {
-      update(() => ({ generalNote: text && text.trim() ? text.trim() : null }));
+      const next = text && text.trim() ? text.trim() : null;
+      update((prev) =>
+        next === prev.generalNote
+          ? {}
+          : { generalNote: next, generalNoteSentAt: null },
+      );
     },
     [update],
   );
 
   const clearGeneralNote = useCallback(() => {
-    update(() => ({ generalNote: null }));
+    update(() => ({ generalNote: null, generalNoteSentAt: null }));
   }, [update]);
+
+  // Called after a handoff went out: what it carried is no longer pending
+  const markSent = useCallback(
+    (commentIds, noteIncluded) => {
+      const at = Date.now();
+      update((prev) => ({
+        commentsByFile: markCommentsSent(prev.commentsByFile, commentIds, at),
+        ...(noteIncluded && prev.generalNote ? { generalNoteSentAt: at } : {}),
+      }));
+    },
+    [update],
+  );
 
   const addComment = useCallback(
     (file, line, lineType, content, extra = {}) => {
@@ -135,9 +165,15 @@ export function useComments(projectKey, diffSummary = null) {
         for (const [file, fileComments] of Object.entries(
           prev.commentsByFile,
         )) {
+          // An edited comment goes out again with the next send
           next[file] = fileComments.map((c) =>
             c.id === id
-              ? { ...c, content: content.trim(), timestamp: Date.now() }
+              ? {
+                  ...c,
+                  content: content.trim(),
+                  timestamp: Date.now(),
+                  sentAt: null,
+                }
               : c,
           );
         }
@@ -168,26 +204,32 @@ export function useComments(projectKey, diffSummary = null) {
     [removeWhere],
   );
 
-  const clearStaleComments = useCallback(
-    () => removeWhere((c) => c.stale),
+  const clearPreviousComments = useCallback(
+    () => removeWhere((c) => !isPendingComment(c)),
     [removeWhere],
   );
 
   const deleteAllComments = useCallback(() => {
-    update(() => ({ commentsByFile: {}, generalNote: null }));
+    update(() => ({
+      commentsByFile: {},
+      generalNote: null,
+      generalNoteSentAt: null,
+    }));
   }, [update]);
 
   return {
     commentsByFile,
     pendingComments,
-    staleCount,
+    previousCount,
     generalNote,
+    generalNotePending,
     setGeneralNote,
     clearGeneralNote,
     addComment,
     updateComment,
     deleteComment,
-    clearStaleComments,
+    markSent,
+    clearPreviousComments,
     deleteAllComments,
   };
 }

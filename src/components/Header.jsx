@@ -237,10 +237,10 @@ function Header({
   hasReviewItems,
   reviewItemCount,
   commentsByFile,
-  staleCount,
+  previousCount,
   onDeleteComment,
   onDismissAllComments,
-  onClearStaleComments,
+  onClearPreviousComments,
   onSelectFile,
   onSendComments,
   committed,
@@ -261,6 +261,7 @@ function Header({
   onOpenWhatsNew,
   onRestart,
   generalNote,
+  generalNotePending,
   isEditingGeneralNote,
   onToggleEditGeneralNote,
   onSaveGeneralNote,
@@ -489,14 +490,14 @@ function Header({
             <MessageSquare size={16} strokeWidth={1.5} />
             {reviewItemCount > 0 ? (
               <span className="btn-badge">{reviewItemCount}</span>
-            ) : staleCount > 0 ? (
-              // Only stale comments left over from an earlier review: worth a
-              // muted hint that the panel is not empty
+            ) : previousCount > 0 ? (
+              // Only already-sent or stale comments: worth a muted hint that
+              // the panel is not empty
               <span
                 className="btn-badge btn-badge-stale"
-                title={`${staleCount} stale comment${staleCount === 1 ? '' : 's'}`}
+                title={`${previousCount} comment${previousCount === 1 ? '' : 's'} already sent`}
               >
-                {staleCount}
+                {previousCount}
               </span>
             ) : null}
           </button>
@@ -505,13 +506,14 @@ function Header({
               id={COMMENTS_PANEL_ID}
               commentsByFile={commentsByFile}
               reviewItemCount={reviewItemCount}
-              staleCount={staleCount}
+              previousCount={previousCount}
               onDeleteComment={onDeleteComment}
               onDismissAll={onDismissAllComments}
-              onClearStale={onClearStaleComments}
+              onClearPrevious={onClearPreviousComments}
               onSelectComment={() => closeComments(true)}
               onSelectFile={onSelectFile}
               generalNote={generalNote}
+              generalNotePending={generalNotePending}
               isEditingGeneralNote={isEditingGeneralNote}
               onToggleEditGeneralNote={onToggleEditGeneralNote}
               onSaveGeneralNote={onSaveGeneralNote}

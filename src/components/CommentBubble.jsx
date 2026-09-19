@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import { isLineRange } from '../utils/format';
+import SentBadge from './SentBadge';
 
 function CommentBubble({
   comment,
@@ -19,7 +20,7 @@ function CommentBubble({
 
   return (
     <tr
-      className="comment-row"
+      className={`comment-row${comment.sentAt ? ' is-sent' : ''}`}
       data-comment-id={comment.id}
       style={{ '--comment-stack-index': stackIndex }}
     >
@@ -29,6 +30,7 @@ function CommentBubble({
             <span className="comment-loc" title={location}>
               {location}
             </span>
+            {comment.sentAt && <SentBadge />}
             <div className="comment-actions">
               {showPager && (
                 <div className="comment-pager" aria-label="Comment navigation">

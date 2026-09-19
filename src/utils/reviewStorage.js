@@ -69,7 +69,45 @@ export function markStaleComments(commentsByFile, fingerprintByPath, since) {
   return changed ? next : commentsByFile;
 }
 
-const EMPTY_COMMENTS = { commentsByFile: {}, generalNote: null };
+// A comment's place in the review cycle. Only pending comments go to the
+// agent: sent ones were delivered already and stay for reference until
+// edited (which makes them pending again); stale ones sit on a file that
+// changed since, so they were presumably addressed.
+export function commentStatus(comment) {
+  if (comment.stale) return 'stale';
+  if (comment.sentAt) return 'sent';
+  return 'pending';
+}
+
+export const isPendingComment = (comment) =>
+  commentStatus(comment) === 'pending';
+
+// Stamps the comments just delivered so the next send skips them
+export function markCommentsSent(commentsByFile, ids, at = Date.now()) {
+  const wanted = new Set(ids);
+  let changed = false;
+  const next = {};
+  for (const [file, comments] of Object.entries(commentsByFile)) {
+    const stamped = comments.map((comment) =>
+      wanted.has(comment.id) && !comment.sentAt
+        ? { ...comment, sentAt: at }
+        : comment,
+    );
+    if (stamped.some((comment, i) => comment !== comments[i])) {
+      changed = true;
+      next[file] = stamped;
+    } else {
+      next[file] = comments;
+    }
+  }
+  return changed ? next : commentsByFile;
+}
+
+const EMPTY_COMMENTS = {
+  commentsByFile: {},
+  generalNote: null,
+  generalNoteSentAt: null,
+};
 
 // Returns the comments as stored, `stale` flags from the last session
 // included; the caller re-judges them with markStaleComments once the

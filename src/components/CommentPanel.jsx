@@ -1,11 +1,13 @@
 import { useState, useRef, useEffect, useCallback, memo } from 'react';
-import { X, Quote, StickyNote, History } from 'lucide-react';
+import { X, Quote, StickyNote, History, Check } from 'lucide-react';
 import { modKey } from '../utils/platform';
 import { describeLines } from '../utils/format';
 import { slugify } from '../utils/escape';
+import { commentStatus } from '../utils/reviewStorage';
 
 function GeneralNoteSection({
   generalNote,
+  generalNotePending = true,
   isEditing,
   onToggleEdit,
   onSave,
@@ -85,9 +87,15 @@ function GeneralNoteSection({
         <div className="general-note-label">
           <StickyNote size={12} strokeWidth={1.5} />
           General note
+          {!generalNotePending && (
+            <span className="panel-status-chip is-sent" title="Already sent">
+              <Check size={10} strokeWidth={2} />
+              sent
+            </span>
+          )}
         </div>
         <div
-          className="general-note-card panel-comment-item"
+          className={`general-note-card panel-comment-item${generalNotePending ? '' : ' is-sent'}`}
           role="button"
           tabIndex={0}
           onClick={() => onToggleEdit(true)}
@@ -129,20 +137,28 @@ function GeneralNoteSection({
   );
 }
 
-// Stale comments (see useComments) are listed apart from the live ones: their
-// file changed since they were written, so the line they name may no longer
-// exist and they are not sent to the agent
-function splitStale(commentsByFile) {
+// What the next send carries, apart from what went out already (see
+// commentStatus): sent comments still point at valid lines, stale ones sit
+// on a file that changed since, so the line they name may no longer exist
+function splitByStatus(commentsByFile) {
   const pending = [];
-  const stale = [];
+  const previous = [];
   for (const [file, comments] of Object.entries(commentsByFile)) {
-    const live = comments.filter((c) => !c.stale);
-    const old = comments.filter((c) => c.stale);
-    if (live.length > 0) pending.push([file, live]);
-    if (old.length > 0) stale.push([file, old]);
+    const next = comments.filter((c) => commentStatus(c) === 'pending');
+    const done = comments.filter((c) => commentStatus(c) !== 'pending');
+    if (next.length > 0) pending.push([file, next]);
+    if (done.length > 0) previous.push([file, done]);
   }
-  return { pending, stale };
+  return { pending, previous };
 }
+
+const STATUS_CHIP = {
+  sent: { label: 'sent', title: 'Already sent to the agent' },
+  stale: {
+    label: 'file changed',
+    title: 'The file changed since; this was probably addressed',
+  },
+};
 
 function CommentLocation({ comment }) {
   if (comment.lineType === 'file') return 'File comment';
@@ -163,9 +179,11 @@ function CommentLocation({ comment }) {
 }
 
 function CommentItem({ comment, onActivate, onDelete }) {
+  const status = commentStatus(comment);
+  const chip = STATUS_CHIP[status];
   return (
     <div
-      className={`panel-comment-item${comment.stale ? ' is-stale' : ''}`}
+      className={`panel-comment-item${status === 'pending' ? '' : ` is-${status}`}`}
       role="button"
       tabIndex={0}
       onClick={() => onActivate(comment)}
@@ -189,6 +207,12 @@ function CommentItem({ comment, onActivate, onDelete }) {
       </button>
       <div className="panel-line-ref">
         <CommentLocation comment={comment} />
+        {chip && (
+          <span className={`panel-status-chip is-${status}`} title={chip.title}>
+            {status === 'sent' && <Check size={10} strokeWidth={2} />}
+            {chip.label}
+          </span>
+        )}
       </div>
       <div className="panel-comment-text">{comment.content}</div>
     </div>
@@ -199,13 +223,14 @@ function CommentPanel({
   id,
   commentsByFile,
   reviewItemCount,
-  staleCount = 0,
+  previousCount = 0,
   onDeleteComment,
   onDismissAll,
-  onClearStale,
+  onClearPrevious,
   onSelectComment,
   onSelectFile,
   generalNote,
+  generalNotePending,
   isEditingGeneralNote,
   onToggleEditGeneralNote,
   onSaveGeneralNote,
@@ -276,9 +301,14 @@ function CommentPanel({
   );
 
   // A stale comment has nothing inline to land on; the file it names is the
-  // closest thing, when it is still in the diff
-  const handleStaleActivate = useCallback(
+  // closest thing, when it is still in the diff. A sent one still has its
+  // bubble
+  const handlePreviousActivate = useCallback(
     (comment) => {
+      if (!comment.stale) {
+        handleCommentActivate(comment);
+        return;
+      }
       if (onSelectFile) {
         onSelectFile(comment.file);
       } else {
@@ -287,10 +317,10 @@ function CommentPanel({
       }
       onSelectComment?.();
     },
-    [onSelectComment, onSelectFile],
+    [handleCommentActivate, onSelectComment, onSelectFile],
   );
 
-  const { pending, stale } = splitStale(commentsByFile);
+  const { pending, previous } = splitByStatus(commentsByFile);
 
   return (
     <aside
@@ -315,6 +345,7 @@ function CommentPanel({
         <GeneralNoteSection
           key={`gn-${isEditingGeneralNote ? 'edit' : 'view'}`}
           generalNote={generalNote}
+          generalNotePending={generalNotePending}
           isEditing={isEditingGeneralNote}
           onToggleEdit={onToggleEditGeneralNote}
           onSave={onSaveGeneralNote}
@@ -333,33 +364,36 @@ function CommentPanel({
             ))}
           </div>
         ))}
-        {stale.length > 0 && (
-          <section className="panel-stale-section" aria-label="Stale comments">
+        {previous.length > 0 && (
+          <section
+            className="panel-stale-section"
+            aria-label="Already sent comments"
+          >
             <div className="panel-stale-header">
               <span className="panel-stale-title">
                 <History size={12} strokeWidth={1.5} />
-                Stale ({staleCount})
+                Already sent ({previousCount})
               </span>
               <button
                 className="panel-dismiss-all-btn"
                 type="button"
-                onClick={onClearStale}
+                onClick={onClearPrevious}
               >
-                Clear stale
+                Clear sent
               </button>
             </div>
             <p className="panel-stale-hint">
-              From an earlier review; these files changed since. Not sent to the
-              agent.
+              Not sent again. Edit one to resend it; a changed file means the
+              agent probably addressed it.
             </p>
-            {stale.map(([file, fileComments]) => (
+            {previous.map(([file, fileComments]) => (
               <div key={file} className="panel-comment-group">
                 <h3>{file}</h3>
                 {fileComments.map((c) => (
                   <CommentItem
                     key={c.id}
                     comment={c}
-                    onActivate={handleStaleActivate}
+                    onActivate={handlePreviousActivate}
                     onDelete={onDeleteComment}
                   />
                 ))}

@@ -28,6 +28,7 @@ import {
   setReviewedMark,
   clearReviewedMark,
   resolveReviewedFiles,
+  isPendingComment,
 } from './utils/reviewStorage';
 
 const CommitModal = lazy(() => import('./components/CommitModal'));
@@ -138,13 +139,11 @@ function fingerprintsOf(summaries) {
 
 // Keeps each file's array identity when nothing is stale, so untouched
 // cards do not re-render on every comment change
-function withoutStale(commentsByFile) {
+function filterCommentsByFile(commentsByFile, keep) {
   const next = {};
   for (const [file, comments] of Object.entries(commentsByFile)) {
-    const pending = comments.some((c) => c.stale)
-      ? comments.filter((c) => !c.stale)
-      : comments;
-    if (pending.length > 0) next[file] = pending;
+    const kept = comments.every(keep) ? comments : comments.filter(keep);
+    if (kept.length > 0) next[file] = kept;
   }
   return next;
 }
@@ -169,19 +168,27 @@ export default function App() {
   const {
     commentsByFile,
     pendingComments,
-    staleCount,
+    previousCount,
     generalNote,
+    generalNotePending,
     setGeneralNote,
     clearGeneralNote,
     addComment,
     updateComment,
     deleteComment,
-    clearStaleComments,
+    markSent,
+    clearPreviousComments,
     deleteAllComments,
   } = useComments(gitRoot, diffSummary);
-  // Stale comments are for the panel only: nothing inline, no sidebar badge
+  // Inline, a file shows what is pending and what was already sent (its
+  // lines still hold); stale comments are for the panel only. The sidebar
+  // counts only what the next send carries
+  const visibleCommentsByFile = useMemo(
+    () => filterCommentsByFile(commentsByFile, (c) => !c.stale),
+    [commentsByFile],
+  );
   const pendingCommentsByFile = useMemo(
-    () => withoutStale(commentsByFile),
+    () => filterCommentsByFile(commentsByFile, isPendingComment),
     [commentsByFile],
   );
 
@@ -938,18 +945,23 @@ export default function App() {
       } else if (options.rawFormatted) {
         formattedPromise = Promise.resolve(options.rawFormatted);
       } else {
-        if (pendingComments.length === 0 && !generalNote) {
+        if (pendingComments.length === 0 && !generalNotePending) {
           return { ok: false, copied: null };
         }
         formattedPromise = resolvePreviewLines(pendingComments).then(
           (comments) =>
-            formatComments(comments, gitRoot, generalNote, {
-              compareBase: compareBaseRef.current,
-              pullRequest:
-                pullRequest && pullRequest.baseRef === compareBaseRef.current
-                  ? pullRequest
-                  : null,
-            }),
+            formatComments(
+              comments,
+              gitRoot,
+              generalNotePending ? generalNote : null,
+              {
+                compareBase: compareBaseRef.current,
+                pullRequest:
+                  pullRequest && pullRequest.baseRef === compareBaseRef.current
+                    ? pullRequest
+                    : null,
+              },
+            ),
         );
       }
 
@@ -1010,6 +1022,20 @@ export default function App() {
         }
       }
 
+      // The handoff is out: what it carried stays visible but is not sent
+      // again. Only the plain comment send counts; approvals, free-text
+      // messages and the commit-message request address nothing
+      const isCommentSend =
+        !options.approvalMessage &&
+        !options.customMessage &&
+        !options.rawFormatted;
+      if (isCommentSend && parts.length > 0) {
+        markSent(
+          pendingComments.map((c) => c.id),
+          generalNotePending,
+        );
+      }
+
       // CLI medium exits the server — close the browser tab
       if (mediums.includes('cli')) {
         setTimeout(() => window.close(), 300);
@@ -1021,6 +1047,8 @@ export default function App() {
     [
       pendingComments,
       generalNote,
+      generalNotePending,
+      markSent,
       gitRoot,
       config,
       pullRequest,
@@ -1067,7 +1095,7 @@ export default function App() {
   const handleGitAction = useCallback(
     async (action) => {
       if (action === 'commit' || action === 'commit-and-push') {
-        const itemCount = pendingComments.length + (generalNote ? 1 : 0);
+        const itemCount = pendingComments.length + (generalNotePending ? 1 : 0);
         if (itemCount > 0) {
           if (
             !confirm(
@@ -1111,7 +1139,7 @@ export default function App() {
         return;
       }
     },
-    [pendingComments.length, generalNote, projectInfo, showToast],
+    [pendingComments.length, generalNotePending, projectInfo, showToast],
   );
 
   const handleDoCommit = useCallback(
@@ -1818,7 +1846,7 @@ export default function App() {
     };
   }, [canAutoLoadMore, loadNextPage]);
 
-  const reviewItemCount = pendingComments.length + (generalNote ? 1 : 0);
+  const reviewItemCount = pendingComments.length + (generalNotePending ? 1 : 0);
   const hasReviewItems = reviewItemCount > 0;
 
   const handleToggleEditGeneralNote = useCallback((open) => {
@@ -1854,10 +1882,10 @@ export default function App() {
         hasReviewItems={hasReviewItems}
         reviewItemCount={reviewItemCount}
         commentsByFile={commentsByFile}
-        staleCount={staleCount}
+        previousCount={previousCount}
         onDeleteComment={handleDeleteComment}
         onDismissAllComments={handleDismissAllComments}
-        onClearStaleComments={clearStaleComments}
+        onClearPreviousComments={clearPreviousComments}
         onSelectFile={handleSelectFile}
         onSendComments={handleSendComments}
         onGitAction={handleGitAction}
@@ -1878,6 +1906,7 @@ export default function App() {
         onOpenWhatsNew={handleOpenWhatsNew}
         onRestart={handleRestart}
         generalNote={generalNote}
+        generalNotePending={generalNotePending}
         isEditingGeneralNote={isEditingGeneralNote}
         onToggleEditGeneralNote={handleToggleEditGeneralNote}
         onSaveGeneralNote={handleSaveGeneralNote}
@@ -1949,7 +1978,7 @@ export default function App() {
                     file={file}
                     className="entering"
                     style={{ animationDelay: `${index * 40}ms` }}
-                    fileComments={pendingCommentsByFile[filePath]}
+                    fileComments={visibleCommentsByFile[filePath]}
                     activeForm={activeForm}
                     editingComment={editingComment}
                     onAddComment={handleAddComment}

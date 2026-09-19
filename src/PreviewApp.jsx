@@ -36,14 +36,16 @@ export default function PreviewApp({ preview, config }) {
   const {
     commentsByFile,
     pendingComments,
-    staleCount,
+    previousCount,
     generalNote,
+    generalNotePending,
     setGeneralNote,
     clearGeneralNote,
     addComment,
     updateComment,
     deleteComment,
-    clearStaleComments,
+    markSent,
+    clearPreviousComments,
     deleteAllComments,
   } = useComments(documentPath);
 
@@ -331,14 +333,14 @@ export default function PreviewApp({ preview, config }) {
   );
 
   const handleSendComments = useCallback(async () => {
-    if (pendingComments.length === 0 && !generalNote) return;
+    if (pendingComments.length === 0 && !generalNotePending) return;
     // The document live-reloads under the reviewer, so a comment's stored
     // srcLine may predate edits made above it. Re-resolve against the current
     // render before handing line numbers to the agent.
     const formatted = formatComments(
       withResolvedLines(pendingComments, blocks, filePath),
       documentPath,
-      generalNote,
+      generalNotePending ? generalNote : null,
       { context: 'preview' },
     );
 
@@ -378,6 +380,11 @@ export default function PreviewApp({ preview, config }) {
         `Comments ${parts.join(' and ')}${copied === false ? ' (clipboard blocked)' : ''}`,
         copied === false ? 'info' : 'success',
       );
+      // Out the door: kept for reference, not sent again
+      markSent(
+        pendingComments.map((c) => c.id),
+        generalNotePending,
+      );
     }
 
     // CLI medium exits the server — close the browser tab
@@ -389,6 +396,8 @@ export default function PreviewApp({ preview, config }) {
     blocks,
     filePath,
     generalNote,
+    generalNotePending,
+    markSent,
     documentPath,
     selectedMediums,
     config,
@@ -399,7 +408,7 @@ export default function PreviewApp({ preview, config }) {
   const fileLevelComments = (fileComments || []).filter(
     (c) => c.lineType === 'file',
   );
-  const reviewItemCount = pendingComments.length + (generalNote ? 1 : 0);
+  const reviewItemCount = pendingComments.length + (generalNotePending ? 1 : 0);
   const canSend = reviewItemCount > 0 && selectedMediums.length > 0;
 
   return (
@@ -486,12 +495,13 @@ export default function PreviewApp({ preview, config }) {
                 id={COMMENTS_PANEL_ID}
                 commentsByFile={commentsByFile}
                 reviewItemCount={reviewItemCount}
-                staleCount={staleCount}
+                previousCount={previousCount}
                 onDeleteComment={handleDeleteComment}
                 onDismissAll={handleDismissAllComments}
-                onClearStale={clearStaleComments}
+                onClearPrevious={clearPreviousComments}
                 onSelectComment={() => closeComments(true)}
                 generalNote={generalNote}
+                generalNotePending={generalNotePending}
                 isEditingGeneralNote={isEditingGeneralNote}
                 onToggleEditGeneralNote={handleToggleEditGeneralNote}
                 onSaveGeneralNote={handleSaveGeneralNote}

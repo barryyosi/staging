@@ -10,6 +10,9 @@ import { spawnSync } from 'node:child_process';
 import { getStagedDiffSummary } from '../lib/git.js';
 import {
   markStaleComments,
+  markCommentsSent,
+  commentStatus,
+  isPendingComment,
   setReviewedMark,
   clearReviewedMark,
   resolveReviewedFiles,
@@ -158,7 +161,26 @@ try {
   // Loading returns the comments as stored; judging is a separate step
   const loaded = loadReviewState('/repo').comments;
   assert.equal(loaded.generalNote, 'note');
+  assert.equal(loaded.generalNoteSentAt, null);
   assert.deepEqual(loaded.commentsByFile, comments);
+
+  // The note's sent stamp survives a round trip, but only with a note
+  saveReviewState('/repo', 'comments', {
+    commentsByFile: comments,
+    generalNote: 'note',
+    generalNoteSentAt: 42,
+  });
+  assert.equal(loadReviewState('/repo').comments.generalNoteSentAt, 42);
+  saveReviewState('/repo', 'comments', {
+    commentsByFile: comments,
+    generalNote: null,
+    generalNoteSentAt: 42,
+  });
+  assert.equal(loadReviewState('/repo').comments.generalNoteSentAt, null);
+  saveReviewState('/repo', 'comments', {
+    commentsByFile: comments,
+    generalNote: 'note',
+  });
   // Sections are independent: writing one keeps the other
   saveReviewState('/repo', 'reviewed', {
     'a.txt': { fingerprint: 'f', at: 1 },
@@ -223,6 +245,32 @@ try {
   assert.equal(Boolean(gone['a.txt'][1].stale), false);
   assert.equal(gone['a.txt'][1].fingerprint, 'head:idx');
   assert.equal(gone['a.txt'][0].stale, true);
+
+  // --- Comment lifecycle: pending -> sent -> file changed ---
+  const cycle = {
+    'a.txt': [
+      { id: 'p', file: 'a.txt', fingerprint: 'f' },
+      { id: 'q', file: 'a.txt', fingerprint: 'f' },
+    ],
+  };
+  assert.equal(commentStatus(cycle['a.txt'][0]), 'pending');
+  const sent = markCommentsSent(cycle, ['p'], 7);
+  assert.notEqual(sent, cycle);
+  assert.equal(sent['a.txt'][0].sentAt, 7);
+  assert.equal(commentStatus(sent['a.txt'][0]), 'sent');
+  assert.equal(sent['a.txt'][1], cycle['a.txt'][1], 'untouched sibling');
+  assert.equal(isPendingComment(sent['a.txt'][1]), true);
+  // Stamping again is a no-op, identity included
+  assert.equal(markCommentsSent(sent, ['p'], 9), sent);
+  assert.equal(markCommentsSent(sent, ['nope'], 9), sent);
+  // A sent comment whose file changed is stale, whatever its stamp
+  const changed = markStaleComments(sent, { 'a.txt': 'other' });
+  assert.equal(commentStatus(changed['a.txt'][0]), 'stale');
+  assert.equal(commentStatus(changed['a.txt'][1]), 'stale');
+  // ...and the same diff again brings the sent one back as sent, not pending
+  const back = markStaleComments(changed, { 'a.txt': 'f' });
+  assert.equal(commentStatus(back['a.txt'][0]), 'sent');
+  assert.equal(commentStatus(back['a.txt'][1]), 'pending');
 
   console.log('review-state-verify: all assertions passed');
 } finally {
