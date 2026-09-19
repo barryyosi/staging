@@ -8,6 +8,7 @@ import {
 } from 'react';
 import { Quote, MessageSquarePlus, Plus } from 'lucide-react';
 import { modKey } from '../utils/platform';
+import SentBadge from './SentBadge';
 import {
   anchorComments,
   resolveAnchor,
@@ -84,7 +85,10 @@ function PreviewCommentForm({
 function PreviewCommentBubble({ comment, onEdit, onDelete }) {
   const quote = comment.selectedText || comment.anchorText || '';
   return (
-    <div className="preview-comment-bubble" data-comment-id={comment.id}>
+    <div
+      className={`preview-comment-bubble${comment.sentAt ? ' is-sent' : ''}`}
+      data-comment-id={comment.id}
+    >
       <div className="comment-bubble">
         <div className="comment-bubble-head">
           <span className="comment-loc" title={quote}>
@@ -102,6 +106,7 @@ function PreviewCommentBubble({ comment, onEdit, onDelete }) {
               </span>
             )}
           </span>
+          {comment.sentAt && <SentBadge />}
           <div className="comment-actions">
             <button type="button" onClick={() => onEdit(comment)}>
               Edit
@@ -340,9 +345,7 @@ export default function PreviewBody({
   // draft. The + buttons are 18px targets stacked down the gutter, so a
   // misclick one block away would silently destroy a long comment.
   const confirmDiscardDraft = useCallback(
-    () =>
-      !draft.trim() ||
-      confirm('Discard the comment you are writing?'),
+    () => !draft.trim() || confirm('Discard the comment you are writing?'),
     [draft],
   );
 

@@ -69,7 +69,68 @@ export function markStaleComments(commentsByFile, fingerprintByPath, since) {
   return changed ? next : commentsByFile;
 }
 
-const EMPTY_COMMENTS = { commentsByFile: {}, generalNote: null };
+// A comment's place in the review cycle. Only pending comments go to the
+// agent: sent ones were delivered already and stay for reference until
+// edited (which makes them pending again); stale ones sit on a file that
+// changed since, so they were presumably addressed.
+export function commentStatus(comment) {
+  if (comment.stale) return 'stale';
+  if (comment.sentAt) return 'sent';
+  return 'pending';
+}
+
+export const isPendingComment = (comment) =>
+  commentStatus(comment) === 'pending';
+
+// Stamps the comments just delivered so the next send skips them. `sent`
+// is the snapshot that was formatted; a comment edited since (its
+// `timestamp` moved) is not the revision the agent got, so it stays pending
+export function markCommentsSent(commentsByFile, sent, at = Date.now()) {
+  const delivered = new Map(sent.map((c) => [c.id, c.timestamp]));
+  let changed = false;
+  const next = {};
+  for (const [file, comments] of Object.entries(commentsByFile)) {
+    const stamped = comments.map((comment) =>
+      delivered.has(comment.id) &&
+      delivered.get(comment.id) === comment.timestamp &&
+      !comment.sentAt
+        ? { ...comment, sentAt: at }
+        : comment,
+    );
+    if (stamped.some((comment, i) => comment !== comments[i])) {
+      changed = true;
+      next[file] = stamped;
+    } else {
+      next[file] = comments;
+    }
+  }
+  return changed ? next : commentsByFile;
+}
+
+// Undoes one stamp (a send that was claimed ahead of delivery and then
+// failed): only comments carrying exactly that `at` go back to pending
+export function unmarkCommentsSent(commentsByFile, at) {
+  let changed = false;
+  const next = {};
+  for (const [file, comments] of Object.entries(commentsByFile)) {
+    const cleared = comments.map((comment) =>
+      comment.sentAt === at ? { ...comment, sentAt: null } : comment,
+    );
+    if (cleared.some((comment, i) => comment !== comments[i])) {
+      changed = true;
+      next[file] = cleared;
+    } else {
+      next[file] = comments;
+    }
+  }
+  return changed ? next : commentsByFile;
+}
+
+const EMPTY_COMMENTS = {
+  commentsByFile: {},
+  generalNote: null,
+  generalNoteSentAt: null,
+};
 
 // Returns the comments as stored, `stale` flags from the last session
 // included; the caller re-judges them with markStaleComments once the

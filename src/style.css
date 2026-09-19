@@ -3473,18 +3473,76 @@ body {
   color: var(--text-3);
 }
 
-.panel-comment-item.is-stale {
+.panel-comment-item.is-stale,
+.panel-comment-item.is-sent {
   background: transparent;
   box-shadow: inset 0 0 0 1px var(--border-1);
 }
 
-.panel-comment-item.is-stale .panel-comment-text {
+.panel-comment-item.is-stale .panel-comment-text,
+.panel-comment-item.is-sent .panel-comment-text {
   color: var(--text-2);
 }
 
 .panel-comment-item.is-stale:hover,
-.panel-comment-item.is-stale:focus-visible {
+.panel-comment-item.is-stale:focus-visible,
+.panel-comment-item.is-sent:hover,
+.panel-comment-item.is-sent:focus-visible {
   background: var(--bg-hover);
+}
+
+/* "sent" / "file changed" chips next to a comment's location */
+.panel-status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  box-shadow: inset 0 0 0 1px var(--border-1);
+  vertical-align: middle;
+}
+
+.panel-status-chip.is-sent {
+  color: var(--add-text);
+}
+
+/* === SENT COMMENTS INLINE === */
+.comment-sent-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 8px;
+  /* Takes the head's free space so it sits beside the location, with the
+     actions still flush right */
+  margin-right: auto;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--add-text);
+  box-shadow: inset 0 0 0 1px var(--border-1);
+  white-space: nowrap;
+}
+
+.comment-row.is-sent .comment-bubble,
+.file-comment-row.is-sent .comment-bubble,
+.preview-comment-bubble.is-sent .comment-bubble {
+  opacity: 0.72;
+}
+
+.comment-row.is-sent .comment-bubble:hover,
+.file-comment-row.is-sent .comment-bubble:hover,
+.preview-comment-bubble.is-sent .comment-bubble:hover {
+  opacity: 1;
 }
 
 /* === GENERAL NOTE SECTION === */

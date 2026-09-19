@@ -1,15 +1,20 @@
 import { useState, useRef, useEffect } from 'react';
 import { modKey } from '../utils/platform';
+import SentBadge from './SentBadge';
 
 export function FileCommentBubble({ comment, onEdit, onDelete }) {
   const location = `${comment.file}`;
   return (
-    <div className="file-comment-row" data-comment-id={comment.id}>
+    <div
+      className={`file-comment-row${comment.sentAt ? ' is-sent' : ''}`}
+      data-comment-id={comment.id}
+    >
       <div className="comment-bubble">
         <div className="comment-bubble-head">
           <span className="comment-loc" title={location}>
             {location}
           </span>
+          {comment.sentAt && <SentBadge />}
           <div className="comment-actions">
             <button type="button" onClick={() => onEdit(comment)}>
               Edit

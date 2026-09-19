@@ -36,14 +36,17 @@ export default function PreviewApp({ preview, config }) {
   const {
     commentsByFile,
     pendingComments,
-    staleCount,
+    previousCount,
     generalNote,
+    generalNotePending,
     setGeneralNote,
     clearGeneralNote,
     addComment,
     updateComment,
     deleteComment,
-    clearStaleComments,
+    markSent,
+    unmarkSent,
+    clearPreviousComments,
     deleteAllComments,
   } = useComments(documentPath);
 
@@ -330,15 +333,18 @@ export default function PreviewApp({ preview, config }) {
     [selectedMediums],
   );
 
-  const handleSendComments = useCallback(async () => {
-    if (pendingComments.length === 0 && !generalNote) return;
+  const sendComments = useCallback(async () => {
+    // The snapshot this send formats; only these exact revisions get
+    // stamped as sent afterwards
+    const sentComments = pendingComments;
+    const sentNote = generalNotePending ? generalNote : null;
     // The document live-reloads under the reviewer, so a comment's stored
     // srcLine may predate edits made above it. Re-resolve against the current
     // render before handing line numbers to the agent.
     const formatted = formatComments(
-      withResolvedLines(pendingComments, blocks, filePath),
+      withResolvedLines(sentComments, blocks, filePath),
       documentPath,
-      generalNote,
+      sentNote,
       { context: 'preview' },
     );
 
@@ -347,6 +353,12 @@ export default function PreviewApp({ preview, config }) {
       : null;
 
     const serverMediums = selectedMediums.filter((m) => m !== 'clipboard');
+    // The cli medium makes the server print and exit, so the stamp has to be
+    // on disk before that request; a failed request takes it back
+    const claimAhead = selectedMediums.includes('cli');
+    const claimedAt = claimAhead
+      ? await markSent(sentComments, sentNote, { persistFirst: true })
+      : null;
     if (serverMediums.length > 0) {
       try {
         const res = await fetch('/api/send-comments', {
@@ -356,10 +368,12 @@ export default function PreviewApp({ preview, config }) {
         });
         const data = await res.json();
         if (!data.success) {
+          if (claimedAt) unmarkSent(claimedAt);
           showToast(`Failed to send: ${data.error}`, 'error');
           return;
         }
       } catch (err) {
+        if (claimedAt) unmarkSent(claimedAt);
         showToast(`Failed to send: ${err.message}`, 'error');
         return;
       }
@@ -378,6 +392,9 @@ export default function PreviewApp({ preview, config }) {
         `Comments ${parts.join(' and ')}${copied === false ? ' (clipboard blocked)' : ''}`,
         copied === false ? 'info' : 'success',
       );
+      // Out the door: kept for reference, not sent again (unless claimed
+      // ahead, above)
+      if (!claimAhead) markSent(sentComments, sentNote);
     }
 
     // CLI medium exits the server — close the browser tab
@@ -389,17 +406,38 @@ export default function PreviewApp({ preview, config }) {
     blocks,
     filePath,
     generalNote,
+    generalNotePending,
+    markSent,
+    unmarkSent,
     documentPath,
     selectedMediums,
     config,
     showToast,
   ]);
 
+  // One handoff at a time: a second click while the first is still in
+  // flight would send the same comments twice
+  const sendInFlightRef = useRef(false);
+
+  const handleSendComments = useCallback(async () => {
+    if (pendingComments.length === 0 && !generalNotePending) return;
+    if (sendInFlightRef.current) {
+      showToast('A send is already in progress', 'info');
+      return;
+    }
+    sendInFlightRef.current = true;
+    try {
+      await sendComments();
+    } finally {
+      sendInFlightRef.current = false;
+    }
+  }, [pendingComments.length, generalNotePending, sendComments, showToast]);
+
   const fileComments = commentsByFile[filePath];
   const fileLevelComments = (fileComments || []).filter(
     (c) => c.lineType === 'file',
   );
-  const reviewItemCount = pendingComments.length + (generalNote ? 1 : 0);
+  const reviewItemCount = pendingComments.length + (generalNotePending ? 1 : 0);
   const canSend = reviewItemCount > 0 && selectedMediums.length > 0;
 
   return (
@@ -486,12 +524,13 @@ export default function PreviewApp({ preview, config }) {
                 id={COMMENTS_PANEL_ID}
                 commentsByFile={commentsByFile}
                 reviewItemCount={reviewItemCount}
-                staleCount={staleCount}
+                previousCount={previousCount}
                 onDeleteComment={handleDeleteComment}
                 onDismissAll={handleDismissAllComments}
-                onClearStale={clearStaleComments}
+                onClearPrevious={clearPreviousComments}
                 onSelectComment={() => closeComments(true)}
                 generalNote={generalNote}
+                generalNotePending={generalNotePending}
                 isEditingGeneralNote={isEditingGeneralNote}
                 onToggleEditGeneralNote={handleToggleEditGeneralNote}
                 onSaveGeneralNote={handleSaveGeneralNote}

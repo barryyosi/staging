@@ -4,6 +4,9 @@ import {
   loadComments,
   saveComments,
   markStaleComments,
+  markCommentsSent,
+  unmarkCommentsSent,
+  isPendingComment,
 } from '../utils/reviewStorage';
 
 let idCounter = 0;
@@ -16,7 +19,25 @@ function generateId() {
   );
 }
 
-const EMPTY = { commentsByFile: {}, generalNote: null };
+// The stamp a handoff of `sentComments` and `sentNote` (the snapshot that
+// was formatted) leaves behind: those are no longer pending. A comment or
+// note edited while the send was in flight is not what the agent got, so
+// it stays pending
+function stampSent(prev, sentComments, sentNote, at) {
+  const patch = {};
+  const stamped = markCommentsSent(prev.commentsByFile, sentComments, at);
+  if (stamped !== prev.commentsByFile) patch.commentsByFile = stamped;
+  if (sentNote && prev.generalNote === sentNote && !prev.generalNoteSentAt) {
+    patch.generalNoteSentAt = at;
+  }
+  return patch;
+}
+
+const EMPTY = {
+  commentsByFile: {},
+  generalNote: null,
+  generalNoteSentAt: null,
+};
 
 // Comments live in the per-project review file so a review survives closing the
 // tab. `diffSummary` ({ base, fingerprintByPath }, null while loading) comes
@@ -38,7 +59,11 @@ export function useComments(projectKey, diffSummary = null) {
     saveComments,
   );
   const loaded = value !== null;
-  const { commentsByFile, generalNote } = value || EMPTY;
+  const { commentsByFile, generalNote, generalNoteSentAt } = value || EMPTY;
+  const valueRef = useRef(value);
+  useEffect(() => {
+    valueRef.current = value;
+  }, [value]);
 
   // Comments created this session are never judged stale (see
   // markStaleComments)
@@ -69,39 +94,89 @@ export function useComments(projectKey, diffSummary = null) {
     });
   }, [loaded, diffSummary, projectKey, setValue]);
 
+  // An updater returning an empty patch leaves the store (and its dirty
+  // flag) untouched
   const update = useCallback(
-    (updater) => setValue((prev) => ({ ...prev, ...updater(prev) })),
+    (updater) =>
+      setValue((prev) => {
+        const patch = updater(prev);
+        return Object.keys(patch).length === 0 ? prev : { ...prev, ...patch };
+      }),
     [setValue],
   );
 
-  // Comments the agent still needs to hear about; stale ones are kept for
-  // the reviewer's reference only
+  // Comments the agent still needs to hear about: not yet sent, on a file
+  // that has not changed since. Sent and stale ones are kept for the
+  // reviewer's reference only
   const pendingComments = useMemo(
-    () =>
-      Object.values(commentsByFile)
-        .flat()
-        .filter((c) => !c.stale),
+    () => Object.values(commentsByFile).flat().filter(isPendingComment),
     [commentsByFile],
   );
 
-  const staleCount = useMemo(
+  const previousCount = useMemo(
     () =>
       Object.values(commentsByFile)
         .flat()
-        .filter((c) => c.stale).length,
+        .filter((c) => !isPendingComment(c)).length,
     [commentsByFile],
   );
+
+  // The note goes out once; editing it sends the new text again
+  const generalNotePending = Boolean(generalNote) && !generalNoteSentAt;
 
   const setGeneralNote = useCallback(
     (text) => {
-      update(() => ({ generalNote: text && text.trim() ? text.trim() : null }));
+      const next = text && text.trim() ? text.trim() : null;
+      update((prev) =>
+        next === prev.generalNote
+          ? {}
+          : { generalNote: next, generalNoteSentAt: null },
+      );
     },
     [update],
   );
 
   const clearGeneralNote = useCallback(() => {
-    update(() => ({ generalNote: null }));
+    update(() => ({ generalNote: null, generalNoteSentAt: null }));
   }, [update]);
+
+  // Called once the handoff went out. With `persistFirst`, the stamp is
+  // written to the server before this resolves: a send whose medium shuts
+  // the server down (cli) has no "after" in which the usual save could land.
+  // Resolves to the stamp's `at`, for unmarkSent
+  const markSent = useCallback(
+    async (sentComments, sentNote, { persistFirst = false } = {}) => {
+      const at = Date.now();
+      const current = valueRef.current;
+      if (persistFirst && current) {
+        const patch = stampSent(current, sentComments, sentNote, at);
+        if (Object.keys(patch).length > 0) {
+          try {
+            await saveComments(projectKey, { ...current, ...patch });
+          } catch {
+            // The store's own save will retry once state settles
+          }
+        }
+      }
+      update((prev) => stampSent(prev, sentComments, sentNote, at));
+      return at;
+    },
+    [projectKey, update],
+  );
+
+  // A send claimed ahead of delivery that then failed: back to pending
+  const unmarkSent = useCallback(
+    (at) => {
+      update((prev) => {
+        const patch = {};
+        const cleared = unmarkCommentsSent(prev.commentsByFile, at);
+        if (cleared !== prev.commentsByFile) patch.commentsByFile = cleared;
+        if (prev.generalNoteSentAt === at) patch.generalNoteSentAt = null;
+        return patch;
+      });
+    },
+    [update],
+  );
 
   const addComment = useCallback(
     (file, line, lineType, content, extra = {}) => {
@@ -135,9 +210,15 @@ export function useComments(projectKey, diffSummary = null) {
         for (const [file, fileComments] of Object.entries(
           prev.commentsByFile,
         )) {
+          // An edited comment goes out again with the next send
           next[file] = fileComments.map((c) =>
             c.id === id
-              ? { ...c, content: content.trim(), timestamp: Date.now() }
+              ? {
+                  ...c,
+                  content: content.trim(),
+                  timestamp: Date.now(),
+                  sentAt: null,
+                }
               : c,
           );
         }
@@ -168,26 +249,33 @@ export function useComments(projectKey, diffSummary = null) {
     [removeWhere],
   );
 
-  const clearStaleComments = useCallback(
-    () => removeWhere((c) => c.stale),
+  const clearPreviousComments = useCallback(
+    () => removeWhere((c) => !isPendingComment(c)),
     [removeWhere],
   );
 
   const deleteAllComments = useCallback(() => {
-    update(() => ({ commentsByFile: {}, generalNote: null }));
+    update(() => ({
+      commentsByFile: {},
+      generalNote: null,
+      generalNoteSentAt: null,
+    }));
   }, [update]);
 
   return {
     commentsByFile,
     pendingComments,
-    staleCount,
+    previousCount,
     generalNote,
+    generalNotePending,
     setGeneralNote,
     clearGeneralNote,
     addComment,
     updateComment,
     deleteComment,
-    clearStaleComments,
+    markSent,
+    unmarkSent,
+    clearPreviousComments,
     deleteAllComments,
   };
 }

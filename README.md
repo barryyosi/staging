@@ -22,7 +22,7 @@ Staging gives you a dedicated, browser-based review interface with GitHub-style 
 - **Inline Comments**: Add threaded comments directly on changed lines to guide agent refinements; drag the `+` gutter button to comment on a range of lines
 - **Markdown/HTML Preview**: Toggle per-file between diff and rendered preview for `.md` and `.html` files, with inline commenting on the rendered output — hover any block for a `+` gutter button, or select text to quote it; comments carry the markdown source line so the agent knows exactly where to edit. In preview, one click copies the file's text and another opens it in an editor; saving re-stages the file
 - **Standalone File Preview**: Point staging at a single markdown/HTML file — no git repo needed — for a live-reloading rendered preview with the same inline commenting, plus file-level comments, a general review note, and the comments panel
-- **Review State That Survives a Reopen**: Comments, the general note and the files you marked reviewed are kept on disk per repository (under `~/.staging-reviews/`). Reopen staging after the agent has worked and the files whose diff did not change are still ticked; comments on files that did change come back as stale, listed in the panel for reference but not sent again
+- **Review State That Survives a Reopen**: Comments, the general note and the files you marked reviewed are kept on disk per repository (under `~/.staging-reviews/`). Reopen staging after the agent has worked and the files whose diff did not change are still ticked. A comment goes to the agent once: after a send it stays visible as "sent" and is never sent again unless you edit it, and a comment whose file changed since is listed as "file changed", the agent's cue that it was addressed
 - **Compare Against a Base Branch**: Switch the review from "what is staged" to "everything this branch adds on top of `main`" (or any branch) — committed and staged alike — from the header, `--base <branch>`, or the `baseBranch` config option
 - **Pull Request Aware**: When the checked-out branch has an open pull/merge request (GitHub via `gh`, GitLab via `glab`, Azure DevOps via `az`), the compare picker offers its target branch and the handoff names the request; run `staging --pr` to open the review on the whole request instead of the staged diff — review the PR locally, send the comments straight to the agent
 - **Update Release Notes**: When a newer Staging build is available, the app opens a built-in "What's New" modal showing the running and available versions (with their commits) and every changelog entry since your version before updating
@@ -120,14 +120,19 @@ with `STAGING_STATE_DIR`):
   general note.
 
 On the next open, a file whose diff is byte-for-byte the same comes back
-reviewed; one that changed since starts unreviewed again. Comments are
-judged when the project loads and again whenever the compare base changes
-(so a review made with `--pr` is judged against the request's diff, not the
-staged one). Comments on unchanged files come back live and are sent as usual. Comments on files
-that changed or left the diff come back **stale**: the panel lists them in a
-separate section so you can see what you asked for last time, but they are
-not shown inline and not sent to the agent. Dismiss them one by one or with
-"Clear stale". "Dismiss all" clears everything, stored copy included.
+reviewed; one that changed since starts unreviewed again.
+
+Each comment goes to the agent exactly once. Sending marks what went out as
+**sent**: it stays inline and in the panel, dimmed with a "sent" chip, and the
+next send skips it. Editing a sent comment makes it pending again, so the
+agent gets the new text. The general note works the same way. When a file
+changes after a comment on it was written (judged when the project loads and
+again whenever the compare base changes, so a review made with `--pr` is
+judged against the request's diff), the comment shows as **file changed**:
+listed in the panel's "Earlier" section, not inline, and not sent, since
+the agent has presumably addressed it. So the panel always shows what the
+next send carries at the top, and what you already asked for below it, one
+"Clear earlier" away. "Dismiss all" clears everything, stored copy included.
 
 Nothing leaves the machine: the state is keyed by the repository path, so a
 worktree or a sibling project keeps its own. It is written on every change
@@ -148,8 +153,9 @@ The preview live-reloads when the file changes on disk. Hover any rendered
 block for a `+` button to comment on it, or select text to quote a specific
 phrase — comments appear inline beneath the block they refer to and carry the
 markdown source line. Comments and the general note persist per document,
-like they do per repository (see above), but without a diff to judge them
-against they always come back live. An unsaved editor draft survives until
+like they do per repository (see above), and a send marks them as sent the
+same way; without a diff to judge them against they never show as "file
+changed". An unsaved editor draft survives until
 the tab closes: reopen the editor and it is restored. The header's copy button puts the file's
 text on the clipboard, and the pencil opens it in a plain editor (`Ctrl/Cmd+Enter` saves,
 `Esc` cancels); a save writes the file and the preview re-renders. Inside a
