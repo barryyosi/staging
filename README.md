@@ -1,12 +1,14 @@
 <div align="center">
   <img src="src/logo.svg" height="120" alt="Staging Logo" />
   <h1>Staging</h1>
-  <p><strong>Review your coding agent's changes in the browser. Comment inline. Send it back.</strong></p>
+  <p><strong>Pull-request style review of your AI agent's work, before it is committed.</strong></p>
 </div>
 
 ---
 
-A local CLI that opens the staged diff of a git repo in a GitHub-style review UI. You comment, hit **Send**, the agent gets the review. Nothing leaves your machine.
+Coding agents produce diffs faster than a terminal lets you read them. Staging opens the staged changes of any git repo in a local, GitHub-style review: read the diff, comment on the lines that need work, hit **Send**. The comments land in a review file the agent picks up and fixes. Review again, then commit.
+
+Runs on your machine. Nothing leaves it.
 
 ## Install
 
