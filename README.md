@@ -1,12 +1,12 @@
 <div align="center">
   <img src="src/logo.svg" height="120" alt="Staging Logo" />
   <h1>Staging</h1>
-  <p><strong>Pull-request style review of your AI agent's work, before it is committed.</strong></p>
+  <p><strong>Pull-request style review of your AI agent's work, with the agent in the loop.</strong></p>
 </div>
 
 ---
 
-Coding agents produce diffs faster than a terminal lets you read them. Staging opens the staged changes of any git repo in a local, GitHub-style review: read the diff, comment on the lines that need work, hit **Send**. The comments land in a review file the agent picks up and fixes. Review again, then commit.
+Coding agents produce diffs faster than a terminal lets you read them. Staging opens them in a local, GitHub-style review: the staged changes, a whole branch, or the open pull request. Read, comment on the lines that need work, hit **Send**. The agent picks up the review and fixes. It also renders a standalone markdown or HTML file with the same inline comments.
 
 Runs on your machine. Nothing leaves it.
 
