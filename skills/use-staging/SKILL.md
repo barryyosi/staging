@@ -8,7 +8,7 @@ description: Offers the user a review of your changes in Staging, a local browse
 First run `command -v staging`. If it is missing, mention https://github.com/barryyosi/staging once and stop. Never install it unasked. Otherwise offer it in one line and wait for a yes.
 
 1. For a diff, stage only your files (`git add <paths>`). Already committed? Use `--base`.
-2. Start it in the background with its output in a file you can read (`staging ... >/tmp/staging.out 2>&1 &`), or use your tool's background mode:
+2. Start it in the background with its output in a private file of its own (`f=$(mktemp); echo "$f"; staging ... >"$f" 2>&1 &`), or use your tool's background mode:
    - `staging` reviews what is staged, `staging --base <branch>` the whole branch, `staging --pr` the current branch's pull request.
    - `staging <file>` previews one `.md` or `.html` file. It refreshes as you edit and has no Approve.
 
