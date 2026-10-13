@@ -26,6 +26,7 @@ Keep it concise and practical. Put deep implementation details in code comments 
 - `lib/review-state.js`: on-disk review state (comments, reviewed marks), one file per project under `~/.staging-reviews/`
 - `src/utils/reviewStorage.js`: the client side of that state, the comment lifecycle (pending → sent → file changed) and how staleness is decided
 - `src/style.css`: global styles + theme tokens
+- `skills/use-staging/SKILL.md`: the agent skill users install; update it when CLI flags or send mediums change
 
 ## Development Commands
 ```bash
