@@ -33,13 +33,18 @@ staging notes.md        # preview one markdown / html file
 - Switch between sibling repos and worktrees.
 - VS Code extension in [`vscode-staging/`](vscode-staging).
 
-## Agent setup
+## Agent skill
 
-Add to your agent's instructions (e.g. `CLAUDE.md`):
+[`use-staging`](skills/use-staging/SKILL.md) tells your agent when to offer a review and how to read it back.
 
-```markdown
-After a task: `git add` the changes, run `staging`, address the review.
+```bash
+npx skills add barryyosi/staging -g   # Claude Code, Codex, Cursor, ...
+
+# or, for Claude Code, link your clone so the skill updates with staging
+mkdir -p ~/.claude/skills && ln -s "$(npm root -g)/staging/skills/use-staging" ~/.claude/skills/
 ```
+
+Under the arrow next to **Send to Agent**, switch on **CLI Stdout**: when your agent started `staging`, the review goes straight back to it.
 
 ## Config
 
