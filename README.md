@@ -38,11 +38,13 @@ staging notes.md        # preview one markdown / html file
 [`use-staging`](skills/use-staging/SKILL.md) tells your agent when to offer a review and how to read it back.
 
 ```bash
-npx skills add barryyosi/staging                 # Claude Code, Codex, Cursor, ...
-ln -s "$PWD/skills/use-staging" ~/.claude/skills/ # or link it from your clone, so it updates with staging
+npx skills add barryyosi/staging -g   # Claude Code, Codex, Cursor, ...
+
+# or, for Claude Code, link your clone so the skill updates with staging
+mkdir -p ~/.claude/skills && ln -s "$(npm root -g)/staging/skills/use-staging" ~/.claude/skills/
 ```
 
-In the Send menu, tick **CLI Stdout**: the review then goes straight back to the agent.
+Under the arrow next to **Send to Agent**, switch on **CLI Stdout**: when your agent started `staging`, the review goes straight back to it.
 
 ## Config
 
